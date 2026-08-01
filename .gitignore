@@ -8,6 +8,9 @@ cmake-build-*/
 *.dylib
 *.so
 
+# --- Compiled tools ---
+/probe/sidprobe
+
 # --- Plugin binaries ---
 *.vst3
 *.component
