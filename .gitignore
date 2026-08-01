@@ -1,0 +1,50 @@
+# --- Build output ---
+build/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.dylib
+*.so
+
+# --- Plugin binaries ---
+*.vst3
+*.component
+*.app
+
+# --- CMake ---
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+_deps/
+
+# --- JUCE ---
+# Keep .jucer project files; ignore generated Builds/ and the local SDK checkout.
+Builds/
+JuceLibraryCode/
+/JUCE/
+
+# --- Xcode ---
+*.xcodeproj/*
+!*.xcodeproj/project.pbxproj
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- IDEs ---
+.idea/
+.vscode/
+*.swp
+
+# --- Claude Code ---
+/.claude/
+CLAUDE.md
+
+# --- Elektron user manual (copyrighted; do not publish) ---
+temp/
