@@ -76,7 +76,11 @@ private:
     void timerCallback() override;
     void midiPatchReceived(const sidstation::Patch& patch,
                            const sidstation::Bytes& raw) override;
-    void queueDirectProgram(const sidstation::ParamInfo& info, int value);
+    // Builds the MIDI message that sets `p` to `value`: a CC when the parameter
+    // has one (the working path on this firmware), otherwise a best-effort
+    // Direct-Program SysEx.
+    juce::MidiMessage messageForParam(const sidstation::ParamInfo& p, int value);
+    void queueParamChange(const sidstation::ParamInfo& info, int value);
     void renderVoiceAction(const sidstation::VoiceAction& action);
 
     juce::AudioProcessorValueTreeState apvts;

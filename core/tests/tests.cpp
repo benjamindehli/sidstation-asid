@@ -134,9 +134,24 @@ static void testCcMap() {
     CHECK(findParamByCc(102) && findParamByCc(102)->id == "lfo2.addDepth", "CC102 -> lfo2 add depth");
     CHECK(findParamByCc(117) && findParamByCc(117)->id == "lfo4.laceSpeed", "CC117 -> lfo4 lace speed");
 
-    // Building a CC message from a param+value.
+    // Building a CC message from a param+value. A 0..127 param passes through
+    // unchanged (the verified cutoff case).
     const ParamInfo* cutoff = findParamById("filter.cutoff");
     checkBytes("CC message cutoff=64", controlChange(0, *cutoff, 64), Bytes{0xB0, 27, 64});
+    CHECK(ccValue(*cutoff, 42) == 42, "cutoff 42 -> CC 42 (0..127 pass-through)");
+
+    // Booleans send 0 or 127, not the raw 0/1.
+    const ParamInfo* active = findParamById("osc1.active");
+    CHECK(ccValue(*active, 1) == 127 && ccValue(*active, 0) == 0, "bool -> 0/127");
+
+    // A sub-range param scales up onto 0..127.
+    const ParamInfo* attack = findParamById("osc1.attack");  // range 0..15
+    CHECK(ccValue(*attack, 15) == 127 && ccValue(*attack, 0) == 0, "0..15 scales to 0..127");
+
+    // Bipolar centres near 64.
+    const ParamInfo* tr = findParamById("osc1.transpose");  // range -24..24
+    CHECK(ccValue(*tr, 0) == 64, "transpose 0 -> CC 64 (centred)");
+    CHECK(ccValue(*tr, 24) == 127 && ccValue(*tr, -24) == 0, "transpose extremes map to 0/127");
 }
 
 static void testPatchRoundTrip() {

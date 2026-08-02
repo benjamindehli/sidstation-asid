@@ -47,10 +47,11 @@ Bytes encodePatchDump(const Patch& patch) {
     const std::size_t nameLen = std::min(patch.data.size(), Patch::kNameLength);
     for (std::size_t i = 0; i < nameLen; ++i) out.push_back(patch.data[i]);
 
-    // Remaining bytes: high nibble, then low nibble.
+    // Remaining bytes: low nibble first, then high nibble (the order the unit
+    // uses, confirmed against a real OS 1.11 dump).
     for (std::size_t i = Patch::kNameLength; i < patch.data.size(); ++i) {
-        out.push_back(static_cast<Byte>((patch.data[i] >> 4) & 0x0F));
         out.push_back(static_cast<Byte>(patch.data[i] & 0x0F));
+        out.push_back(static_cast<Byte>((patch.data[i] >> 4) & 0x0F));
     }
 
     out.push_back(sysex::kEnd);
@@ -78,10 +79,11 @@ std::optional<Patch> decodePatchDump(const Bytes& msg) {
     // Name: 10 ASCII bytes.
     for (std::size_t k = 0; k < Patch::kNameLength && i < end; ++k, ++i)
         patch.data.push_back(msg[i]);
-    // Remainder: nibble pairs -> bytes.
-    for (; i + 1 < end + 1 && i + 1 <= end; i += 2) {
-        Byte hi = msg[i] & 0x0F;
-        Byte lo = msg[i + 1] & 0x0F;
+    // Remainder: nibble pairs -> bytes. The unit sends the low nibble first,
+    // then the high nibble (confirmed against a real OS 1.11 dump).
+    for (; i + 1 <= end; i += 2) {
+        Byte lo = msg[i] & 0x0F;
+        Byte hi = msg[i + 1] & 0x0F;
         patch.data.push_back(static_cast<Byte>((hi << 4) | lo));
     }
     return patch;

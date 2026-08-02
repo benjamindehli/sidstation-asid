@@ -62,6 +62,9 @@ public:
     // speed (per Elektron's C6 tool, 5-50 ms between packets), so patch/bank
     // transfers must be paced or they silently fail.
     void sendPaced(const std::vector<sidstation::Bytes>& messages, int delayMs);
+    // Same idea for a list of arbitrary MIDI messages (used to pace a full CC
+    // parameter push).
+    void sendPacedMessages(const std::vector<juce::MidiMessage>& messages, int delayMs);
 
 private:
     void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage&) override;

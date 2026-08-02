@@ -3,12 +3,15 @@
 #include <cmath>
 
 #include "PluginEditor.h"
+#include "sidstation/ControllerMap.h"
 #include "sidstation/DirectProgram.h"
 #include "sidstation/SyxFile.h"
 
 using namespace sidstation;
 
 namespace {
+// The SidStation's MIDI base channel (1..16). Its default is 1.
+constexpr int kBaseChannel = 1;
 // A neutral default: 0 where it's in range, otherwise the nearest bound.
 int defaultFor(const ParamInfo& p) {
     return juce::jlimit(p.minValue, p.maxValue, 0);
@@ -60,10 +63,17 @@ bool SidStationAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts
     return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
 }
 
-void SidStationAudioProcessor::queueDirectProgram(const ParamInfo& info, int value) {
-    Bytes dp = directProgramFor(info, value);  // full F0..F7
-    auto msg = juce::MidiMessage::createSysExMessage(dp.data() + 1,
-                                                     static_cast<int>(dp.size()) - 2);
+juce::MidiMessage SidStationAudioProcessor::messageForParam(const ParamInfo& p, int value) {
+    if (p.cc >= 0)
+        return juce::MidiMessage::controllerEvent(kBaseChannel, p.cc, ccValue(p, value));
+    // No CC: fall back to Direct Program (does nothing on OS 1.11, harmless).
+    Bytes dp = directProgramFor(p, value);
+    return juce::MidiMessage::createSysExMessage(dp.data() + 1,
+                                                 static_cast<int>(dp.size()) - 2);
+}
+
+void SidStationAudioProcessor::queueParamChange(const ParamInfo& info, int value) {
+    auto msg = messageForParam(info, value);
     const juce::SpinLock::ScopedLockType sl(pendingLock);
     pending.add(msg);
 }
@@ -73,16 +83,16 @@ void SidStationAudioProcessor::parameterChanged(const juce::String& parameterID,
     if (suppressSending.load()) return;
     auto it = idToInfo.find(parameterID.toStdString());
     if (it == idToInfo.end()) return;
-    queueDirectProgram(*it->second, static_cast<int>(std::lround(newValue)));
+    queueParamChange(*it->second, static_cast<int>(std::lround(newValue)));
 }
 
 void SidStationAudioProcessor::sendAllParameters() {
-    // A full parameter push is a bulk transfer - pace it so the unit keeps up.
-    std::vector<Bytes> msgs;
+    // A full parameter push is a bulk transfer, pace it so the unit keeps up.
+    std::vector<juce::MidiMessage> msgs;
     for (const auto& p : parameters())
         if (auto* param = apvts.getRawParameterValue(S(p.id)))
-            msgs.push_back(directProgramFor(p, static_cast<int>(std::lround(param->load()))));
-    midiHub.sendPaced(msgs, 15);
+            msgs.push_back(messageForParam(p, static_cast<int>(std::lround(param->load()))));
+    midiHub.sendPacedMessages(msgs, 15);
 }
 
 void SidStationAudioProcessor::sendSyxToUnit(const Bytes& data) {
@@ -116,20 +126,18 @@ SidStationAudioProcessor::takeReceivedPatch() {
 
 void SidStationAudioProcessor::renderVoiceAction(const VoiceAction& a) {
     if (a.oscillator < 0 || a.oscillator > 2) return;
-    // Trigger the SID envelope on the base channel. Since the driven
-    // oscillators are put into fixed-note mode, this note only gates them.
-    constexpr int kTriggerChannel = 1;
+    // Set the oscillator's fixed note (CC where available) and gate it with a
+    // note on the base channel. NOTE: this per-oscillator play path is the piece
+    // that really wants ASID register streaming, which is the planned home for
+    // the three-voice engine. This CC-based version is a placeholder to build on.
     const juce::SpinLock::ScopedLockType sl(pendingLock);
     if (a.gateOn) {
-        if (const auto* p = oscPitch[a.oscillator]) {
-            Bytes dp = directProgramFor(*p, a.sidNote);  // set OSC_TRACK fixed note
-            pending.add(juce::MidiMessage::createSysExMessage(
-                dp.data() + 1, static_cast<int>(dp.size()) - 2));
-        }
-        pending.add(juce::MidiMessage::noteOn(kTriggerChannel, a.midiNote,
+        if (const auto* p = oscPitch[a.oscillator])
+            pending.add(messageForParam(*p, a.sidNote));
+        pending.add(juce::MidiMessage::noteOn(kBaseChannel, a.midiNote,
                                               static_cast<juce::uint8>(a.velocity)));
     } else {
-        pending.add(juce::MidiMessage::noteOff(kTriggerChannel, a.midiNote));
+        pending.add(juce::MidiMessage::noteOff(kBaseChannel, a.midiNote));
     }
 }
 

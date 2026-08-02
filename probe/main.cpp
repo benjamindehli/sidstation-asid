@@ -19,6 +19,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -30,6 +32,14 @@
 #include "sidstation/Patch.h"
 
 using namespace sidstation;
+
+// ---------------------------------------------------------------------------
+// Received-SysEx capture buffer. Incoming messages arrive on the MIDI thread,
+// the REPL saves them from the main thread, so guard with a mutex.
+// ---------------------------------------------------------------------------
+static std::mutex g_rxMutex;
+static Bytes g_rxAll;      // every received SysEx byte, in order, ready to save
+static int   g_rxCount;    // number of complete SysEx messages captured
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -50,6 +60,11 @@ static std::string lower(std::string s) {
 // Decodes and prints an incoming SysEx message (called from the MIDI thread on
 // macOS). Kept dependency-light and self-contained.
 [[maybe_unused]] static void printIncoming(const Bytes& msg) {
+    {
+        std::lock_guard<std::mutex> lock(g_rxMutex);
+        g_rxAll.insert(g_rxAll.end(), msg.begin(), msg.end());
+        ++g_rxCount;
+    }
     std::printf("\n<-- RX %zu bytes: %s\n", msg.size(), toHex(msg).c_str());
 
     if (auto patch = decodePatchDump(msg)) {
@@ -221,11 +236,15 @@ static void printHelp() {
         "  off  <note> [ch]           note off\n"
         "  raw  <hex> [hex...]        send raw bytes, e.g. raw F0 00 20 3C 01 00 03 F7\n"
         "  skip                       send Skip-Patch (advance patch position)\n"
+        "  rxinfo                     show how much SysEx has been captured\n"
+        "  save <path.syx>            write all captured SysEx to a .syx file\n"
+        "  clearrx                    clear the capture buffer\n"
         "  help                       this help\n"
         "  quit                       exit\n"
-        "\nTip: dump a patch FROM the unit using its front panel; incoming SysEx is\n"
-        "decoded automatically. (Patch all-clear is intentionally omitted - it wipes\n"
-        "patch memory; use `raw` deliberately if you really need it.)\n");
+        "\nTip: dump a patch FROM the unit using its front panel, incoming SysEx is\n"
+        "decoded and captured automatically, then `save before.syx`. (Patch all-clear\n"
+        "is intentionally omitted, it wipes patch memory, use `raw` if you really\n"
+        "need it.)\n");
 }
 
 // Executes one command. Returns false to quit.
@@ -297,6 +316,33 @@ static bool runCommand(MidiBackend& midi, const std::vector<std::string>& tk) {
         Bytes msg = encodeSkipPatch();
         std::printf("skip ->  %s\n", toHex(msg).c_str());
         midi.send(msg);
+        return true;
+    }
+
+    if (cmd == "rxinfo") {
+        std::lock_guard<std::mutex> lock(g_rxMutex);
+        std::printf("captured %d SysEx message(s), %zu bytes\n", g_rxCount, g_rxAll.size());
+        return true;
+    }
+
+    if (cmd == "clearrx") {
+        std::lock_guard<std::mutex> lock(g_rxMutex);
+        g_rxAll.clear();
+        g_rxCount = 0;
+        std::printf("capture buffer cleared\n");
+        return true;
+    }
+
+    if (cmd == "save") {
+        if (tk.size() < 2) { std::printf("usage: save <path.syx>\n"); return true; }
+        std::lock_guard<std::mutex> lock(g_rxMutex);
+        if (g_rxAll.empty()) { std::printf("nothing captured yet\n"); return true; }
+        std::ofstream os(tk[1], std::ios::binary);
+        if (!os) { std::printf("cannot open '%s' for writing\n", tk[1].c_str()); return true; }
+        os.write(reinterpret_cast<const char*>(g_rxAll.data()),
+                 static_cast<std::streamsize>(g_rxAll.size()));
+        std::printf("saved %d message(s), %zu bytes to %s\n", g_rxCount, g_rxAll.size(),
+                    tk[1].c_str());
         return true;
     }
 

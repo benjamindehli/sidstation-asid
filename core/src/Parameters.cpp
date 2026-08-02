@@ -19,25 +19,25 @@ void add(std::vector<ParamInfo>& t, ParamInfo p) { t.push_back(std::move(p)); }
 ParamInfo cont(std::string id, std::string name, std::string group,
                std::uint16_t pos, Byte mask, Byte shift, int lo, int hi, int cc = -1) {
     return {std::move(id), std::move(name), std::move(group),
-            DpAddress{pos, mask, shift}, lo, hi, ParamKind::Continuous, cc};
+            DpAddress{pos, mask, shift}, lo, hi, ParamKind::Continuous, cc, {}};
 }
 ParamInfo boolp(std::string id, std::string name, std::string group,
                 std::uint16_t pos, Byte shift, int cc = -1) {
     return {std::move(id), std::move(name), std::move(group),
-            DpAddress{pos, 0x01, shift}, 0, 1, ParamKind::Bool, cc};
+            DpAddress{pos, 0x01, shift}, 0, 1, ParamKind::Bool, cc, {}};
 }
 ParamInfo enump(std::string id, std::string name, std::string group,
                 std::uint16_t pos, Byte mask, Byte shift, int hi, int cc = -1,
                 std::vector<EnumChoice> choices = {}) {
     ParamInfo p{std::move(id), std::move(name), std::move(group),
-                DpAddress{pos, mask, shift}, 0, hi, ParamKind::Enum, cc};
+                DpAddress{pos, mask, shift}, 0, hi, ParamKind::Enum, cc, {}};
     p.choices = std::move(choices);
     return p;
 }
 ParamInfo bip(std::string id, std::string name, std::string group,
               std::uint16_t pos, int lo, int hi, int cc = -1) {
     return {std::move(id), std::move(name), std::move(group),
-            DpAddress{pos, 0x7F, 0}, lo, hi, ParamKind::Bipolar, cc};
+            DpAddress{pos, 0x7F, 0}, lo, hi, ParamKind::Bipolar, cc, {}};
 }
 
 std::vector<ParamInfo> build() {
