@@ -6,7 +6,7 @@
 juce_add_plugin(SidStationAsid
     PRODUCT_NAME              "SidStation ASID"
     COMPANY_NAME              "${SID_COMPANY}"
-    BUNDLE_ID                 "no.dehlimusikk.sidstationasid"
+    BUNDLE_ID                 "com.dehlimusikk.sidstationasid"
     PLUGIN_MANUFACTURER_CODE  ${SID_MANUFACTURER_CODE}
     PLUGIN_CODE               Asid
     FORMATS                   AU VST3 Standalone

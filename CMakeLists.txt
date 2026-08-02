@@ -18,7 +18,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Shared plugin identity. The company name is what groups both plugins under
 # DehliMusikk in a DAW's plugin list, and both share one manufacturer code.
 set(SID_COMPANY "DehliMusikk")
-set(SID_MANUFACTURER_CODE "Dmsk")
+set(SID_MANUFACTURER_CODE "Dhmk")
 
 include(FetchContent)
 FetchContent_Declare(JUCE

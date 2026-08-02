@@ -6,7 +6,7 @@
 juce_add_plugin(SidStationEditor
     PRODUCT_NAME              "SidStation Editor"
     COMPANY_NAME              "${SID_COMPANY}"
-    BUNDLE_ID                 "no.dehlimusikk.sidstationeditor"
+    BUNDLE_ID                 "com.dehlimusikk.sidstationeditor"
     PLUGIN_MANUFACTURER_CODE  ${SID_MANUFACTURER_CODE}
     PLUGIN_CODE               Sid1
     FORMATS                   AU VST3 Standalone
