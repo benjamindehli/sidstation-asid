@@ -30,9 +30,11 @@ public:
     std::vector<Bytes> start();
     std::vector<Bytes> stop();
 
-    // Note events, channel 0/1/2 -> voice 0/1/2. Returns the ASID update to
-    // send, or an empty vector when nothing changed.
-    Bytes noteOn(int channel, int midiNote, int velocity);
+    // Note on emits a hard restart: a gate-release frame, then a note-on frame.
+    // The two frames must be sent on separate SID frames (the caller paces them),
+    // which is what reliably triggers the envelope on this unit.
+    std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
+    // Note off returns the single gate-off (or legato re-pitch) update.
     Bytes noteOff(int channel, int midiNote);
 
     // Minimal live controls. Each returns the ASID update to send.

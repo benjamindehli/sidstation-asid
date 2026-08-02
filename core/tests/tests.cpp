@@ -408,12 +408,13 @@ static void testAsidPlayer() {
     CHECK(!s.empty() && s[0].front() == 0xF0 && s[0].back() == 0xF7, "start update framed");
 
     // Per-channel mode (default): channel 0 note drives voice 0 (control reg 4).
-    Bytes u = p.noteOn(0, 69, 100);
-    CHECK(!u.empty() && u.front() == 0xF0 && u.back() == 0xF7, "noteOn update is framed");
+    auto frames = p.noteOn(0, 69, 100);
+    CHECK(frames.size() == 2, "note on emits a hard restart: release then trigger");
+    CHECK(frames[0].front() == 0xF0 && frames[1].back() == 0xF7, "both frames are framed");
     const std::uint16_t f = sidFrequency(69);
     CHECK(p.state().reg[0] == (f & 0xFF) && p.state().reg[1] == ((f >> 8) & 0xFF),
           "voice 0 frequency registers set from the note");
-    CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on");
+    CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on after the trigger frame");
     p.noteOff(0, 69);
     CHECK((p.state().reg[4] & sid::kGate) == 0, "voice 0 gated off");
 

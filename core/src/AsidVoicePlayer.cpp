@@ -71,9 +71,27 @@ Bytes AsidVoicePlayer::applyActions(const std::vector<VoiceAction>& actions) {
     return w.empty() ? Bytes{} : encodeAsidUpdate(w);
 }
 
-Bytes AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
+std::vector<Bytes> AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
     const int ch = (targetVoice >= 0) ? targetVoice : channel;  // force to target voice
-    return applyActions(alloc.noteOn(ch, midiNote, velocity));
+    std::vector<Bytes> frames;
+    for (const auto& a : alloc.noteOn(ch, midiNote, velocity)) {
+        if (a.oscillator < 0 || a.oscillator > 2) continue;
+        const int base = SidState::voiceBase(a.oscillator);
+        // Frame 1: release the gate to reset the envelope.
+        sidState.setGate(a.oscillator, false);
+        frames.push_back(encodeAsidUpdate(
+            {{static_cast<Byte>(base + 4), sidState.reg[base + 4]}}));
+        // Frame 2: set the note and gate on. Control (with the gate) sorts last.
+        sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote, clockHz));
+        sidState.setGate(a.oscillator, true);
+        frames.push_back(encodeAsidUpdate({
+            {static_cast<Byte>(base + 0), sidState.reg[base + 0]},
+            {static_cast<Byte>(base + 1), sidState.reg[base + 1]},
+            {static_cast<Byte>(base + 5), sidState.reg[base + 5]},
+            {static_cast<Byte>(base + 6), sidState.reg[base + 6]},
+            {static_cast<Byte>(base + 4), sidState.reg[base + 4]}}));
+    }
+    return frames;
 }
 
 Bytes AsidVoicePlayer::noteOff(int channel, int midiNote) {
