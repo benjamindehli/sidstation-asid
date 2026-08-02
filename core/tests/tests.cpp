@@ -9,6 +9,8 @@
 #include "sidstation/DirectProgram.h"
 #include "sidstation/Parameters.h"
 #include "sidstation/Patch.h"
+#include "sidstation/Asid.h"
+#include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/SysExStream.h"
 #include "sidstation/SyxFile.h"
 #include "sidstation/VoiceEngine.h"
@@ -356,6 +358,79 @@ static void testVoiceEngine() {
     CHECK(all.size() == 2, "allNotesOff releases both sounding voices");
 }
 
+static void testAsid() {
+    // Command messages.
+    checkBytes("ASID start", encodeAsidStart(), Bytes{0xF0, 0x2D, 0x4C, 0xF7});
+    checkBytes("ASID stop", encodeAsidStop(), Bytes{0xF0, 0x2D, 0x4D, 0xF7});
+    checkBytes("ASID LCD", encodeAsidLcd("Hi"), Bytes{0xF0, 0x2D, 0x4F, 'H', 'i', 0xF7});
+
+    // Slot mapping (from the spec / vap regid.h).
+    CHECK(asidSlotForRegister(0x00) == 0, "reg 0 -> slot 0");
+    CHECK(asidSlotForRegister(0x05) == 4, "reg 5 -> slot 4");
+    CHECK(asidSlotForRegister(0x04) == 22, "voice1 control reg 0x04 -> slot 22");
+    CHECK(asidSlotForRegister(0x0B) == 23, "voice2 control reg 0x0B -> slot 23");
+    CHECK(asidSlotForRegister(0x12) == 24, "voice3 control reg 0x12 -> slot 24");
+    CHECK(asidSlotForRegister(0x18) == 21, "reg 0x18 -> slot 21");
+
+    // Update with two low registers (voice 1 frequency): slots 0 and 1 -> mask1 = 0x03.
+    checkBytes("ASID update freq lo/hi",
+               encodeAsidUpdate({{0x00, 0x34}, {0x01, 0x12}}),
+               Bytes{0xF0, 0x2D, 0x4E, 0x03, 0x00, 0x00, 0x00,  // mask
+                     0x00, 0x00, 0x00, 0x00,                    // msb
+                     0x34, 0x12, 0xF7});                        // data
+
+    // A value with the 8th bit set must show up in the msb byte, data carries 7 bits.
+    // reg 0x16 is slot 19 -> byte 2, bit 5 (mask/msb byte index 2 = 0x20).
+    checkBytes("ASID update msb bit",
+               encodeAsidUpdate({{0x16, 0xC0}}),
+               Bytes{0xF0, 0x2D, 0x4E, 0x00, 0x00, 0x20, 0x00,  // mask
+                     0x00, 0x00, 0x20, 0x00,                    // msb
+                     0x40, 0xF7});                              // data (0xC0 & 0x7F)
+
+    // Note to SID frequency: A4 (MIDI 69) is about 7493 on the PAL clock.
+    CHECK(sidFrequency(69) >= 7492 && sidFrequency(69) <= 7494, "A4 -> ~7493 SID freq");
+    CHECK(sidFrequency(69 + 12) > sidFrequency(69) * 1.9, "octave up roughly doubles freq");
+
+    // SidState helpers land in the right registers.
+    SidState s;
+    s.setFrequency(1, 0x1234);          // voice 2 -> regs 7,8
+    s.setWaveform(0, sid::kPulse);
+    s.setGate(0, true);                 // voice 1 control reg 4
+    CHECK(s.reg[7] == 0x34 && s.reg[8] == 0x12, "voice2 frequency registers");
+    CHECK(s.reg[4] == (sid::kPulse | sid::kGate), "voice1 control = pulse + gate");
+    CHECK(s.fullUpdate().front() == 0xF0 && s.fullUpdate().back() == 0xF7, "full update framed");
+}
+
+static void testAsidPlayer() {
+    AsidVoicePlayer p;
+    auto s = p.start();
+    CHECK(s.size() == 2, "start returns start-cmd plus full state");
+    CHECK(s[0] == encodeAsidStart(), "start[0] is ASID start command");
+
+    // Channel 0 note drives voice 0 (control register index 4).
+    Bytes u = p.noteOn(0, 69, 100);
+    CHECK(!u.empty() && u.front() == 0xF0 && u.back() == 0xF7, "noteOn update is framed");
+    const std::uint16_t f = sidFrequency(69);
+    CHECK(p.state().reg[0] == (f & 0xFF) && p.state().reg[1] == ((f >> 8) & 0xFF),
+          "voice 0 frequency registers set from the note");
+    CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on");
+
+    // Channel 1 note drives voice 2 (control register index 11).
+    p.noteOn(1, 60, 100);
+    CHECK((p.state().reg[11] & sid::kGate) != 0, "voice 1 gated on");
+
+    // Only three voices, channel 3 is ignored.
+    CHECK(p.noteOn(3, 64, 100).empty(), "channel 3 ignored");
+
+    // Note off clears that voice's gate.
+    p.noteOff(0, 69);
+    CHECK((p.state().reg[4] & sid::kGate) == 0, "voice 0 gated off");
+
+    // A global control produces a framed update and stores the value.
+    CHECK(p.setVolume(10).front() == 0xF0, "setVolume update framed");
+    CHECK((p.state().reg[24] & 0x0F) == 10, "volume stored in low nibble of reg 0x18");
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -367,6 +442,8 @@ int main() {
     testSysExAssembler();
     testSyxAndLibrary();
     testVoiceEngine();
+    testAsid();
+    testAsidPlayer();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

@@ -52,7 +52,7 @@ private:
     juce::TextButton saveReceivedButton{"Save Received..."};
     juce::Label   statusLabel;
 
-    juce::ToggleButton voicePlayButton{"3-Voice Play (MIDI ch 1/2/3 to Osc 1/2/3)"};
+    juce::ToggleButton asidButton{"ASID Play (3 voices, MIDI ch 1/2/3 to SID voices 1/2/3)"};
 
     // One selectable patch in the library (flattened across all .syx files in
     // the folder, so a bank of 100 shows as 100 sendable patches).

@@ -20,7 +20,7 @@ LibrarianComponent::LibrarianComponent(SidStationAudioProcessor& p) : proc(p) {
     addAndMakeVisible(sendEditorButton);
     addAndMakeVisible(saveReceivedButton);
     addAndMakeVisible(statusLabel);
-    addAndMakeVisible(voicePlayButton);
+    addAndMakeVisible(asidButton);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -39,10 +39,8 @@ LibrarianComponent::LibrarianComponent(SidStationAudioProcessor& p) : proc(p) {
     saveReceivedButton.onClick = [this] { saveReceived(); };
     saveReceivedButton.setEnabled(false);
 
-    voicePlayButton.setToggleState(proc.isVoicePlayEnabled(), juce::dontSendNotification);
-    voicePlayButton.onClick = [this] {
-        proc.setVoicePlayEnabled(voicePlayButton.getToggleState());
-    };
+    asidButton.setToggleState(proc.isAsidMode(), juce::dontSendNotification);
+    asidButton.onClick = [this] { proc.setAsidMode(asidButton.getToggleState()); };
 
     patchList.setModel(this);
     patchList.setRowHeight(22);
@@ -193,7 +191,7 @@ void LibrarianComponent::resized() {
     folderLabel.setBounds(row2);
 
     r.removeFromTop(10);
-    voicePlayButton.setBounds(r.removeFromTop(24));
+    asidButton.setBounds(r.removeFromTop(24));
 
     r.removeFromTop(10);
     auto buttons = r.removeFromBottom(30);

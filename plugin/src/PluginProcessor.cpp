@@ -44,10 +44,7 @@ SidStationAudioProcessor::SidStationAudioProcessor()
         apvts.addParameterListener(S(p.id), this);
     }
     midiHub.setListener(this);
-    oscPitch[0] = findParamById("osc1.pitchTrack");
-    oscPitch[1] = findParamById("osc2.pitchTrack");
-    oscPitch[2] = findParamById("osc3.pitchTrack");
-    startTimer(15);  // drain queued Direct-Program edits to the device
+    startTimer(15);  // drain queued edits to the device
 }
 
 SidStationAudioProcessor::~SidStationAudioProcessor() {
@@ -124,39 +121,39 @@ SidStationAudioProcessor::takeReceivedPatch() {
     return out;
 }
 
-void SidStationAudioProcessor::renderVoiceAction(const VoiceAction& a) {
-    if (a.oscillator < 0 || a.oscillator > 2) return;
-    // Set the oscillator's fixed note (CC where available) and gate it with a
-    // note on the base channel. NOTE: this per-oscillator play path is the piece
-    // that really wants ASID register streaming, which is the planned home for
-    // the three-voice engine. This CC-based version is a placeholder to build on.
+void SidStationAudioProcessor::queueAsid(const Bytes& asidMessage) {
+    if (asidMessage.size() < 2) return;
+    auto msg = juce::MidiMessage::createSysExMessage(
+        asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2);
     const juce::SpinLock::ScopedLockType sl(pendingLock);
-    if (a.gateOn) {
-        if (const auto* p = oscPitch[a.oscillator])
-            pending.add(messageForParam(*p, a.sidNote));
-        pending.add(juce::MidiMessage::noteOn(kBaseChannel, a.midiNote,
-                                              static_cast<juce::uint8>(a.velocity)));
-    } else {
-        pending.add(juce::MidiMessage::noteOff(kBaseChannel, a.midiNote));
-    }
+    pending.add(msg);
 }
 
 void SidStationAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                             juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
 
-    // Three voice play: translate incoming notes into per-oscillator pitch and
-    // gate, queued for the drain timer to send to the device.
-    if (voicePlayEnabled.load()) {
+    // Apply a pending ASID mode start/stop request (audio thread owns the player).
+    if (const int req = asidRequest.exchange(0)) {
+        if (req == 1) {
+            asidPlayer.reset();
+            asidMode.store(true);
+            for (const auto& msg : asidPlayer.start()) queueAsid(msg);
+        } else {
+            asidMode.store(false);
+            for (const auto& msg : asidPlayer.stop()) queueAsid(msg);
+        }
+    }
+
+    // ASID play: notes on channels 1/2/3 drive SID voices 1/2/3 directly.
+    if (asidMode.load()) {
         for (const auto meta : midiMessages) {
             const auto m = meta.getMessage();
             const int ch = m.getChannel() - 1;  // JUCE channels are 1..16
             if (m.isNoteOn())
-                for (const auto& a : voiceEngine.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
-                    renderVoiceAction(a);
+                queueAsid(asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()));
             else if (m.isNoteOff())
-                for (const auto& a : voiceEngine.noteOff(ch, m.getNoteNumber()))
-                    renderVoiceAction(a);
+                queueAsid(asidPlayer.noteOff(ch, m.getNoteNumber()));
         }
     }
 

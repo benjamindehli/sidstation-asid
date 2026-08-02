@@ -14,8 +14,8 @@
 #include <unordered_map>
 
 #include "MidiHub.h"
+#include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Parameters.h"
-#include "sidstation/VoiceEngine.h"
 
 class SidStationAudioProcessor : public juce::AudioProcessor,
                                  private juce::AudioProcessorValueTreeState::Listener,
@@ -65,10 +65,11 @@ public:
     // nullopt if none has arrived since the last call.
     std::optional<ReceivedPatch> takeReceivedPatch();
 
-    // Three voice play mode. When on, incoming MIDI on channels 1, 2, 3 drives
-    // oscillators 1, 2, 3 as separate monophonic voices.
-    void setVoicePlayEnabled(bool on) { voicePlayEnabled.store(on); }
-    bool isVoicePlayEnabled() const { return voicePlayEnabled.load(); }
+    // ASID play mode. When on, the unit is switched into ASID and incoming MIDI
+    // on channels 1, 2, 3 drives SID voices 1, 2, 3 directly. Requests are
+    // applied on the audio thread so the player is only touched there.
+    void setAsidMode(bool on) { asidRequest.store(on ? 1 : 2); }
+    bool isAsidMode() const { return asidMode.load(); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
@@ -81,16 +82,16 @@ private:
     // Direct-Program SysEx.
     juce::MidiMessage messageForParam(const sidstation::ParamInfo& p, int value);
     void queueParamChange(const sidstation::ParamInfo& info, int value);
-    void renderVoiceAction(const sidstation::VoiceAction& action);
+    void queueAsid(const sidstation::Bytes& asidMessage);
 
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;
 
-    // Three voice play state. The engine runs on the audio thread in
-    // processBlock. oscPitch caches the OSC_TRACK parameter for each oscillator.
-    sidstation::VoiceEngine voiceEngine;
-    std::atomic<bool> voicePlayEnabled{false};
-    const sidstation::ParamInfo* oscPitch[3]{nullptr, nullptr, nullptr};
+    // ASID play state. The player is only touched on the audio thread in
+    // processBlock. setAsidMode posts a request (1 start, 2 stop) applied there.
+    sidstation::AsidVoicePlayer asidPlayer;
+    std::atomic<bool> asidMode{false};
+    std::atomic<int> asidRequest{0};
 
     std::unordered_map<std::string, const sidstation::ParamInfo*> idToInfo;
 
