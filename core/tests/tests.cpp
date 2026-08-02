@@ -441,6 +441,10 @@ static void testAsidPlayer() {
     CHECK(p.state().reg[2] == 0x00 && p.state().reg[3] == 0x08, "pulse width split 12-bit");
     p.setFilterRouting(0, true);
     CHECK((p.state().reg[23] & sid::kFilt1) != 0, "voice 0 routed through filter");
+    // Whole resonance+routing register at once (shared routing bits).
+    p.setResonanceRouting(9, 0x05);
+    CHECK((p.state().reg[23] >> 4) == 9, "resonance in high nibble of reg 0x17");
+    CHECK((p.state().reg[23] & 0x0F) == 0x05, "full routing bits written together");
     p.setWaveform(0, sid::kPulse);
     CHECK((p.state().reg[4] & 0xF0) == sid::kPulse, "waveform bits set on control register");
     p.setSync(0, true);

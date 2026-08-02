@@ -62,7 +62,19 @@ public:
         return -1;
     }
 
+    // The filter routing register holds one bit per voice, all in one shared
+    // register. Each instance sets its own voice's bit here so any instance can
+    // write the full byte without wiping the others.
+    void setRoutingBit(int voice, bool on) {
+        if (voice < 0 || voice > 2) return;
+        const int bit = 1 << voice;  // voice 0/1/2 -> bit 1/2/4
+        int r = routing.load();
+        r = on ? (r | bit) : (r & ~bit);
+        routing.store(r);
+    }
+
     std::atomic<int> cutoff{2047}, resonance{0}, mode{0}, volume{15};
+    std::atomic<int> routing{0};
     std::atomic<bool> hasData{false};
 
 private:

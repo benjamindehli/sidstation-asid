@@ -15,7 +15,6 @@
 #include "sidstation/AsidVoicePlayer.h"
 
 class AsidProcessor : public juce::AudioProcessor,
-                      private juce::Timer,
                       private juce::AudioProcessorValueTreeState::Listener,
                       private AsidShared::Client {
 public:
@@ -55,8 +54,9 @@ public:
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
-    void timerCallback() override;
-    void queueAsid(const sidstation::Bytes& asidMessage);
+    // Sends one ASID frame to the device now (from processBlock, for tight
+    // timing across instances). Each change is sent twice to flush it in.
+    void sendAsid(const sidstation::Bytes& asidMessage);
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
     int paramInt(const char* id) const;
@@ -70,9 +70,6 @@ private:
     MidiHub midiHub;
     sidstation::AsidVoicePlayer asidPlayer;
     std::atomic<bool> initRequest{true};  // send full state on first block / device open
-
-    juce::SpinLock pendingLock;
-    juce::Array<juce::MidiMessage> pending;
 
     // Last control values sent, for change detection on the audio thread.
     struct Sent {

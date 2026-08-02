@@ -47,6 +47,9 @@ public:
     Bytes setAttackDecay(int voice, int attack0to15, int decay0to15);
     Bytes setSustainRelease(int voice, int sustain0to15, int release0to15);
     Bytes setFilterRouting(int voice, bool routeThroughFilter);
+    // Writes the whole resonance and routing register (0x17) at once. The
+    // routing bits are shared by all voices, so the caller passes the full set.
+    Bytes setResonanceRouting(int res0to15, int routingBits0to7);
     Bytes setSync(int voice, bool on);   // hard sync to the next voice's oscillator
     Bytes setRing(int voice, bool on);   // ring modulation with the next voice
 

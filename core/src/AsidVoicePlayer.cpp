@@ -164,6 +164,12 @@ static Bytes setControlBit(SidState& s, int voice, Byte bit, bool on) {
     return encodeAsidUpdate({{static_cast<Byte>(base + 4), s.reg[base + 4]}});
 }
 
+Bytes AsidVoicePlayer::setResonanceRouting(int res0to15, int routingBits0to7) {
+    filterRouting = static_cast<Byte>(routingBits0to7 & 0x0F);
+    sidState.setResonanceRouting(clampNibble(res0to15), filterRouting);
+    return encodeAsidUpdate({{0x17, sidState.reg[23]}});
+}
+
 Bytes AsidVoicePlayer::setSync(int voice, bool on) {
     return setControlBit(sidState, voice, sid::kSync, on);
 }

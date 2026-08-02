@@ -50,7 +50,7 @@ int AsidProcessor::paramInt(const char* id) const {
 void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (voice != sent.voice) { forceAll = true; sent.voice = voice; }
     auto flush = [&](const Bytes& f) {
-        if (!f.empty()) { queueAsid(f); queueAsid(f); }  // send twice to apply
+        if (!f.empty()) { sendAsid(f); sendAsid(f); }  // send twice to apply
     };
 
     static const Byte kWave[4] = {sid::kTriangle, sid::kSaw, sid::kPulse, sid::kNoise};
@@ -77,17 +77,24 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
     if (forceAll || ring != sent.ring) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
+    // Filter routing is chosen per voice but lives in a register shared by all
+    // voices. Set our voice's bit in the shared routing, then write the whole
+    // resonance+routing register so we never wipe the other voices' bits.
     const int route = paramInt("filterRoute");
+    const int res = paramInt("resonance");
+    bool reg17dirty = forceAll;
     if (forceAll || route != sent.route) {
         sent.route = route;
-        flush(asidPlayer.setFilterRouting(voice, route != 0));
+        AsidShared::get().setRoutingBit(voice, route != 0);
+        reg17dirty = true;
     }
+    if (forceAll || res != sent.resonance) { sent.resonance = res; reg17dirty = true; }
+    if (reg17dirty)
+        flush(asidPlayer.setResonanceRouting(res, AsidShared::get().routing.load()));
 
     // Shared controls.
     const int cutoff = paramInt("cutoff");
     if (forceAll || cutoff != sent.cutoff) { sent.cutoff = cutoff; flush(asidPlayer.setCutoff(cutoff)); }
-    const int res = paramInt("resonance");
-    if (forceAll || res != sent.resonance) { sent.resonance = res; flush(asidPlayer.setResonance(res)); }
     const int mode = paramInt("filterMode");
     if (forceAll || mode != sent.mode) {
         sent.mode = mode;
@@ -107,11 +114,11 @@ AsidProcessor::AsidProcessor()
     AsidShared::get().addClient(this);
     // Match the filter and volume of instances that are already open.
     if (AsidShared::get().hasData.load()) sharedUpdated();
-    startTimer(15);  // drain queued ASID frames to the device
 }
 
 AsidProcessor::~AsidProcessor() {
-    stopTimer();
+    // Drop this voice's routing bit so a removed instance stops filtering.
+    AsidShared::get().setRoutingBit(paramInt("asidVoice"), false);
     AsidShared::get().removeClient(this);
     for (const char* id : kSharedIds) apvts.removeParameterListener(id, this);
 }
@@ -144,22 +151,12 @@ bool AsidProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
 }
 
-void AsidProcessor::queueAsid(const Bytes& asidMessage) {
+void AsidProcessor::sendAsid(const Bytes& asidMessage) {
     if (asidMessage.size() < 2) return;
-    auto msg = juce::MidiMessage::createSysExMessage(
-        asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2);
-    const juce::SpinLock::ScopedLockType sl(pendingLock);
-    pending.add(msg);
-}
-
-void AsidProcessor::timerCallback() {
-    juce::Array<juce::MidiMessage> toSend;
-    {
-        const juce::SpinLock::ScopedLockType sl(pendingLock);
-        toSend.swapWith(pending);
-    }
-    for (const auto& m : toSend)
-        midiHub.sendMessage(m);
+    // Sent straight from the audio callback so all instances go out together,
+    // which keeps the voices tight. MidiHub locks its own output briefly.
+    midiHub.sendMessage(juce::MidiMessage::createSysExMessage(
+        asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2));
 }
 
 void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -174,7 +171,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     bool forceControls = false;
     if (initRequest.exchange(false)) {
         asidPlayer.reset();
-        for (const auto& msg : asidPlayer.start()) { queueAsid(msg); queueAsid(msg); }
+        for (const auto& msg : asidPlayer.start()) { sendAsid(msg); sendAsid(msg); }
         forceControls = true;  // push the current control values after the start state
     }
 
@@ -185,10 +182,10 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const int ch = m.getChannel() - 1;
         if (m.isNoteOn())
             for (const auto& frame : asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
-                queueAsid(frame);
+                sendAsid(frame);
         else if (m.isNoteOff())
             for (const auto& frame : asidPlayer.noteOff(ch, m.getNoteNumber()))
-                queueAsid(frame);
+                sendAsid(frame);
     }
 
     buffer.clear();  // sound comes from the hardware
