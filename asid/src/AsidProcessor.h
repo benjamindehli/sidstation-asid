@@ -68,7 +68,8 @@ private:
     // Last control values sent, for change detection on the audio thread.
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
-        int pw = -1, route = -1, cutoff = -1, resonance = -1, mode = -1;
+        int pw = -1, sync = -1, ring = -1, route = -1;
+        int cutoff = -1, resonance = -1, mode = -1, volume = -1;
     } sent;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AsidProcessor)

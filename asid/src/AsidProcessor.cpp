@@ -28,15 +28,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("sustain", "Sustain", 0, 15, 15)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("release", "Release", 0, 15, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("pulseWidth", "Pulse Width", 0, 4095, 2048)));
-
-    // Filter. Cutoff, resonance and mode are shared by all voices; routing is
-    // per voice (whether this instance's voice goes through the filter).
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"sync", 1}, "Sync", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{"filterRoute", 1}, "Route Through Filter", false));
+
+    // Shared across all three voices (one physical SID filter and master volume).
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("cutoff", "Cutoff", 0, 2047, 2047)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("resonance", "Resonance", 0, 15, 0)));
     layout.add(std::make_unique<Choice>(juce::ParameterID{"filterMode", 1}, "Filter Mode",
                                         juce::StringArray{"Low", "Band", "High"}, 0));
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("volume", "Volume", 0, 15, 15)));
     return layout;
 }
 
@@ -71,11 +73,17 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
     const int pw = paramInt("pulseWidth");
     if (forceAll || pw != sent.pw) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
+    const int sync = paramInt("sync");
+    if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
+    const int ring = paramInt("ring");
+    if (forceAll || ring != sent.ring) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
     const int route = paramInt("filterRoute");
     if (forceAll || route != sent.route) {
         sent.route = route;
         flush(asidPlayer.setFilterRouting(voice, route != 0));
     }
+
+    // Shared controls.
     const int cutoff = paramInt("cutoff");
     if (forceAll || cutoff != sent.cutoff) { sent.cutoff = cutoff; flush(asidPlayer.setCutoff(cutoff)); }
     const int res = paramInt("resonance");
@@ -85,6 +93,8 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         sent.mode = mode;
         flush(asidPlayer.setFilterMode(kMode[juce::jlimit(0, 2, mode)]));
     }
+    const int vol = paramInt("volume");
+    if (forceAll || vol != sent.volume) { sent.volume = vol; flush(asidPlayer.setVolume(vol)); }
 }
 
 AsidProcessor::AsidProcessor()

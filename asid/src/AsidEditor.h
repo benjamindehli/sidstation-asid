@@ -36,20 +36,25 @@ private:
     juce::ComboBox voiceBox;
     std::unique_ptr<ComboAtt> voiceAtt;
 
-    // Voice sound.
+    juce::Label voiceHeading{{}, "PER VOICE"};
+    juce::Label sharedHeading{{}, "SHARED (all voices)"};
+
+    // Per-voice sound.
     juce::Label waveLabel{{}, "Waveform:"};
     juce::ComboBox waveformBox;
     std::unique_ptr<ComboAtt> waveformAtt;
+    juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
+    std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
     juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob, pwKnob;
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel, pwLabel;
     std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt, pwAtt;
-
-    // Filter (cutoff/resonance/mode shared, routing per voice).
     juce::ToggleButton routeButton{"Route Through Filter"};
     std::unique_ptr<ButtonAtt> routeAtt;
-    juce::Slider cutoffKnob, resKnob;
-    juce::Label cutoffLabel, resLabel;
-    std::unique_ptr<SliderAtt> cutoffAtt, resAtt;
+
+    // Shared across all three voices.
+    juce::Slider cutoffKnob, resKnob, volumeKnob;
+    juce::Label cutoffLabel, resLabel, volumeLabel;
+    std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt;
     juce::Label modeLabel{{}, "Mode:"};
     juce::ComboBox filterModeBox;
     std::unique_ptr<ComboAtt> filterModeAtt;

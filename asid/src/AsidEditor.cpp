@@ -21,8 +21,18 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(refreshButton);
     addAndMakeVisible(voiceLabel);
     addAndMakeVisible(voiceBox);
+    auto heading = [this](juce::Label& l) {
+        l.setFont(juce::Font(juce::FontOptions().withHeight(13.0f).withStyle("Bold")));
+        l.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.65f));
+        addAndMakeVisible(l);
+    };
+    heading(voiceHeading);
+    heading(sharedHeading);
+
     addAndMakeVisible(waveLabel);
     addAndMakeVisible(waveformBox);
+    addAndMakeVisible(syncButton);
+    addAndMakeVisible(ringButton);
     addAndMakeVisible(routeButton);
     addAndMakeVisible(modeLabel);
     addAndMakeVisible(filterModeBox);
@@ -54,7 +64,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
     setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
+    setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
 
+    syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
+    ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
     routeAtt = std::make_unique<ButtonAtt>(state, "filterRoute", routeButton);
 
     filterModeBox.addItem("Low", 1);
@@ -63,7 +76,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     filterModeAtt = std::make_unique<ComboAtt>(state, "filterMode", filterModeBox);
 
     refreshDevices();
-    setSize(560, 470);
+    setSize(560, 500);
 }
 
 void AsidEditor::refreshDevices() {
@@ -79,13 +92,22 @@ void AsidEditor::refreshDevices() {
 
 void AsidEditor::paint(juce::Graphics& g) {
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-    g.setColour(juce::Colours::white.withAlpha(0.6f));
-    g.setFont(juce::Font(juce::FontOptions().withHeight(13.0f).withStyle("Bold")));
-    g.drawText("VOICE", 14, 150, 200, 18, juce::Justification::centredLeft);
-    g.drawText("FILTER", 14, 320, 200, 18, juce::Justification::centredLeft);
+    // A faint rule under each section heading.
+    g.setColour(juce::Colours::white.withAlpha(0.15f));
+    for (const auto* l : {&voiceHeading, &sharedHeading}) {
+        auto b = l->getBounds();
+        g.fillRect(b.getX(), b.getBottom() - 1, getWidth() - b.getX() - 14, 1);
+    }
 }
 
 void AsidEditor::resized() {
+    auto knobCell = [](juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
+        auto cell = row.removeFromLeft(74);
+        l.setBounds(cell.removeFromTop(14));
+        s.setBounds(cell);
+        row.removeFromLeft(4);
+    };
+
     auto r = getLocalBounds().reduced(14);
     title.setBounds(r.removeFromTop(30));
     r.removeFromTop(6);
@@ -101,35 +123,38 @@ void AsidEditor::resized() {
     voiceLabel.setBounds(row2.removeFromLeft(66));
     voiceBox.setBounds(row2.removeFromLeft(130));
 
-    // Voice section.
-    r.removeFromTop(28);  // leave room for the "VOICE" heading drawn in paint()
+    // Per-voice section.
+    r.removeFromTop(14);
+    voiceHeading.setBounds(r.removeFromTop(18));
+    r.removeFromTop(6);
     auto waveRow = r.removeFromTop(26);
     waveLabel.setBounds(waveRow.removeFromLeft(74));
-    waveformBox.setBounds(waveRow.removeFromLeft(130));
+    waveformBox.setBounds(waveRow.removeFromLeft(128));
+    waveRow.removeFromLeft(16);
+    syncButton.setBounds(waveRow.removeFromLeft(72));
+    ringButton.setBounds(waveRow.removeFromLeft(72));
 
     r.removeFromTop(6);
-    auto knobs = r.removeFromTop(84);
-    auto knobCell = [&](juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
-        auto cell = row.removeFromLeft(72);
-        l.setBounds(cell.removeFromTop(14));
-        s.setBounds(cell);
-        row.removeFromLeft(4);
-    };
-    knobCell(knobs, attackKnob, attackLabel);
-    knobCell(knobs, decayKnob, decayLabel);
-    knobCell(knobs, sustainKnob, sustainLabel);
-    knobCell(knobs, releaseKnob, releaseLabel);
-    knobCell(knobs, pwKnob, pwLabel);
+    auto voiceKnobs = r.removeFromTop(84);
+    knobCell(voiceKnobs, attackKnob, attackLabel);
+    knobCell(voiceKnobs, decayKnob, decayLabel);
+    knobCell(voiceKnobs, sustainKnob, sustainLabel);
+    knobCell(voiceKnobs, releaseKnob, releaseLabel);
+    knobCell(voiceKnobs, pwKnob, pwLabel);
 
-    // Filter section.
-    r.removeFromTop(24);  // "FILTER" heading
-    auto filterRow = r.removeFromTop(84);
-    knobCell(filterRow, cutoffKnob, cutoffLabel);
-    knobCell(filterRow, resKnob, resLabel);
-    auto rest = filterRow;
-    routeButton.setBounds(rest.removeFromTop(24));
-    rest.removeFromTop(6);
-    auto modeRow = rest.removeFromTop(24);
-    modeLabel.setBounds(modeRow.removeFromLeft(46));
-    filterModeBox.setBounds(modeRow.removeFromLeft(110));
+    r.removeFromTop(4);
+    routeButton.setBounds(r.removeFromTop(24).removeFromLeft(180));
+
+    // Shared section.
+    r.removeFromTop(14);
+    sharedHeading.setBounds(r.removeFromTop(18));
+    r.removeFromTop(6);
+    auto sharedKnobs = r.removeFromTop(84);
+    knobCell(sharedKnobs, cutoffKnob, cutoffLabel);
+    knobCell(sharedKnobs, resKnob, resLabel);
+    knobCell(sharedKnobs, volumeKnob, volumeLabel);
+    sharedKnobs.removeFromLeft(12);
+    auto modeCol = sharedKnobs.removeFromLeft(120);
+    modeLabel.setBounds(modeCol.removeFromTop(16));
+    filterModeBox.setBounds(modeCol.removeFromTop(26));
 }

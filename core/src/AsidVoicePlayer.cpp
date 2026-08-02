@@ -154,4 +154,22 @@ Bytes AsidVoicePlayer::setFilterRouting(int voice, bool routeThroughFilter) {
     return encodeAsidUpdate({{0x17, sidState.reg[23]}});
 }
 
+// Sets or clears a control-register bit while keeping the waveform and gate.
+static Bytes setControlBit(SidState& s, int voice, Byte bit, bool on) {
+    if (voice < 0 || voice > 2) return {};
+    const int base = SidState::voiceBase(voice);
+    Byte c = s.control(voice);
+    c = on ? static_cast<Byte>(c | bit) : static_cast<Byte>(c & ~bit);
+    s.setControl(voice, c);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 4), s.reg[base + 4]}});
+}
+
+Bytes AsidVoicePlayer::setSync(int voice, bool on) {
+    return setControlBit(sidState, voice, sid::kSync, on);
+}
+
+Bytes AsidVoicePlayer::setRing(int voice, bool on) {
+    return setControlBit(sidState, voice, sid::kRing, on);
+}
+
 }  // namespace sidstation

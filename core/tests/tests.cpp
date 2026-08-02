@@ -443,6 +443,14 @@ static void testAsidPlayer() {
     CHECK((p.state().reg[23] & sid::kFilt1) != 0, "voice 0 routed through filter");
     p.setWaveform(0, sid::kPulse);
     CHECK((p.state().reg[4] & 0xF0) == sid::kPulse, "waveform bits set on control register");
+    p.setSync(0, true);
+    p.setRing(0, true);
+    CHECK((p.state().reg[4] & sid::kSync) != 0 && (p.state().reg[4] & sid::kRing) != 0,
+          "sync and ring bits set");
+    CHECK((p.state().reg[4] & 0xF0) == sid::kPulse, "sync/ring keep the waveform bits");
+    p.setSync(0, false);
+    CHECK((p.state().reg[4] & sid::kSync) == 0 && (p.state().reg[4] & sid::kRing) != 0,
+          "clearing sync leaves ring set");
 }
 
 int main() {
