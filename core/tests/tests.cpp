@@ -2,12 +2,15 @@
 // Cross-checks encoders against literal byte sequences documented in the
 // SidStation Owners Manual (r22b, OS1.1), pages 39-43.
 #include <cstdio>
+#include <filesystem>
 #include <string>
 
 #include "sidstation/ControllerMap.h"
 #include "sidstation/DirectProgram.h"
 #include "sidstation/Parameters.h"
 #include "sidstation/Patch.h"
+#include "sidstation/SysExStream.h"
+#include "sidstation/SyxFile.h"
 
 using namespace sidstation;
 
@@ -171,6 +174,96 @@ static void testRegistrySanity() {
     }
 }
 
+static Patch makePatch(const std::string& name, std::size_t dataBytes = 143) {
+    Patch p;
+    p.data.resize(dataBytes, 0x00);
+    p.setName(name);
+    for (std::size_t i = Patch::kNameLength; i < p.data.size(); ++i)
+        p.data[i] = static_cast<Byte>((i * 5 + 1) & 0xFF);
+    return p;
+}
+
+static void testSysExAssembler() {
+    // Two messages, with system-realtime bytes interleaved (0xFE between them,
+    // and a 0xF8 injected *inside* the second message's SysEx).
+    Bytes msg1 = encodeDirectProgram(DpAddress{0x1A, 0x7F, 0}, 0x40);
+    Bytes msg2 = encodePatchDump(makePatch("Stream", 30));
+
+    Bytes withRealtime = msg2;
+    withRealtime.insert(withRealtime.begin() + 3, 0xF8);  // clock byte mid-SysEx
+
+    Bytes stream = msg1;
+    stream.push_back(0xFE);  // active sensing between messages
+    stream.insert(stream.end(), withRealtime.begin(), withRealtime.end());
+
+    SysExAssembler a;
+    auto whole = a.feed(stream);
+    ++g_checks;
+    if (whole.size() != 2) { ++g_failures; std::printf("FAIL: assembler count %zu\n", whole.size()); }
+    else {
+        checkBytes("assembler msg1", whole[0], msg1);
+        checkBytes("assembler msg2 (realtime stripped)", whole[1], msg2);
+    }
+
+    // Same stream fed in two chunks: a SysEx split across feeds must survive.
+    SysExAssembler b;
+    std::vector<Bytes> acc;
+    std::size_t cut = msg1.size() + 5;  // mid-way through msg2
+    for (auto& m : b.feed(stream.data(), cut)) acc.push_back(m);
+    for (auto& m : b.feed(stream.data() + cut, stream.size() - cut)) acc.push_back(m);
+    CHECK(acc.size() == 2, "assembler across chunks: 2 messages");
+    if (acc.size() == 2) checkBytes("chunked msg2", acc[1], msg2);
+}
+
+static void testSyxAndLibrary() {
+    namespace fs = std::filesystem;
+    fs::path dir = fs::temp_directory_path() / "sidstation_libtest";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    // Single-patch .syx round-trip.
+    Patch alpha = makePatch("Alpha");
+    std::string aPath = (dir / "a.syx").string();
+    CHECK(savePatchToFile(aPath, alpha), "savePatchToFile");
+    auto loaded = loadPatchFromFile(aPath);
+    CHECK(loaded.has_value(), "loadPatchFromFile");
+    if (loaded) {
+        CHECK(loaded->name() == "Alpha", "syx name round-trip");
+        CHECK(loaded->data == alpha.data, "syx data round-trip");
+    }
+
+    // Bulk stream: two dumps + a skip -> extractPatches finds exactly two.
+    Bytes bulk = encodePatchDump(alpha);
+    Bytes skip = encodeSkipPatch();
+    bulk.insert(bulk.end(), skip.begin(), skip.end());
+    Bytes beta = encodePatchDump(makePatch("Beta"));
+    bulk.insert(bulk.end(), beta.begin(), beta.end());
+    auto extracted = extractPatches(bulk);
+    CHECK(extracted.size() == 2, "extractPatches count (skip ignored)");
+    if (extracted.size() == 2) {
+        CHECK(extracted[0].name() == "Alpha", "bulk patch 0 name");
+        CHECK(extracted[1].name() == "Beta", "bulk patch 1 name");
+    }
+
+    // Folder scan: two .syx + a non-syx file that must be ignored.
+    savePatchToFile((dir / "b.syx").string(), makePatch("Beta"));
+    writeSyxFile((dir / "notes.txt").string(), Bytes{'x'});
+    auto entries = scanPatchFolder(dir.string());
+    CHECK(entries.size() == 2, "scanPatchFolder ignores non-syx");
+    if (entries.size() == 2) {
+        CHECK(entries[0].valid && entries[1].valid, "scan entries valid");
+        CHECK(entries[0].name == "Alpha", "scan entry 0 name (sorted)");
+        CHECK(entries[1].name == "Beta", "scan entry 1 name");
+    }
+
+    // Missing file / bad path behaves gracefully.
+    CHECK(!readSyxFile((dir / "nope.syx").string()).has_value(), "readSyxFile missing");
+    CHECK(!loadPatchFromFile((dir / "notes.txt").string()).has_value(), "load non-patch");
+
+    fs::remove_all(dir, ec);
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -178,6 +271,8 @@ int main() {
     testCcMap();
     testPatchRoundTrip();
     testRegistrySanity();
+    testSysExAssembler();
+    testSyxAndLibrary();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
