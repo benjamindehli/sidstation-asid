@@ -90,11 +90,9 @@ AsidEditor::~AsidEditor() { stopTimer(); }
 
 void AsidEditor::timerCallback() {
     const auto d = proc.diag();
-    juce::String host = d.hostAvail == 1
-                            ? "yes (" + juce::String(d.offsetMs, 1) + " ms)"
-                            : (d.hostAvail == 0 ? "NO (sending immediately)" : "unknown");
-    diagLabel.setText("host time: " + host + "   play: " + juce::String(d.playheadSec, 2)
-                          + " s   " + (d.playing ? "running" : "stopped"),
+    diagLabel.setText(juce::String(d.playing ? "running" : "stopped") + "   play: "
+                          + juce::String(d.playheadSec, 2) + " s   align delay: "
+                          + juce::String(juce::roundToInt(d.alignMs)) + " ms",
                       juce::dontSendNotification);
 }
 

@@ -173,6 +173,24 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
     const double latencyMs = static_cast<double>(paramInt("latency"));
 
+    // While the transport plays, align to a shared reference so every instance
+    // and the DAW agree, even though Logic renders tracks at different times.
+    bool playing = false;
+    double blockPlayheadMs = 0.0;
+    if (auto* ph = getPlayHead()) {
+        if (const auto pos = ph->getPosition()) {
+            playing = pos->getIsPlaying();
+            if (const auto s = pos->getTimeInSamples()) blockPlayheadMs = *s * 1000.0 / sr;
+            else if (const auto t = pos->getTimeInSeconds()) blockPlayheadMs = *t * 1000.0;
+        }
+    }
+    if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs, nowMs);
+    const double refOffset = AsidShared::get().playOffset();
+
+    dbgPlaying.store(playing ? 1 : 0);
+    dbgPlayheadSec.store(blockPlayheadMs / 1000.0);
+    dbgAlignMs.store(playing ? juce::jmax(0.0, (blockPlayheadMs - nowMs) - refOffset) : 0.0);
+
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
@@ -184,7 +202,12 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         if (!on && !off) continue;
 
         const int ch = m.getChannel() - 1;
-        const double eventMs = nowMs + meta.samplePosition * 1000.0 / sr + latencyMs;
+        const double sampleOffsetMs = meta.samplePosition * 1000.0 / sr;
+        // Playing: place the note at its song position mapped through the shared
+        // reference. Stopped or live: just now. The latency trim applies to both.
+        const double eventMs = playing
+                                   ? (blockPlayheadMs + sampleOffsetMs) - refOffset + latencyMs
+                                   : nowMs + sampleOffsetMs + latencyMs;
 
         // Watch the real gate bit across the event to tell an attack (0->1) from
         // a legato pitch change (1->1) or a release (1->0).
@@ -214,21 +237,6 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // This instance drives one SID voice. Set it before any note handling.
     const int voice = paramInt("asidVoice");
     asidPlayer.setTargetVoice(voice);
-
-    // Diagnostic snapshot: what does the host actually tell us about timing?
-    if (auto* ph = getPlayHead()) {
-        if (const auto pos = ph->getPosition()) {
-            dbgPlaying.store(pos->getIsPlaying() ? 1 : 0);
-            if (const auto t = pos->getTimeInSeconds()) dbgPlayheadSec.store(*t);
-            if (const auto hostNs = pos->getHostTimeNs()) {
-                dbgHostAvail.store(1);
-                dbgOffsetMs.store(static_cast<double>(*hostNs) / 1.0e6
-                                  - juce::Time::getMillisecondCounterHiRes());
-            } else {
-                dbgHostAvail.store(0);
-            }
-        }
-    }
 
     // On first block or after a device (re)open, push the full state.
     bool forceControls = false;

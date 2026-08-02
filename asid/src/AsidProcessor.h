@@ -47,16 +47,15 @@ public:
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return midiHub; }
 
-    // Live timing snapshot for the editor's diagnostic readout. Tells us what the
-    // host actually provides so we can see why sync behaves as it does.
+    // Live timing snapshot for the editor's diagnostic readout, so the alignment
+    // can be seen working (a live track shows ~0, an ahead track its delay).
     struct Diag {
-        int hostAvail = -1;    // -1 unknown, 0 no host time, 1 yes
-        double offsetMs = 0;   // hostTimeMs - now, reveals render lookahead
         double playheadSec = 0;
+        double alignMs = 0;   // ms this instance is held back to match the live track
         int playing = 0;
     };
     Diag diag() const {
-        return {dbgHostAvail.load(), dbgOffsetMs.load(), dbgPlayheadSec.load(), dbgPlaying.load()};
+        return {dbgPlayheadSec.load(), dbgAlignMs.load(), dbgPlaying.load()};
     }
 
     // (Re)sends the full ASID state to the unit. The editor calls this when the
@@ -95,8 +94,7 @@ private:
     double gateLowMs = -1.0e9;    // target time the gate last went low
 
     // Diagnostics, written on the audio thread, read by the editor.
-    std::atomic<int> dbgHostAvail{-1};
-    std::atomic<double> dbgOffsetMs{0}, dbgPlayheadSec{0};
+    std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};
     std::atomic<int> dbgPlaying{0};
 
     // Last control values sent, for change detection on the audio thread.

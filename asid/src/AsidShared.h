@@ -65,6 +65,18 @@ public:
         return -1;
     }
 
+    // Playhead-to-wall alignment. Each instance reports its block's offset
+    // (playheadMs - wallMs) while playing. The smallest is the live (least
+    // ahead) track, which defines real time; the others delay to match it. A
+    // 250 ms window lets the reference rise again if the live track changes.
+    void reportPlayOffset(double offsetMs, double nowMs) {
+        if (offsetMs < refOffsetMs.load() || nowMs - refStampMs.load() > 250.0) {
+            refOffsetMs.store(offsetMs);
+            refStampMs.store(nowMs);
+        }
+    }
+    double playOffset() const { return refOffsetMs.load(); }
+
     // The filter routing register holds one bit per voice, all in one shared
     // register. Each instance sets its own voice's bit here so any instance can
     // write the full byte without wiping the others.
@@ -80,6 +92,9 @@ public:
     std::atomic<int> routing{0};
     std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};
+
+    std::atomic<double> refOffsetMs{1.0e18};  // live track's playheadMs - wallMs
+    std::atomic<double> refStampMs{-1.0e18};  // when refOffsetMs was last set
 
 private:
     juce::CriticalSection lock;
