@@ -66,14 +66,14 @@ public:
     }
 
     // Playhead-to-wall alignment. Each instance reports its block's offset
-    // (playheadMs - wallMs) while playing. The smallest is the live (least
-    // ahead) track, which defines real time; the others delay to match it. A
-    // 250 ms window lets the reference rise again if the live track changes.
-    void reportPlayOffset(double offsetMs, double nowMs) {
-        if (offsetMs < refOffsetMs.load() || nowMs - refStampMs.load() > 250.0) {
-            refOffsetMs.store(offsetMs);
-            refStampMs.store(nowMs);
-        }
+    // (playheadMs - wallMs) while playing. The running minimum since the last
+    // reset is the true song-to-wall mapping: it is captured at playback start,
+    // before the host ramps its render lookahead, so it holds even when no track
+    // is live to anchor it. Reset on transport start or a jump.
+    void resetPlayReference() { refOffsetMs.store(1.0e18); }
+    void reportPlayOffset(double offsetMs) {
+        double cur = refOffsetMs.load();
+        while (offsetMs < cur && !refOffsetMs.compare_exchange_weak(cur, offsetMs)) {}
     }
     double playOffset() const { return refOffsetMs.load(); }
 
@@ -93,8 +93,7 @@ public:
     std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};
 
-    std::atomic<double> refOffsetMs{1.0e18};  // live track's playheadMs - wallMs
-    std::atomic<double> refStampMs{-1.0e18};  // when refOffsetMs was last set
+    std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
 
 private:
     juce::CriticalSection lock;

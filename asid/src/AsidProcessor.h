@@ -92,6 +92,8 @@ private:
     static constexpr double kMinGateLowMs = 35.0;  // gate-low needed before a retrigger
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double gateLowMs = -1.0e9;    // target time the gate last went low
+    int lastPlaying = 0;          // transport state last block, to spot a start
+    double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
     // Diagnostics, written on the audio thread, read by the editor.
     std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};

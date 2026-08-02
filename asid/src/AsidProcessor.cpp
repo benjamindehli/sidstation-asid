@@ -184,7 +184,16 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             else if (const auto t = pos->getTimeInSeconds()) blockPlayheadMs = *t * 1000.0;
         }
     }
-    if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs, nowMs);
+    // Reset the shared reference on transport start or a playhead jump, so the
+    // running minimum re-captures the mapping from the new position.
+    if (playing && (!lastPlaying
+                    || blockPlayheadMs < lastPlayheadMs - 1.0
+                    || blockPlayheadMs > lastPlayheadMs + 500.0))
+        AsidShared::get().resetPlayReference();
+    lastPlaying = playing ? 1 : 0;
+    lastPlayheadMs = blockPlayheadMs;
+
+    if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
     const double refOffset = AsidShared::get().playOffset();
 
     dbgPlaying.store(playing ? 1 : 0);
