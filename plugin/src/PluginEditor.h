@@ -52,7 +52,9 @@ private:
     juce::TextButton saveReceivedButton{"Save Received..."};
     juce::Label   statusLabel;
 
-    juce::ToggleButton asidButton{"ASID Play (3 voices, MIDI ch 1/2/3 to SID voices 1/2/3)"};
+    juce::ToggleButton asidButton{"ASID Play (this track drives the chosen SID voice)"};
+    juce::ComboBox asidVoiceBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> asidVoiceAtt;
 
     // One selectable patch in the library (flattened across all .syx files in
     // the folder, so a bank of 100 shows as 100 sendable patches).

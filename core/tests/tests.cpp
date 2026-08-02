@@ -404,27 +404,27 @@ static void testAsid() {
 static void testAsidPlayer() {
     AsidVoicePlayer p;
     auto s = p.start();
-    CHECK(s.size() == 2, "start returns start-cmd plus full state");
-    CHECK(s[0] == encodeAsidStart(), "start[0] is ASID start command");
+    CHECK(s.size() == 1, "start is a single register-setup update (no ASID start cmd)");
+    CHECK(!s.empty() && s[0].front() == 0xF0 && s[0].back() == 0xF7, "start update framed");
 
-    // Channel 0 note drives voice 0 (control register index 4).
+    // Per-channel mode (default): channel 0 note drives voice 0 (control reg 4).
     Bytes u = p.noteOn(0, 69, 100);
     CHECK(!u.empty() && u.front() == 0xF0 && u.back() == 0xF7, "noteOn update is framed");
     const std::uint16_t f = sidFrequency(69);
     CHECK(p.state().reg[0] == (f & 0xFF) && p.state().reg[1] == ((f >> 8) & 0xFF),
           "voice 0 frequency registers set from the note");
     CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on");
-
-    // Channel 1 note drives voice 2 (control register index 11).
-    p.noteOn(1, 60, 100);
-    CHECK((p.state().reg[11] & sid::kGate) != 0, "voice 1 gated on");
-
-    // Only three voices, channel 3 is ignored.
-    CHECK(p.noteOn(3, 64, 100).empty(), "channel 3 ignored");
-
-    // Note off clears that voice's gate.
     p.noteOff(0, 69);
     CHECK((p.state().reg[4] & sid::kGate) == 0, "voice 0 gated off");
+
+    // Target-voice mode: every note goes to the chosen voice regardless of channel.
+    AsidVoicePlayer p2;
+    p2.setTargetVoice(2);                        // voice 3, control register index 18
+    p2.noteOn(0, 60, 100);                       // channel 0, but forced to voice 2
+    CHECK((p2.state().reg[18] & sid::kGate) != 0, "target voice 2 gated on from any channel");
+    CHECK((p2.state().reg[4] & sid::kGate) == 0, "voice 0 untouched in target mode");
+    p2.noteOff(0, 60);
+    CHECK((p2.state().reg[18] & sid::kGate) == 0, "target voice 2 gated off");
 
     // A global control produces a framed update and stores the value.
     CHECK(p.setVolume(10).front() == 0xF0, "setVolume update framed");

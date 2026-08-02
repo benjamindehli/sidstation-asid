@@ -43,6 +43,13 @@ public:
     Bytes setWaveform(int voice, Byte waveBits);  // sid::kSaw / kPulse / ...
 
     void setClock(double hz) { clockHz = hz; }
+
+    // Which SID voice this player drives. -1 means the three-voice, per-channel
+    // mode (channel 1/2/3 to voice 1/2/3). 0/1/2 means every note goes to that
+    // one voice, which is how a per-track plugin instance is used.
+    void setTargetVoice(int v) { targetVoice = v; }
+    int targetVoice_() const { return targetVoice; }
+
     const SidState& state() const { return sidState; }
 
 private:
@@ -52,6 +59,7 @@ private:
     VoiceEngine alloc;
     double clockHz = sid::kClockPal;
     Byte filterRouting = 0;  // no voices routed through the filter by default
+    int targetVoice = -1;
 };
 
 }  // namespace sidstation

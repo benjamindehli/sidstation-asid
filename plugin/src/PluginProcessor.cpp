@@ -32,6 +32,11 @@ SidStationAudioProcessor::makeLayout() {
                 pid, S(p.name), p.minValue, p.maxValue, defaultFor(p)));
         }
     }
+    // Which SID voice this plugin instance drives in ASID mode. Saved per
+    // instance, so each track can control a different voice.
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{"asidVoice", 1}, "ASID Voice",
+        juce::StringArray{"Voice 1", "Voice 2", "Voice 3"}, 0));
     return layout;
 }
 
@@ -132,6 +137,11 @@ void SidStationAudioProcessor::queueAsid(const Bytes& asidMessage) {
 void SidStationAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                             juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
+
+    // This instance drives one SID voice (chosen per track). Set it before any
+    // start/note handling so we only ever touch our own voice's registers.
+    if (auto* vp = apvts.getRawParameterValue("asidVoice"))
+        asidPlayer.setTargetVoice(static_cast<int>(vp->load()));
 
     // Apply a pending ASID mode start/stop request (audio thread owns the player).
     if (const int req = asidRequest.exchange(0)) {

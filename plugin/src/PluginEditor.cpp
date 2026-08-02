@@ -42,6 +42,13 @@ LibrarianComponent::LibrarianComponent(SidStationAudioProcessor& p) : proc(p) {
     asidButton.setToggleState(proc.isAsidMode(), juce::dontSendNotification);
     asidButton.onClick = [this] { proc.setAsidMode(asidButton.getToggleState()); };
 
+    addAndMakeVisible(asidVoiceBox);
+    asidVoiceBox.addItem("Voice 1", 1);
+    asidVoiceBox.addItem("Voice 2", 2);
+    asidVoiceBox.addItem("Voice 3", 3);
+    asidVoiceAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+        proc.state(), "asidVoice", asidVoiceBox);
+
     patchList.setModel(this);
     patchList.setRowHeight(22);
 
@@ -191,7 +198,10 @@ void LibrarianComponent::resized() {
     folderLabel.setBounds(row2);
 
     r.removeFromTop(10);
-    asidButton.setBounds(r.removeFromTop(24));
+    auto asidRow = r.removeFromTop(24);
+    asidVoiceBox.setBounds(asidRow.removeFromRight(120));
+    asidRow.removeFromRight(8);
+    asidButton.setBounds(asidRow);
 
     r.removeFromTop(10);
     auto buttons = r.removeFromBottom(30);

@@ -17,16 +17,34 @@ void AsidVoicePlayer::reset() {
 }
 
 std::vector<Bytes> AsidVoicePlayer::start() {
-    return {encodeAsidStart(), sidState.fullUpdate()};
+    // Do NOT send the ASID start command (F0 2D 4C). The user enters ASID from
+    // the front panel, and this way one instance's start does not disturb the
+    // other voices. Send this voice's setup (or all three) plus the shared
+    // filter and volume registers, as a partial update.
+    std::vector<SidWrite> w;
+    auto addVoice = [&](int v) {
+        const int b = SidState::voiceBase(v);
+        for (int r = 0; r < 7; ++r)
+            w.push_back({static_cast<Byte>(b + r), sidState.reg[b + r]});
+    };
+    if (targetVoice >= 0 && targetVoice <= 2)
+        addVoice(targetVoice);
+    else
+        for (int v = 0; v < 3; ++v) addVoice(v);
+    for (Byte r = 0x15; r <= 0x18; ++r) w.push_back({r, sidState.reg[r]});  // filter + volume
+    return {encodeAsidUpdate(w)};
 }
 
 std::vector<Bytes> AsidVoicePlayer::stop() {
+    // Only silence the voices. Do NOT send the ASID stop command (F0 2D 4D):
+    // on OS 1.11 R34 it puts the unit in a bad state (blank screen, needs a
+    // power cycle). The user exits ASID mode from the front panel instead.
     std::vector<SidWrite> w;
     for (int v = 0; v < 3; ++v) {
         sidState.setGate(v, false);
         w.push_back({static_cast<Byte>(SidState::voiceBase(v) + 4), sidState.control(v)});
     }
-    return {encodeAsidUpdate(w), encodeAsidStop()};
+    return {encodeAsidUpdate(w)};
 }
 
 Bytes AsidVoicePlayer::applyActions(const std::vector<VoiceAction>& actions) {
@@ -37,9 +55,14 @@ Bytes AsidVoicePlayer::applyActions(const std::vector<VoiceAction>& actions) {
         if (a.gateOn) {
             sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote, clockHz));
             sidState.setGate(a.oscillator, true);
-            w.push_back({static_cast<Byte>(base + 0), sidState.reg[base + 0]});
-            w.push_back({static_cast<Byte>(base + 1), sidState.reg[base + 1]});
-            w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
+            // Re-assert frequency, envelope and control so a note is reliably
+            // audible even if the initial setup did not land. Control (with the
+            // gate bit) sorts last in the frame, so it is written after these.
+            w.push_back({static_cast<Byte>(base + 0), sidState.reg[base + 0]});  // freq lo
+            w.push_back({static_cast<Byte>(base + 1), sidState.reg[base + 1]});  // freq hi
+            w.push_back({static_cast<Byte>(base + 5), sidState.reg[base + 5]});  // attack/decay
+            w.push_back({static_cast<Byte>(base + 6), sidState.reg[base + 6]});  // sustain/release
+            w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});  // control + gate
         } else {
             sidState.setGate(a.oscillator, false);
             w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
@@ -49,11 +72,13 @@ Bytes AsidVoicePlayer::applyActions(const std::vector<VoiceAction>& actions) {
 }
 
 Bytes AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
-    return applyActions(alloc.noteOn(channel, midiNote, velocity));
+    const int ch = (targetVoice >= 0) ? targetVoice : channel;  // force to target voice
+    return applyActions(alloc.noteOn(ch, midiNote, velocity));
 }
 
 Bytes AsidVoicePlayer::noteOff(int channel, int midiNote) {
-    return applyActions(alloc.noteOff(channel, midiNote));
+    const int ch = (targetVoice >= 0) ? targetVoice : channel;
+    return applyActions(alloc.noteOff(ch, midiNote));
 }
 
 Bytes AsidVoicePlayer::setVolume(int vol0to15) {
