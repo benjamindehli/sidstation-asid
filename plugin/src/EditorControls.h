@@ -9,6 +9,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <cmath>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -18,7 +19,7 @@
 // One labelled control: a rotary knob for numeric params, a toggle for booleans.
 class ParamControl : public juce::Component {
 public:
-    static constexpr int prefW = 78;
+    static constexpr int prefW = 92;
     static constexpr int prefH = 84;
 
     ParamControl(juce::AudioProcessorValueTreeState& s, const sidstation::ParamInfo& p) {
@@ -30,12 +31,16 @@ public:
 
         const juce::String pid(p.id.c_str());
         if (p.kind == sidstation::ParamKind::Bool) {
-            isBool = true;
+            kind = Kind::Toggle;
             toggle = std::make_unique<juce::ToggleButton>();
             addAndMakeVisible(*toggle);
             buttonAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
                 s, pid, *toggle);
+        } else if (!p.choices.empty()) {
+            kind = Kind::Choice;
+            buildChoice(s, pid, p.choices);
         } else {
+            kind = Kind::Knob;
             slider = std::make_unique<juce::Slider>(
                 juce::Slider::RotaryHorizontalVerticalDrag, juce::Slider::TextBoxBelow);
             slider->setTextBoxStyle(juce::Slider::TextBoxBelow, false, 62, 16);
@@ -48,19 +53,58 @@ public:
     void resized() override {
         auto r = getLocalBounds();
         name.setBounds(r.removeFromTop(15));
-        if (isBool)
-            toggle->setBounds(r.withSizeKeepingCentre(26, 26));
-        else
-            slider->setBounds(r.reduced(2, 0));
+        switch (kind) {
+            case Kind::Toggle: toggle->setBounds(r.withSizeKeepingCentre(26, 26)); break;
+            case Kind::Choice: combo->setBounds(r.withSizeKeepingCentre(r.getWidth() - 6, 24)); break;
+            case Kind::Knob:   slider->setBounds(r.reduced(2, 0)); break;
+        }
     }
 
 private:
+    enum class Kind { Knob, Toggle, Choice };
+
+    // Builds a ComboBox for an Enum parameter. The parameter stores the raw
+    // device value (which may be non-contiguous), so the box maps each item back
+    // to its value both ways via a ParameterAttachment.
+    void buildChoice(juce::AudioProcessorValueTreeState& s, const juce::String& pid,
+                     const std::vector<sidstation::EnumChoice>& choices) {
+        combo = std::make_unique<juce::ComboBox>();
+        for (size_t i = 0; i < choices.size(); ++i) {
+            combo->addItem(juce::String(choices[i].label.c_str()), static_cast<int>(i) + 1);
+            choiceValues.push_back(choices[i].value);
+        }
+        addAndMakeVisible(*combo);
+
+        auto* param = s.getParameter(pid);
+        if (param == nullptr) return;
+        comboAtt = std::make_unique<juce::ParameterAttachment>(*param, [this](float v) {
+            const int idx = indexOfValue(static_cast<int>(std::lround(v)));
+            combo->setSelectedId(idx >= 0 ? idx + 1 : 0, juce::dontSendNotification);
+        });
+        combo->onChange = [this] {
+            const int id = combo->getSelectedId();
+            if (id >= 1 && id <= static_cast<int>(choiceValues.size()))
+                comboAtt->setValueAsCompleteGesture(
+                    static_cast<float>(choiceValues[static_cast<size_t>(id - 1)]));
+        };
+        comboAtt->sendInitialUpdate();
+    }
+
+    int indexOfValue(int v) const {
+        for (size_t i = 0; i < choiceValues.size(); ++i)
+            if (choiceValues[i] == v) return static_cast<int>(i);
+        return -1;
+    }
+
     juce::Label name;
-    bool isBool = false;
+    Kind kind = Kind::Knob;
     std::unique_ptr<juce::Slider> slider;
     std::unique_ptr<juce::ToggleButton> toggle;
+    std::unique_ptr<juce::ComboBox> combo;
+    std::vector<int> choiceValues;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> sliderAtt;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> buttonAtt;
+    std::unique_ptr<juce::ParameterAttachment> comboAtt;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ParamControl)
 };

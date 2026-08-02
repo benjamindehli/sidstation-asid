@@ -183,6 +183,22 @@ static Patch makePatch(const std::string& name, std::size_t dataBytes = 143) {
     return p;
 }
 
+static void testEnumChoices() {
+    const ParamInfo* wave = findParamById("osc1.waveform");
+    CHECK(wave && wave->choices.size() == 5, "waveform has 5 choices");
+    if (wave) {
+        // Non-contiguous device values must be preserved (Noise == 8).
+        CHECK(wave->choices.back().value == 8 && wave->choices.back().label == "Noise",
+              "waveform last choice is Noise=8");
+    }
+    const ParamInfo* src = findParamById("lfo1.ctrlSource");
+    CHECK(src && src->choices.size() == 12, "ctrl source has 12 choices");
+
+    // Continuous params carry no choices.
+    const ParamInfo* cutoff = findParamById("filter.cutoff");
+    CHECK(cutoff && cutoff->choices.empty(), "continuous param has no choices");
+}
+
 static void testSysExAssembler() {
     // Two messages, with system-realtime bytes interleaved (0xFE between them,
     // and a 0xF8 injected *inside* the second message's SysEx).
@@ -282,6 +298,7 @@ int main() {
     testCcMap();
     testPatchRoundTrip();
     testRegistrySanity();
+    testEnumChoices();
     testSysExAssembler();
     testSyxAndLibrary();
 

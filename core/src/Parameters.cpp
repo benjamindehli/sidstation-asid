@@ -27,9 +27,12 @@ ParamInfo boolp(std::string id, std::string name, std::string group,
             DpAddress{pos, 0x01, shift}, 0, 1, ParamKind::Bool, cc};
 }
 ParamInfo enump(std::string id, std::string name, std::string group,
-                std::uint16_t pos, Byte mask, Byte shift, int hi, int cc = -1) {
-    return {std::move(id), std::move(name), std::move(group),
-            DpAddress{pos, mask, shift}, 0, hi, ParamKind::Enum, cc};
+                std::uint16_t pos, Byte mask, Byte shift, int hi, int cc = -1,
+                std::vector<EnumChoice> choices = {}) {
+    ParamInfo p{std::move(id), std::move(name), std::move(group),
+                DpAddress{pos, mask, shift}, 0, hi, ParamKind::Enum, cc};
+    p.choices = std::move(choices);
+    return p;
 }
 ParamInfo bip(std::string id, std::string name, std::string group,
               std::uint16_t pos, int lo, int hi, int cc = -1) {
@@ -39,6 +42,28 @@ ParamInfo bip(std::string id, std::string name, std::string group,
 
 std::vector<ParamInfo> build() {
     std::vector<ParamInfo> t;
+
+    // Named value tables for the Enum parameters.
+    const std::vector<EnumChoice> wave = {
+        {1, "Triangle"}, {2, "Saw"}, {4, "Pulse"}, {5, "Mixed"}, {8, "Noise"}};
+    const std::vector<EnumChoice> lfoSel = {
+        {0, "LFO 1"}, {1, "LFO 2"}, {2, "LFO 3"}, {3, "LFO 4"}};
+    const std::vector<EnumChoice> lfoType = {{0, "Triangle"}, {1, "Saw"},   {2, "Ramp"},
+                                             {3, "Pulse"},    {4, "Random"}, {7, "Flat"}};
+    const std::vector<EnumChoice> ctrlSrc = {
+        {0, "Mod Wheel"}, {1, "Pitch Bend"}, {2, "Velocity"}, {3, "Aftertouch"},
+        {4, "Ctrl 1"},    {5, "Ctrl 2"},     {6, "Ctrl 3"},   {7, "Ctrl 4"},
+        {8, "LFO 1"},     {9, "LFO 2"},      {10, "LFO 3"},   {11, "LFO 4"}};
+    const std::vector<EnumChoice> ctrlDest = {
+        {0, "None"}, {1, "LFO Depth"}, {2, "LFO Speed"}, {3, "LFO S/H"}, {4, "LFO Lace"}};
+    const std::vector<EnumChoice> laceWith = {
+        {0, "Zero"}, {1, "LFO 1"}, {2, "LFO 2"}, {3, "LFO 3"}, {4, "LFO 4"}};
+    const std::vector<EnumChoice> filterMode = {
+        {0, "Off"},  {1, "Low"},       {2, "Band"},      {3, "Low+Band"},
+        {4, "High"}, {5, "Low+High"},  {6, "Band+High"}, {7, "All"}};
+    const std::vector<EnumChoice> filterRoute = {
+        {0, "None"},    {1, "Osc 1"},   {2, "Osc 2"},    {3, "Osc 1+2"},
+        {4, "Osc 3"},   {5, "Osc 1+3"}, {6, "Osc 2+3"},  {7, "All"}};
 
     // ---- Global: direct-controller assignments & limits (0x0A..0x15) -------
     for (int i = 0; i < 4; ++i) {
@@ -61,10 +86,10 @@ std::vector<ParamInfo> build() {
     add(t, boolp("filter.envInvert", "Filter Env Invert", "Filter", 0x16, 7));
 
     // ---- Filter (0x18..0x23) ----------------------------------------------
-    add(t, enump("filter.route", "Filter Route (Osc 3/2/1)", "Filter", 0x18, 0x07, 0, 7));
+    add(t, enump("filter.route", "Filter Route", "Filter", 0x18, 0x07, 0, 7, -1, filterRoute));
     add(t, cont("filter.resonance", "Filter Resonance", "Filter", 0x18, 0x0F, 4, 0, 15));
-    add(t, enump("filter.mode", "Filter Mode", "Filter", 0x19, 0x07, 0, 7));
-    add(t, enump("filter.lfoToCutoff", "Filter LFO Source", "Filter", 0x19, 0x03, 4, 3));
+    add(t, enump("filter.mode", "Filter Mode", "Filter", 0x19, 0x07, 0, 7, -1, filterMode));
+    add(t, enump("filter.lfoToCutoff", "Filter LFO Source", "Filter", 0x19, 0x03, 4, 3, -1, lfoSel));
     add(t, boolp("filter.forceReinit", "Force Note-On Re-Init", "Filter", 0x19, 6));
     add(t, cont("filter.cutoff", "Filter Cutoff", "Filter", 0x1A, 0x7F, 0, 0, 127, 27));
     add(t, cont("filter.envDepth", "Filter Env Depth", "Filter", 0x1B, 0x7F, 0, 0, 127, 28));
@@ -109,14 +134,14 @@ std::vector<ParamInfo> build() {
         add(t, cont(p + "delay", g + " Delay", g, b + 0x0A, 0x7F, 0, 0, 127, c.delay));
         add(t, cont(p + "pwmStart", g + " PWM Start", g, b + 0x0B, 0x7F, 0, 0, 127, c.pwmStart));
         add(t, cont(p + "pwmAdd", g + " PWM Add", g, b + 0x0C, 0x7F, 0, 0, 127, c.pwmAdd));
-        add(t, enump(p + "pwmLfo", g + " PWM LFO", g, b + 0x0D, 0x03, 0, 3));
+        add(t, enump(p + "pwmLfo", g + " PWM LFO", g, b + 0x0D, 0x03, 0, 3, -1, lfoSel));
         add(t, cont(p + "pwmLfoDepth", g + " PWM LFO Depth", g, b + 0x0E, 0x7F, 0, 0, 127, c.pwmLfoDepth));
         // +0x0F OSC_WAVE byte: waveform in high nibble, SYNC=bit1, RINGM=bit2.
-        add(t, enump(p + "waveform", g + " Waveform", g, b + 0x0F, 0x0F, 4, 15));
+        add(t, enump(p + "waveform", g + " Waveform", g, b + 0x0F, 0x0F, 4, 15, -1, wave));
         add(t, boolp(p + "sync", g + " Sync", g, b + 0x0F, 1, c.sync));
         add(t, boolp(p + "ringMod", g + " Ring Mod", g, b + 0x0F, 2, c.ring));
         add(t, cont(p + "portamento", g + " Portamento", g, b + 0x10, 0x7F, 0, 0, 99, c.porta));
-        add(t, enump(p + "vibratoLfo", g + " Vibrato LFO", g, b + 0x11, 0x03, 0, 3));
+        add(t, enump(p + "vibratoLfo", g + " Vibrato LFO", g, b + 0x11, 0x03, 0, 3, -1, lfoSel));
         add(t, cont(p + "vibratoDepth", g + " Vibrato Depth", g, b + 0x12, 0x7F, 0, 0, 127, c.vibDepth));
         add(t, cont(p + "vibratoWheelDepth", g + " Vibrato Wheel Depth", g, b + 0x13, 0x7F, 0, 0, 127));
         add(t, cont(p + "tableSpeed", g + " Table Speed", g, b + 0x14, 0x7F, 0, 0, 127));
@@ -136,21 +161,21 @@ std::vector<ParamInfo> build() {
         const std::string g = "LFO " + std::to_string(l + 1);
         const LfoCc& c = lfoCc[l];
         // +0x00 type/source byte
-        add(t, enump(p + "type", g + " Type", g, b + 0x00, 0x07, 0, 7));
-        add(t, enump(p + "ctrlSource", g + " Ctrl Source", g, b + 0x00, 0x0F, 4, 11));
+        add(t, enump(p + "type", g + " Type", g, b + 0x00, 0x07, 0, 7, -1, lfoType));
+        add(t, enump(p + "ctrlSource", g + " Ctrl Source", g, b + 0x00, 0x0F, 4, 11, -1, ctrlSrc));
         // +0x01 options byte
         add(t, boolp(p + "syncNoteOn", g + " Sync Note On", g, b + 0x01, 0));
         add(t, boolp(p + "invert", g + " Invert", g, b + 0x01, 1));
         add(t, boolp(p + "aboveZero", g + " Above Zero", g, b + 0x01, 2));
         add(t, boolp(p + "syncNoteOff", g + " Sync Note Off", g, b + 0x01, 3));
-        add(t, enump(p + "ctrlDest", g + " Ctrl Dest", g, b + 0x01, 0x07, 4, 4));
+        add(t, enump(p + "ctrlDest", g + " Ctrl Dest", g, b + 0x01, 0x07, 4, 4, -1, ctrlDest));
         // +0x02.. value bytes
         add(t, cont(p + "speed", g + " Speed", g, b + 0x02, 0x7F, 0, 0, 127, c.speed));
         add(t, cont(p + "sampHold", g + " Sample & Hold", g, b + 0x03, 0x7F, 0, 0, 127, c.sampHold));
         add(t, cont(p + "depth", g + " Depth", g, b + 0x04, 0x7F, 0, 0, 127, c.depth));
-        add(t, enump(p + "addLfo", g + " Add LFO", g, b + 0x05, 0x03, 0, 3));
+        add(t, enump(p + "addLfo", g + " Add LFO", g, b + 0x05, 0x03, 0, 3, -1, lfoSel));
         add(t, cont(p + "laceSpeed", g + " Lace Speed", g, b + 0x06, 0x7F, 0, 0, 127, c.lace));
-        add(t, enump(p + "laceWith", g + " Lace With", g, b + 0x07, 0x07, 0, 4));
+        add(t, enump(p + "laceWith", g + " Lace With", g, b + 0x07, 0x07, 0, 4, -1, laceWith));
         add(t, cont(p + "addDepth", g + " Add Depth", g, b + 0x08, 0x7F, 0, 0, 127, c.addDepth));
         add(t, cont(p + "ctrlValue", g + " Ctrl Value", g, b + 0x09, 0x7F, 0, 0, 127));
         add(t, cont(p + "fadeIn", g + " Fade In", g, b + 0x0A, 0x7F, 0, 0, 127, c.fadeIn));

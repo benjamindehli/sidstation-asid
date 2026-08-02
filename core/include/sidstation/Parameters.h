@@ -23,6 +23,14 @@ enum class ParamKind {
     Enum,        // discrete choice (waveform, LFO type, CTRL source, ...)
 };
 
+// A named value for an Enum parameter. Values can be non-contiguous (e.g. the
+// oscillator waveform: 1=Triangle, 2=Saw, 4=Pulse, 5=Mixed, 8=Noise), so both
+// the device value and its label are stored.
+struct EnumChoice {
+    int         value;
+    std::string label;
+};
+
 struct ParamInfo {
     std::string id;     // stable key, e.g. "osc1.attack"
     std::string name;   // human label, e.g. "Osc 1 Attack"
@@ -32,6 +40,7 @@ struct ParamInfo {
     int         maxValue = 127;
     ParamKind   kind     = ParamKind::Continuous;
     int         cc       = -1;  // MIDI CC number, or -1 if none
+    std::vector<EnumChoice> choices;  // named values, for Enum params that have them
 };
 
 // The full parameter table. Built once, returned by const reference.
