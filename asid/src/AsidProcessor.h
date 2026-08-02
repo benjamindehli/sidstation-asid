@@ -10,10 +10,14 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include "AsidShared.h"
 #include "MidiHub.h"
 #include "sidstation/AsidVoicePlayer.h"
 
-class AsidProcessor : public juce::AudioProcessor, private juce::Timer {
+class AsidProcessor : public juce::AudioProcessor,
+                      private juce::Timer,
+                      private juce::AudioProcessorValueTreeState::Listener,
+                      private AsidShared::Client {
 public:
     AsidProcessor();
     ~AsidProcessor() override;
@@ -56,6 +60,11 @@ private:
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
     int paramInt(const char* id) const;
+
+    // Cross-instance sync of the shared filter and volume.
+    void parameterChanged(const juce::String& parameterID, float newValue) override;
+    void sharedUpdated() override;
+    void setParamValue(const char* id, int value);
 
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;

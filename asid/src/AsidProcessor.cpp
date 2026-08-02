@@ -97,14 +97,47 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (forceAll || vol != sent.volume) { sent.volume = vol; flush(asidPlayer.setVolume(vol)); }
 }
 
+static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume"};
+
 AsidProcessor::AsidProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "ASID", makeLayout()) {
+    for (const char* id : kSharedIds) apvts.addParameterListener(id, this);
+    AsidShared::get().addClient(this);
+    // Match the filter and volume of instances that are already open.
+    if (AsidShared::get().hasData.load()) sharedUpdated();
     startTimer(15);  // drain queued ASID frames to the device
 }
 
-AsidProcessor::~AsidProcessor() { stopTimer(); }
+AsidProcessor::~AsidProcessor() {
+    stopTimer();
+    AsidShared::get().removeClient(this);
+    for (const char* id : kSharedIds) apvts.removeParameterListener(id, this);
+}
+
+void AsidProcessor::parameterChanged(const juce::String& id, float value) {
+    if (!AsidShared::isShared(id)) return;
+    auto& sh = AsidShared::get();
+    // Ignore an echo of a value we just synced in from another instance.
+    if (static_cast<int>(std::lround(value)) == sh.valueFor(id)) return;
+    // The user changed a shared control here: publish it to the other instances.
+    sh.publish(paramInt("cutoff"), paramInt("resonance"), paramInt("filterMode"),
+               paramInt("volume"), this);
+}
+
+void AsidProcessor::sharedUpdated() {
+    auto& sh = AsidShared::get();
+    setParamValue("cutoff", sh.cutoff.load());
+    setParamValue("resonance", sh.resonance.load());
+    setParamValue("filterMode", sh.mode.load());
+    setParamValue("volume", sh.volume.load());
+}
+
+void AsidProcessor::setParamValue(const char* id, int value) {
+    if (auto* p = apvts.getParameter(id))
+        p->setValueNotifyingHost(p->convertTo0to1(static_cast<float>(value)));
+}
 
 bool AsidProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     const auto out = layouts.getMainOutputChannelSet();
