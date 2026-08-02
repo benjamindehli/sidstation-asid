@@ -1,5 +1,7 @@
 #include "PluginEditor.h"
 
+#include "EditorControls.h"
+
 using namespace sidstation;
 
 // ---------------------------------------------------------------------------
@@ -202,13 +204,14 @@ void LibrarianComponent::resized() {
 // SidStationEditor
 // ---------------------------------------------------------------------------
 SidStationEditor::SidStationEditor(SidStationAudioProcessor& p)
-    : juce::AudioProcessorEditor(p), proc(p), librarian(p) {
-    tabs.addTab("Librarian", juce::Colours::darkgrey, &librarian, false);
+    : juce::AudioProcessorEditor(p), librarian(p) {
     tabs.addTab("Parameters", juce::Colours::darkgrey,
-                new juce::GenericAudioProcessorEditor(p), true);
+                new ParametersPanel(p.state()), true);
+    tabs.addTab("Librarian", juce::Colours::darkgrey, &librarian, false);
     addAndMakeVisible(tabs);
     setResizable(true, true);
-    setSize(780, 560);
+    setResizeLimits(560, 400, 1600, 1200);
+    setSize(900, 640);
 }
 
 void SidStationEditor::resized() { tabs.setBounds(getLocalBounds()); }

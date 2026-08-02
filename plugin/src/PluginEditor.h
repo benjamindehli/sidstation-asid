@@ -78,7 +78,6 @@ public:
     void resized() override;
 
 private:
-    SidStationAudioProcessor& proc;
     juce::TabbedComponent tabs{juce::TabbedButtonBar::TabsAtTop};
     LibrarianComponent librarian;
 
