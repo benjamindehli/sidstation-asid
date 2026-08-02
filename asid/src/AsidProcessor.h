@@ -53,6 +53,9 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void timerCallback() override;
     void queueAsid(const sidstation::Bytes& asidMessage);
+    // Reads the voice/filter parameters and sends any that changed (flushed).
+    void applyControlChanges(int voice, bool forceAll);
+    int paramInt(const char* id) const;
 
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;
@@ -62,6 +65,12 @@ private:
 
     juce::SpinLock pendingLock;
     juce::Array<juce::MidiMessage> pending;
+
+    // Last control values sent, for change detection on the audio thread.
+    struct Sent {
+        int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
+        int pw = -1, route = -1, cutoff = -1, resonance = -1, mode = -1;
+    } sent;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AsidProcessor)
 };

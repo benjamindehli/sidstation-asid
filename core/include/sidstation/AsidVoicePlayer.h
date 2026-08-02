@@ -36,12 +36,17 @@ public:
     std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
     std::vector<Bytes> noteOff(int channel, int midiNote);
 
-    // Minimal live controls. Each returns the ASID update to send.
+    // Live controls. Each returns the single ASID update for the change (the
+    // caller sends it twice to flush it into effect, like note frames).
     Bytes setVolume(int vol0to15);
     Bytes setCutoff(int cutoff0to2047);
     Bytes setResonance(int res0to15);
-    Bytes setFilterMode(Byte modeBits);       // sid::kLowPass / kBandPass / kHighPass
-    Bytes setWaveform(int voice, Byte waveBits);  // sid::kSaw / kPulse / ...
+    Bytes setFilterMode(Byte modeBits);              // sid::kLowPass / kBandPass / kHighPass
+    Bytes setWaveform(int voice, Byte waveBits);     // sid::kTriangle / kSaw / kPulse / kNoise
+    Bytes setPulseWidth(int voice, int pw0to4095);
+    Bytes setAttackDecay(int voice, int attack0to15, int decay0to15);
+    Bytes setSustainRelease(int voice, int sustain0to15, int release0to15);
+    Bytes setFilterRouting(int voice, bool routeThroughFilter);
 
     void setClock(double hz) { clockHz = hz; }
 

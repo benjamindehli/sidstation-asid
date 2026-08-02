@@ -119,4 +119,39 @@ Bytes AsidVoicePlayer::setWaveform(int voice, Byte waveBits) {
     return encodeAsidUpdate({{static_cast<Byte>(base + 4), sidState.reg[base + 4]}});
 }
 
+Bytes AsidVoicePlayer::setPulseWidth(int voice, int pw0to4095) {
+    if (voice < 0 || voice > 2) return {};
+    const int pw = pw0to4095 < 0 ? 0 : (pw0to4095 > 4095 ? 4095 : pw0to4095);
+    sidState.setPulseWidth(voice, static_cast<std::uint16_t>(pw));
+    const int base = SidState::voiceBase(voice);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 2), sidState.reg[base + 2]},
+                             {static_cast<Byte>(base + 3), sidState.reg[base + 3]}});
+}
+
+static Byte clampNibble(int v) { return static_cast<Byte>(v < 0 ? 0 : (v > 15 ? 15 : v)); }
+
+Bytes AsidVoicePlayer::setAttackDecay(int voice, int attack0to15, int decay0to15) {
+    if (voice < 0 || voice > 2) return {};
+    sidState.setAttackDecay(voice, clampNibble(attack0to15), clampNibble(decay0to15));
+    const int base = SidState::voiceBase(voice);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 5), sidState.reg[base + 5]}});
+}
+
+Bytes AsidVoicePlayer::setSustainRelease(int voice, int sustain0to15, int release0to15) {
+    if (voice < 0 || voice > 2) return {};
+    sidState.setSustainRelease(voice, clampNibble(sustain0to15), clampNibble(release0to15));
+    const int base = SidState::voiceBase(voice);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 6), sidState.reg[base + 6]}});
+}
+
+Bytes AsidVoicePlayer::setFilterRouting(int voice, bool routeThroughFilter) {
+    if (voice < 0 || voice > 2) return {};
+    const Byte bit = voice == 0 ? sid::kFilt1 : (voice == 1 ? sid::kFilt2 : sid::kFilt3);
+    filterRouting = routeThroughFilter ? static_cast<Byte>(filterRouting | bit)
+                                       : static_cast<Byte>(filterRouting & ~bit);
+    const Byte resonance = static_cast<Byte>(sidState.reg[23] >> 4);
+    sidState.setResonanceRouting(resonance, filterRouting);
+    return encodeAsidUpdate({{0x17, sidState.reg[23]}});
+}
+
 }  // namespace sidstation

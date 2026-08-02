@@ -431,6 +431,18 @@ static void testAsidPlayer() {
     // A global control produces a framed update and stores the value.
     CHECK(p.setVolume(10).front() == 0xF0, "setVolume update framed");
     CHECK((p.state().reg[24] & 0x0F) == 10, "volume stored in low nibble of reg 0x18");
+
+    // Per-voice controls write the right registers.
+    p.setAttackDecay(0, 3, 5);
+    CHECK(p.state().reg[5] == ((3 << 4) | 5), "attack/decay nibbles in reg 5");
+    p.setSustainRelease(0, 12, 2);
+    CHECK(p.state().reg[6] == ((12 << 4) | 2), "sustain/release nibbles in reg 6");
+    p.setPulseWidth(0, 0x0800);
+    CHECK(p.state().reg[2] == 0x00 && p.state().reg[3] == 0x08, "pulse width split 12-bit");
+    p.setFilterRouting(0, true);
+    CHECK((p.state().reg[23] & sid::kFilt1) != 0, "voice 0 routed through filter");
+    p.setWaveform(0, sid::kPulse);
+    CHECK((p.state().reg[4] & 0xF0) == sid::kPulse, "waveform bits set on control register");
 }
 
 int main() {
