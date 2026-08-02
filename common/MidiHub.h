@@ -1,11 +1,10 @@
-// MidiHub - direct MIDI device access for the SidStation editor.
+// MidiHub - direct MIDI device access, shared by both plugins.
 //
-// Rather than relying on the DAW to route MIDI, the plugin opens the USB-MIDI
-// interface itself (chosen in the editor). This gives identical behaviour in
-// any DAW and in Standalone, and is what a hardware editor/librarian needs for
-// reliable patch dump/receive.
+// Rather than relying on the DAW to route MIDI, a plugin opens the USB-MIDI
+// interface itself. This gives identical behaviour in any DAW and in Standalone,
+// which is what a hardware editor and the ASID player both need.
 //
-// Sends are made from the message thread (see the processor's drain timer).
+// Sends are made from the message thread (see each processor's drain timer).
 // Incoming SysEx is decoded on JUCE's MIDI thread and handed to the listener,
 // which must be thread-aware (the processor stashes it under a lock).
 #pragma once
@@ -55,7 +54,7 @@ public:
 
     // Sends one complete SysEx message (bytes must be F0..F7).
     void sendSysEx(const sidstation::Bytes& fullMessage);
-    // Sends an arbitrary MIDI message (used to drain Direct-Program edits).
+    // Sends an arbitrary MIDI message (used to drain queued edits).
     void sendMessage(const juce::MidiMessage& m);
     // Sends many complete SysEx messages with `delayMs` between each, timed on a
     // background thread. The SidStation cannot receive bulk dumps at full MIDI

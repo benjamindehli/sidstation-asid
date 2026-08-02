@@ -20,7 +20,6 @@ LibrarianComponent::LibrarianComponent(SidStationAudioProcessor& p) : proc(p) {
     addAndMakeVisible(sendEditorButton);
     addAndMakeVisible(saveReceivedButton);
     addAndMakeVisible(statusLabel);
-    addAndMakeVisible(asidButton);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -38,16 +37,6 @@ LibrarianComponent::LibrarianComponent(SidStationAudioProcessor& p) : proc(p) {
     sendEditorButton.onClick = [this] { proc.sendAllParameters(); };
     saveReceivedButton.onClick = [this] { saveReceived(); };
     saveReceivedButton.setEnabled(false);
-
-    asidButton.setToggleState(proc.isAsidMode(), juce::dontSendNotification);
-    asidButton.onClick = [this] { proc.setAsidMode(asidButton.getToggleState()); };
-
-    addAndMakeVisible(asidVoiceBox);
-    asidVoiceBox.addItem("Voice 1", 1);
-    asidVoiceBox.addItem("Voice 2", 2);
-    asidVoiceBox.addItem("Voice 3", 3);
-    asidVoiceAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
-        proc.state(), "asidVoice", asidVoiceBox);
 
     patchList.setModel(this);
     patchList.setRowHeight(22);
@@ -196,12 +185,6 @@ void LibrarianComponent::resized() {
     chooseFolderButton.setBounds(row2.removeFromLeft(120));
     row2.removeFromLeft(10);
     folderLabel.setBounds(row2);
-
-    r.removeFromTop(10);
-    auto asidRow = r.removeFromTop(24);
-    asidVoiceBox.setBounds(asidRow.removeFromRight(120));
-    asidRow.removeFromRight(8);
-    asidButton.setBounds(asidRow);
 
     r.removeFromTop(10);
     auto buttons = r.removeFromBottom(30);

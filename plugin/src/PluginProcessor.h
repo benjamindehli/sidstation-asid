@@ -1,11 +1,10 @@
 // SidStation Editor - plugin processor.
 //
-// The plugin presents to the DAW as an instrument (MIDI in, audio out). Its
-// automatable parameters are generated directly from the core protocol
-// library's parameter registry. It talks to the SidStation over a MIDI device
-// it opens itself (see MidiHub), not via DAW routing: changing a parameter
-// emits the matching Direct-Program SysEx, and incoming patch dumps are
-// captured for the librarian.
+// Presents to the DAW as an instrument (MIDI in, audio out). Its automatable
+// parameters are generated from the core parameter registry. It talks to the
+// SidStation over a MIDI device it opens itself (see MidiHub): changing a
+// parameter sends the matching CC, and incoming patch dumps are captured for
+// the librarian. The three-voice ASID play lives in the separate ASID plugin.
 #pragma once
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -14,7 +13,6 @@
 #include <unordered_map>
 
 #include "MidiHub.h"
-#include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Parameters.h"
 
 class SidStationAudioProcessor : public juce::AudioProcessor,
@@ -65,12 +63,6 @@ public:
     // nullopt if none has arrived since the last call.
     std::optional<ReceivedPatch> takeReceivedPatch();
 
-    // ASID play mode. When on, the unit is switched into ASID and incoming MIDI
-    // on channels 1, 2, 3 drives SID voices 1, 2, 3 directly. Requests are
-    // applied on the audio thread so the player is only touched there.
-    void setAsidMode(bool on) { asidRequest.store(on ? 1 : 2); }
-    bool isAsidMode() const { return asidMode.load(); }
-
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -82,16 +74,9 @@ private:
     // Direct-Program SysEx.
     juce::MidiMessage messageForParam(const sidstation::ParamInfo& p, int value);
     void queueParamChange(const sidstation::ParamInfo& info, int value);
-    void queueAsid(const sidstation::Bytes& asidMessage);
 
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;
-
-    // ASID play state. The player is only touched on the audio thread in
-    // processBlock. setAsidMode posts a request (1 start, 2 stop) applied there.
-    sidstation::AsidVoicePlayer asidPlayer;
-    std::atomic<bool> asidMode{false};
-    std::atomic<int> asidRequest{0};
 
     std::unordered_map<std::string, const sidstation::ParamInfo*> idToInfo;
 
