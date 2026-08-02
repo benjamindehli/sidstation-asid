@@ -246,6 +246,17 @@ static void testSyxAndLibrary() {
         CHECK(extracted[1].name() == "Beta", "bulk patch 1 name");
     }
 
+    // extractPatchItems: same split, but each keeps its exact single-dump bytes.
+    auto items = extractPatchItems(bulk);
+    CHECK(items.size() == 2, "extractPatchItems count");
+    if (items.size() == 2) {
+        CHECK(items[0].name == "Alpha" && items[1].name == "Beta", "item names");
+        // Each item's message is a standalone patch dump that decodes on its own.
+        auto solo = decodePatchDump(items[1].message);
+        CHECK(solo && solo->name() == "Beta", "item message is a valid single dump");
+        CHECK(items[0].message == encodePatchDump(alpha), "item message bytes exact");
+    }
+
     // Folder scan: two .syx + a non-syx file that must be ignored.
     savePatchToFile((dir / "b.syx").string(), makePatch("Beta"));
     writeSyxFile((dir / "notes.txt").string(), Bytes{'x'});

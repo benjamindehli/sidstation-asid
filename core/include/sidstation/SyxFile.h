@@ -30,6 +30,17 @@ std::vector<Bytes> splitSysExMessages(const Bytes& data);
 // any non-patch messages). Useful for importing a bulk "all patches" dump.
 std::vector<Patch> extractPatches(const Bytes& data);
 
+// A single patch and the exact SysEx bytes that carry it — so one patch can be
+// sent to the unit on its own (non-destructive), split out from a bank file.
+struct PatchItem {
+    std::string name;     // decoded patch name
+    Bytes       message;  // the single patch-dump SysEx (F0..F7)
+};
+
+// Splits a byte stream into individual patch items (one per patch dump; skips
+// and all-clear messages are ignored).
+std::vector<PatchItem> extractPatchItems(const Bytes& data);
+
 // Convenience: save one patch to a .syx file / load one patch from a .syx file
 // (the first patch dump found).
 bool savePatchToFile(const std::string& path, const Patch& patch);

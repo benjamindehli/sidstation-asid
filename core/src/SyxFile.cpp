@@ -43,6 +43,15 @@ std::vector<Patch> extractPatches(const Bytes& data) {
     return patches;
 }
 
+std::vector<PatchItem> extractPatchItems(const Bytes& data) {
+    std::vector<PatchItem> items;
+    for (auto& msg : splitSysExMessages(data)) {
+        if (auto p = decodePatchDump(msg))
+            items.push_back({p->name(), msg});
+    }
+    return items;
+}
+
 bool savePatchToFile(const std::string& path, const Patch& patch) {
     return writeSyxFile(path, encodePatchDump(patch));
 }

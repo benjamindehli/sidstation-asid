@@ -77,9 +77,23 @@ void LibrarianComponent::refreshDevices() {
 }
 
 void LibrarianComponent::refreshList() {
-    entries = scanPatchFolder(currentFolder.getFullPathName().toStdString());
+    items.clear();
+    int fileCount = 0;
+    for (const auto& entry : scanPatchFolder(currentFolder.getFullPathName().toStdString())) {
+        ++fileCount;
+        auto data = readSyxFile(entry.path);
+        if (!data) continue;
+        auto fileName = juce::File(juce::String(entry.path.c_str())).getFileNameWithoutExtension();
+        for (auto& pi : extractPatchItems(*data))
+            items.push_back({fileName + "  :  " + juce::String(pi.name.c_str()),
+                             std::move(pi.message)});
+    }
+    patchList.deselectAllRows();
     patchList.updateContent();
     patchList.repaint();
+    statusLabel.setText(juce::String(items.size()) + " patches in " +
+                            juce::String(fileCount) + " file(s).",
+                        juce::dontSendNotification);
 }
 
 void LibrarianComponent::timerCallback() {
@@ -93,17 +107,15 @@ void LibrarianComponent::timerCallback() {
     }
 }
 
-int LibrarianComponent::getNumRows() { return static_cast<int>(entries.size()); }
+int LibrarianComponent::getNumRows() { return static_cast<int>(items.size()); }
 
 void LibrarianComponent::paintListBoxItem(int row, juce::Graphics& g, int w, int h,
                                           bool selected) {
-    if (row < 0 || row >= static_cast<int>(entries.size())) return;
+    if (row < 0 || row >= static_cast<int>(items.size())) return;
     if (selected) g.fillAll(juce::Colours::steelblue.withAlpha(0.4f));
-    const auto& e = entries[static_cast<std::size_t>(row)];
-    g.setColour(e.valid ? juce::Colours::white : juce::Colours::grey);
-    auto text = juce::String(e.name.c_str());
-    if (!e.valid) text += "  (not a patch)";
-    g.drawText(text, 6, 0, w - 12, h, juce::Justification::centredLeft);
+    g.setColour(juce::Colours::white);
+    g.drawText(items[static_cast<std::size_t>(row)].display, 6, 0, w - 12, h,
+               juce::Justification::centredLeft);
 }
 
 void LibrarianComponent::listBoxItemDoubleClicked(int, const juce::MouseEvent&) {
@@ -146,14 +158,12 @@ void LibrarianComponent::saveReceived() {
 
 void LibrarianComponent::sendSelected() {
     const int row = patchList.getSelectedRow();
-    if (row < 0 || row >= static_cast<int>(entries.size())) return;
-    if (auto data = readSyxFile(entries[static_cast<std::size_t>(row)].path)) {
-        proc.sendSyxToUnit(*data);
-        statusLabel.setText("Sent \"" +
-                                juce::String(entries[static_cast<std::size_t>(row)].name.c_str()) +
-                                "\" to unit.",
-                            juce::dontSendNotification);
-    }
+    if (row < 0 || row >= static_cast<int>(items.size())) return;
+    const auto& item = items[static_cast<std::size_t>(row)];
+    // A single patch dump overwrites the unit's currently-selected patch only —
+    // non-destructive to the rest of memory (unlike restoring a whole bank).
+    proc.sendSyxToUnit(item.message);
+    statusLabel.setText("Sent " + item.display + " to unit.", juce::dontSendNotification);
 }
 
 void LibrarianComponent::resized() {

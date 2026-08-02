@@ -53,9 +53,16 @@ private:
     juce::TextButton saveReceivedButton{"Save Received..."};
     juce::Label   statusLabel;
 
+    // One selectable patch in the library (flattened across all .syx files in
+    // the folder, so a bank of 100 shows as 100 sendable patches).
+    struct LibItem {
+        juce::String       display;  // "file : patchname"
+        sidstation::Bytes  message;  // the single patch-dump SysEx
+    };
+
     juce::Array<juce::MidiDeviceInfo> outDevices, inDevices;
     juce::File currentFolder;
-    std::vector<sidstation::PatchEntry> entries;
+    std::vector<LibItem> items;
 
     std::unique_ptr<juce::FileChooser> chooser;
     bool hasReceived = false;
