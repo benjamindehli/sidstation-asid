@@ -12,6 +12,8 @@ bool MidiHub::openOutputByIdentifier(const juce::String& identifier) {
     if (dev == nullptr) return false;
     const juce::ScopedLock sl(outputLock);
     output = std::move(dev);
+    // Required for sendBlockOfMessages (the paced sends) to actually deliver.
+    output->startBackgroundThread();
     outputInfo = output->getDeviceInfo();
     return true;
 }
@@ -44,6 +46,7 @@ bool MidiHub::openInputMatching(const juce::String& nameSubstr) {
 
 void MidiHub::closeOutput() {
     const juce::ScopedLock sl(outputLock);
+    if (output != nullptr) output->stopBackgroundThread();
     output.reset();
     outputInfo = {};
 }
