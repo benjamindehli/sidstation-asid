@@ -41,6 +41,9 @@ SidStationAudioProcessor::SidStationAudioProcessor()
         apvts.addParameterListener(S(p.id), this);
     }
     midiHub.setListener(this);
+    oscPitch[0] = findParamById("osc1.pitchTrack");
+    oscPitch[1] = findParamById("osc2.pitchTrack");
+    oscPitch[2] = findParamById("osc3.pitchTrack");
     startTimer(15);  // drain queued Direct-Program edits to the device
 }
 
@@ -111,10 +114,44 @@ SidStationAudioProcessor::takeReceivedPatch() {
     return out;
 }
 
+void SidStationAudioProcessor::renderVoiceAction(const VoiceAction& a) {
+    if (a.oscillator < 0 || a.oscillator > 2) return;
+    // Trigger the SID envelope on the base channel. Since the driven
+    // oscillators are put into fixed-note mode, this note only gates them.
+    constexpr int kTriggerChannel = 1;
+    const juce::SpinLock::ScopedLockType sl(pendingLock);
+    if (a.gateOn) {
+        if (const auto* p = oscPitch[a.oscillator]) {
+            Bytes dp = directProgramFor(*p, a.sidNote);  // set OSC_TRACK fixed note
+            pending.add(juce::MidiMessage::createSysExMessage(
+                dp.data() + 1, static_cast<int>(dp.size()) - 2));
+        }
+        pending.add(juce::MidiMessage::noteOn(kTriggerChannel, a.midiNote,
+                                              static_cast<juce::uint8>(a.velocity)));
+    } else {
+        pending.add(juce::MidiMessage::noteOff(kTriggerChannel, a.midiNote));
+    }
+}
+
 void SidStationAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                             juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
-    juce::ignoreUnused(midiMessages);
+
+    // Three voice play: translate incoming notes into per-oscillator pitch and
+    // gate, queued for the drain timer to send to the device.
+    if (voicePlayEnabled.load()) {
+        for (const auto meta : midiMessages) {
+            const auto m = meta.getMessage();
+            const int ch = m.getChannel() - 1;  // JUCE channels are 1..16
+            if (m.isNoteOn())
+                for (const auto& a : voiceEngine.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
+                    renderVoiceAction(a);
+            else if (m.isNoteOff())
+                for (const auto& a : voiceEngine.noteOff(ch, m.getNoteNumber()))
+                    renderVoiceAction(a);
+        }
+    }
+
     // No audio synthesis: sound comes from the hardware. MIDI to the SidStation
     // goes out via the directly-opened device (MidiHub), not this buffer.
     buffer.clear();

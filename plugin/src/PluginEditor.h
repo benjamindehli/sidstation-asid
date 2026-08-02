@@ -1,9 +1,8 @@
 // SidStation Editor - plugin editor.
 //
-// A tabbed UI: a "Librarian" tab for MIDI device selection and patch
-// dump/receive/save/send, and a "Parameters" tab that (for now) hosts the
-// generic auto-generated parameter view. The custom parameter GUI is a later
-// milestone.
+// A tabbed UI. The Parameters tab is the custom knob and dropdown editor
+// (EditorControls.h). The Librarian tab handles MIDI device selection, patch
+// dump, receive, save and send, and the three voice play toggle.
 #pragma once
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -52,6 +51,8 @@ private:
     juce::TextButton sendEditorButton{"Send Editor -> Unit"};
     juce::TextButton saveReceivedButton{"Save Received..."};
     juce::Label   statusLabel;
+
+    juce::ToggleButton voicePlayButton{"3-Voice Play (MIDI ch 1/2/3 to Osc 1/2/3)"};
 
     // One selectable patch in the library (flattened across all .syx files in
     // the folder, so a bank of 100 shows as 100 sendable patches).

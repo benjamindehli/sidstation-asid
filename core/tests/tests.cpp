@@ -11,6 +11,7 @@
 #include "sidstation/Patch.h"
 #include "sidstation/SysExStream.h"
 #include "sidstation/SyxFile.h"
+#include "sidstation/VoiceEngine.h"
 
 using namespace sidstation;
 
@@ -291,6 +292,55 @@ static void testSyxAndLibrary() {
     fs::remove_all(dir, ec);
 }
 
+static void testVoiceEngine() {
+    // Note to SID pitch conversion, with clamping at both ends.
+    CHECK(sidNoteFromMidi(60) == 48, "midi 60 -> sid 48 (offset 12)");
+    CHECK(sidNoteFromMidi(0) == 1, "low note clamps to 1");
+    CHECK(sidNoteFromMidi(127) == 99, "high note clamps to 99");
+    CHECK(sidNoteFromMidi(60, 0) == 60, "offset 0 passes through");
+
+    VoiceEngine e;
+
+    // Per channel routing: channels 0, 1, 2 map to oscillators 0, 1, 2.
+    auto a1 = e.noteOn(0, 60, 100);
+    CHECK(a1.size() == 1 && a1[0].oscillator == 0 && a1[0].gateOn &&
+              a1[0].sidNote == 48,
+          "ch0 note -> osc0 gate on");
+    auto a2 = e.noteOn(1, 64, 100);
+    CHECK(a2.size() == 1 && a2[0].oscillator == 1, "ch1 note -> osc1");
+    auto a3 = e.noteOn(2, 67, 100);
+    CHECK(a3.size() == 1 && a3[0].oscillator == 2, "ch2 note -> osc2");
+    CHECK(e.noteOn(3, 70, 100).empty(), "ch3 ignored (only three voices)");
+
+    // Last note priority with legato fall back on the same oscillator.
+    e.reset();
+    e.noteOn(0, 60, 100);
+    auto stealing = e.noteOn(0, 62, 100);
+    CHECK(stealing.size() == 1 && stealing[0].sidNote == sidNoteFromMidi(62),
+          "newest note takes the voice");
+    auto backTo60 = e.noteOff(0, 62);
+    CHECK(backTo60.size() == 1 && backTo60[0].gateOn &&
+              backTo60[0].midiNote == 60,
+          "releasing top note falls back to held note");
+    auto gateOff = e.noteOff(0, 60);
+    CHECK(gateOff.size() == 1 && !gateOff[0].gateOn, "last release gates off");
+
+    // Releasing a held but non sounding note makes no sound change.
+    e.reset();
+    e.noteOn(0, 60, 100);
+    e.noteOn(0, 62, 100);
+    CHECK(e.noteOff(0, 60).empty(), "releasing older held note is silent");
+    auto off62 = e.noteOff(0, 62);
+    CHECK(off62.size() == 1 && !off62[0].gateOn, "releasing active note gates off");
+
+    // allNotesOff releases every sounding oscillator.
+    e.reset();
+    e.noteOn(0, 60, 100);
+    e.noteOn(2, 67, 100);
+    auto all = e.allNotesOff();
+    CHECK(all.size() == 2, "allNotesOff releases both sounding voices");
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -301,6 +351,7 @@ int main() {
     testEnumChoices();
     testSysExAssembler();
     testSyxAndLibrary();
+    testVoiceEngine();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

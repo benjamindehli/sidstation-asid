@@ -3,7 +3,7 @@
 CXX      ?= g++
 CXXFLAGS ?= -std=c++17 -Wall -Wextra -Wpedantic -Iinclude -O2
 
-SRC  := src/Parameters.cpp src/Patch.cpp src/SyxFile.cpp
+SRC  := src/Parameters.cpp src/Patch.cpp src/SyxFile.cpp src/VoiceEngine.cpp
 TEST := tests/tests.cpp
 BIN  := build/tests
 

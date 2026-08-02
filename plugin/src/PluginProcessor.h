@@ -15,6 +15,7 @@
 
 #include "MidiHub.h"
 #include "sidstation/Parameters.h"
+#include "sidstation/VoiceEngine.h"
 
 class SidStationAudioProcessor : public juce::AudioProcessor,
                                  private juce::AudioProcessorValueTreeState::Listener,
@@ -64,6 +65,11 @@ public:
     // nullopt if none has arrived since the last call.
     std::optional<ReceivedPatch> takeReceivedPatch();
 
+    // Three voice play mode. When on, incoming MIDI on channels 1, 2, 3 drives
+    // oscillators 1, 2, 3 as separate monophonic voices.
+    void setVoicePlayEnabled(bool on) { voicePlayEnabled.store(on); }
+    bool isVoicePlayEnabled() const { return voicePlayEnabled.load(); }
+
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -71,9 +77,16 @@ private:
     void midiPatchReceived(const sidstation::Patch& patch,
                            const sidstation::Bytes& raw) override;
     void queueDirectProgram(const sidstation::ParamInfo& info, int value);
+    void renderVoiceAction(const sidstation::VoiceAction& action);
 
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;
+
+    // Three voice play state. The engine runs on the audio thread in
+    // processBlock. oscPitch caches the OSC_TRACK parameter for each oscillator.
+    sidstation::VoiceEngine voiceEngine;
+    std::atomic<bool> voicePlayEnabled{false};
+    const sidstation::ParamInfo* oscPitch[3]{nullptr, nullptr, nullptr};
 
     std::unordered_map<std::string, const sidstation::ParamInfo*> idToInfo;
 
