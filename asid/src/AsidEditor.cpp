@@ -21,7 +21,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(refreshButton);
     addAndMakeVisible(voiceLabel);
     addAndMakeVisible(voiceBox);
-    addAndMakeVisible(asidButton);
     addAndMakeVisible(waveLabel);
     addAndMakeVisible(waveformBox);
     addAndMakeVisible(routeButton);
@@ -30,8 +29,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
-        if (id >= 1 && id <= outDevices.size())
+        if (id >= 1 && id <= outDevices.size()) {
             proc.midi().openOutputByIdentifier(outDevices[id - 1].identifier);
+            proc.requestReinit();  // push the current state to the newly opened device
+        }
     };
     refreshButton.onClick = [this] { refreshDevices(); };
 
@@ -39,9 +40,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     voiceBox.addItem("Voice 2", 2);
     voiceBox.addItem("Voice 3", 3);
     voiceAtt = std::make_unique<ComboAtt>(state, "asidVoice", voiceBox);
-
-    asidButton.setToggleState(proc.isAsidMode(), juce::dontSendNotification);
-    asidButton.onClick = [this] { proc.setAsidMode(asidButton.getToggleState()); };
 
     waveformBox.addItem("Triangle", 1);
     waveformBox.addItem("Sawtooth", 2);
@@ -102,8 +100,6 @@ void AsidEditor::resized() {
     auto row2 = r.removeFromTop(26);
     voiceLabel.setBounds(row2.removeFromLeft(66));
     voiceBox.setBounds(row2.removeFromLeft(130));
-    row2.removeFromLeft(16);
-    asidButton.setBounds(row2);
 
     // Voice section.
     r.removeFromTop(28);  // leave room for the "VOICE" heading drawn in paint()

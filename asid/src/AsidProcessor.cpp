@@ -123,35 +123,29 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                  juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
 
-    // This instance drives one SID voice. Set it before start/note handling.
+    // This instance drives one SID voice. Set it before any note handling.
     const int voice = paramInt("asidVoice");
     asidPlayer.setTargetVoice(voice);
 
+    // On first block or after a device (re)open, push the full state.
     bool forceControls = false;
-    if (const int req = asidRequest.exchange(0)) {
-        if (req == 1) {
-            asidPlayer.reset();
-            asidMode.store(true);
-            for (const auto& msg : asidPlayer.start()) { queueAsid(msg); queueAsid(msg); }
-            forceControls = true;  // push the current control values after the start state
-        } else {
-            asidMode.store(false);
-            for (const auto& msg : asidPlayer.stop()) { queueAsid(msg); queueAsid(msg); }
-        }
+    if (initRequest.exchange(false)) {
+        asidPlayer.reset();
+        for (const auto& msg : asidPlayer.start()) { queueAsid(msg); queueAsid(msg); }
+        forceControls = true;  // push the current control values after the start state
     }
 
-    if (asidMode.load()) {
-        applyControlChanges(voice, forceControls);
-        for (const auto meta : midiMessages) {
-            const auto m = meta.getMessage();
-            const int ch = m.getChannel() - 1;
-            if (m.isNoteOn())
-                for (const auto& frame : asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
-                    queueAsid(frame);
-            else if (m.isNoteOff())
-                for (const auto& frame : asidPlayer.noteOff(ch, m.getNoteNumber()))
-                    queueAsid(frame);
-        }
+    applyControlChanges(voice, forceControls);
+
+    for (const auto meta : midiMessages) {
+        const auto m = meta.getMessage();
+        const int ch = m.getChannel() - 1;
+        if (m.isNoteOn())
+            for (const auto& frame : asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
+                queueAsid(frame);
+        else if (m.isNoteOff())
+            for (const auto& frame : asidPlayer.noteOff(ch, m.getNoteNumber()))
+                queueAsid(frame);
     }
 
     buffer.clear();  // sound comes from the hardware

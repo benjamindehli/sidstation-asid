@@ -44,10 +44,10 @@ public:
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return midiHub; }
 
-    // Requests are posted here and applied on the audio thread, so the player is
-    // only ever touched there (1 = start, 2 = stop).
-    void setAsidMode(bool on) { asidRequest.store(on ? 1 : 2); }
-    bool isAsidMode() const { return asidMode.load(); }
+    // (Re)sends the full ASID state to the unit. The editor calls this when the
+    // MIDI output is opened, so the current sound is pushed to a fresh device.
+    // The plugin always streams ASID, there is no on/off, since that is its job.
+    void requestReinit() { initRequest.store(true); }
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
@@ -60,8 +60,7 @@ private:
     juce::AudioProcessorValueTreeState apvts;
     MidiHub midiHub;
     sidstation::AsidVoicePlayer asidPlayer;
-    std::atomic<bool> asidMode{false};
-    std::atomic<int> asidRequest{0};
+    std::atomic<bool> initRequest{true};  // send full state on first block / device open
 
     juce::SpinLock pendingLock;
     juce::Array<juce::MidiMessage> pending;

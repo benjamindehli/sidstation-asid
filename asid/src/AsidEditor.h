@@ -35,7 +35,6 @@ private:
     juce::Label voiceLabel{{}, "SID Voice:"};
     juce::ComboBox voiceBox;
     std::unique_ptr<ComboAtt> voiceAtt;
-    juce::ToggleButton asidButton{"ASID Play"};
 
     // Voice sound.
     juce::Label waveLabel{{}, "Waveform:"};
