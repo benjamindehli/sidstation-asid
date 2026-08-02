@@ -212,11 +212,18 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
 
         const int ch = m.getChannel() - 1;
         const double sampleOffsetMs = meta.samplePosition * 1000.0 / sr;
+        const double immediateMs = nowMs + sampleOffsetMs + latencyMs;
         // Playing: place the note at its song position mapped through the shared
-        // reference. Stopped or live: just now. The latency trim applies to both.
-        const double eventMs = playing
-                                   ? (blockPlayheadMs + sampleOffsetMs) - refOffset + latencyMs
-                                   : nowMs + sampleOffsetMs + latencyMs;
+        // reference. At a loop boundary instances briefly straddle two iterations
+        // and the reference can jump by a whole loop, so if the aligned time is
+        // implausibly far off, fall back to now rather than bursting notes into
+        // the future. Stopped or live: always now. Latency trim applies to both.
+        double eventMs = immediateMs;
+        if (playing) {
+            const double aligned = (blockPlayheadMs + sampleOffsetMs) - refOffset + latencyMs;
+            const double ahead = aligned - nowMs;
+            if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) eventMs = aligned;
+        }
 
         // Watch the real gate bit across the event to tell an attack (0->1) from
         // a legato pitch change (1->1) or a release (1->0).

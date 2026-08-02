@@ -89,7 +89,8 @@ private:
     std::atomic<bool> initRequest{true};  // send full state on first block / device open
 
     // Note scheduling state (this instance's single voice).
-    static constexpr double kMinGateLowMs = 35.0;  // gate-low needed before a retrigger
+    static constexpr double kMinGateLowMs = 35.0;       // gate-low needed before a retrigger
+    static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double gateLowMs = -1.0e9;    // target time the gate last went low
     int lastPlaying = 0;          // transport state last block, to spot a start
