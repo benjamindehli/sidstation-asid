@@ -12,9 +12,6 @@ using namespace sidstation;
 namespace {
 // The SidStation's MIDI base channel (1..16). Its default is 1.
 constexpr int kBaseChannel = 1;
-// Milliseconds between ASID frames, so a note's gate-release and its note-on
-// land on separate SID frames (the hard restart). One SID frame is ~20 ms.
-constexpr int kAsidFrameMs = 25;
 // A neutral default: 0 where it's in range, otherwise the nearest bound.
 int defaultFor(const ParamInfo& p) {
     return juce::jlimit(p.minValue, p.maxValue, 0);
@@ -112,16 +109,8 @@ void SidStationAudioProcessor::timerCallback() {
         const juce::SpinLock::ScopedLockType sl(pendingLock);
         toSend.swapWith(pending);
     }
-    if (toSend.isEmpty()) return;
-    if (asidMode.load()) {
-        // In ASID mode, pace the frames so a note's release and trigger land on
-        // separate SID frames (needed for the hard restart to work).
-        std::vector<juce::MidiMessage> v(toSend.begin(), toSend.end());
-        midiHub.sendPacedMessages(v, kAsidFrameMs);
-    } else {
-        for (const auto& m : toSend)
-            midiHub.sendMessage(m);
-    }
+    for (const auto& m : toSend)
+        midiHub.sendMessage(m);
 }
 
 void SidStationAudioProcessor::midiPatchReceived(const Patch& patch, const Bytes& raw) {
@@ -175,7 +164,8 @@ void SidStationAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                 for (const auto& frame : asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
                     queueAsid(frame);
             else if (m.isNoteOff())
-                queueAsid(asidPlayer.noteOff(ch, m.getNoteNumber()));
+                for (const auto& frame : asidPlayer.noteOff(ch, m.getNoteNumber()))
+                    queueAsid(frame);
         }
     }
 

@@ -30,12 +30,11 @@ public:
     std::vector<Bytes> start();
     std::vector<Bytes> stop();
 
-    // Note on emits a hard restart: a gate-release frame, then a note-on frame.
-    // The two frames must be sent on separate SID frames (the caller paces them),
-    // which is what reliably triggers the envelope on this unit.
+    // Note events return the ASID frames to send. Each state change is sent
+    // twice back to back: the unit appears to apply a write only when the next
+    // message arrives, so the second frame flushes the first into effect.
     std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
-    // Note off returns the single gate-off (or legato re-pitch) update.
-    Bytes noteOff(int channel, int midiNote);
+    std::vector<Bytes> noteOff(int channel, int midiNote);
 
     // Minimal live controls. Each returns the ASID update to send.
     Bytes setVolume(int vol0to15);
@@ -55,7 +54,10 @@ public:
     const SidState& state() const { return sidState; }
 
 private:
-    Bytes applyActions(const std::vector<VoiceAction>& actions);
+    // Applies one voice action to the state and returns the single ASID frame.
+    Bytes frameForAction(const VoiceAction& a);
+    // Runs the actions and returns each resulting frame twice (frame + flush).
+    std::vector<Bytes> framesWithFlush(const std::vector<VoiceAction>& actions);
 
     SidState sidState;
     VoiceEngine alloc;

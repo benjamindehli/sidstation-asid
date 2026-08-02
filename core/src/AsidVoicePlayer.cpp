@@ -47,56 +47,46 @@ std::vector<Bytes> AsidVoicePlayer::stop() {
     return {encodeAsidUpdate(w)};
 }
 
-Bytes AsidVoicePlayer::applyActions(const std::vector<VoiceAction>& actions) {
+Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
+    if (a.oscillator < 0 || a.oscillator > 2) return {};
+    const int base = SidState::voiceBase(a.oscillator);
     std::vector<SidWrite> w;
-    for (const auto& a : actions) {
-        if (a.oscillator < 0 || a.oscillator > 2) continue;
-        const int base = SidState::voiceBase(a.oscillator);
-        if (a.gateOn) {
-            sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote, clockHz));
-            sidState.setGate(a.oscillator, true);
-            // Re-assert frequency, envelope and control so a note is reliably
-            // audible even if the initial setup did not land. Control (with the
-            // gate bit) sorts last in the frame, so it is written after these.
-            w.push_back({static_cast<Byte>(base + 0), sidState.reg[base + 0]});  // freq lo
-            w.push_back({static_cast<Byte>(base + 1), sidState.reg[base + 1]});  // freq hi
-            w.push_back({static_cast<Byte>(base + 5), sidState.reg[base + 5]});  // attack/decay
-            w.push_back({static_cast<Byte>(base + 6), sidState.reg[base + 6]});  // sustain/release
-            w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});  // control + gate
-        } else {
-            sidState.setGate(a.oscillator, false);
-            w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
-        }
-    }
-    return w.empty() ? Bytes{} : encodeAsidUpdate(w);
-}
-
-std::vector<Bytes> AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
-    const int ch = (targetVoice >= 0) ? targetVoice : channel;  // force to target voice
-    std::vector<Bytes> frames;
-    for (const auto& a : alloc.noteOn(ch, midiNote, velocity)) {
-        if (a.oscillator < 0 || a.oscillator > 2) continue;
-        const int base = SidState::voiceBase(a.oscillator);
-        // Frame 1: release the gate to reset the envelope.
-        sidState.setGate(a.oscillator, false);
-        frames.push_back(encodeAsidUpdate(
-            {{static_cast<Byte>(base + 4), sidState.reg[base + 4]}}));
-        // Frame 2: set the note and gate on. Control (with the gate) sorts last.
+    if (a.gateOn) {
         sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote, clockHz));
         sidState.setGate(a.oscillator, true);
-        frames.push_back(encodeAsidUpdate({
-            {static_cast<Byte>(base + 0), sidState.reg[base + 0]},
-            {static_cast<Byte>(base + 1), sidState.reg[base + 1]},
-            {static_cast<Byte>(base + 5), sidState.reg[base + 5]},
-            {static_cast<Byte>(base + 6), sidState.reg[base + 6]},
-            {static_cast<Byte>(base + 4), sidState.reg[base + 4]}}));
+        // Frequency, envelope and control (control sorts last, so the gate is
+        // written after the rest).
+        w.push_back({static_cast<Byte>(base + 0), sidState.reg[base + 0]});
+        w.push_back({static_cast<Byte>(base + 1), sidState.reg[base + 1]});
+        w.push_back({static_cast<Byte>(base + 5), sidState.reg[base + 5]});
+        w.push_back({static_cast<Byte>(base + 6), sidState.reg[base + 6]});
+        w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
+    } else {
+        sidState.setGate(a.oscillator, false);
+        w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
+    }
+    return encodeAsidUpdate(w);
+}
+
+std::vector<Bytes> AsidVoicePlayer::framesWithFlush(const std::vector<VoiceAction>& actions) {
+    std::vector<Bytes> frames;
+    for (const auto& a : actions) {
+        Bytes f = frameForAction(a);
+        if (f.empty()) continue;
+        frames.push_back(f);  // the change
+        frames.push_back(f);  // the flush that makes the unit apply it
     }
     return frames;
 }
 
-Bytes AsidVoicePlayer::noteOff(int channel, int midiNote) {
+std::vector<Bytes> AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
     const int ch = (targetVoice >= 0) ? targetVoice : channel;
-    return applyActions(alloc.noteOff(ch, midiNote));
+    return framesWithFlush(alloc.noteOn(ch, midiNote, velocity));
+}
+
+std::vector<Bytes> AsidVoicePlayer::noteOff(int channel, int midiNote) {
+    const int ch = (targetVoice >= 0) ? targetVoice : channel;
+    return framesWithFlush(alloc.noteOff(ch, midiNote));
 }
 
 Bytes AsidVoicePlayer::setVolume(int vol0to15) {
