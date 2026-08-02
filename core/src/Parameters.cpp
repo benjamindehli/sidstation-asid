@@ -7,7 +7,7 @@ namespace {
 
 // ---- Direct-Program base addresses (manual pages 41-42) -------------------
 // The first ~0x24 bytes (name, direct controllers, filter, mode) are global.
-// Oscillators are spaced 21 (0x15) bytes apart; LFOs 28 (0x1C) bytes apart.
+// Oscillators are spaced 21 (0x15) bytes apart. LFOs 28 (0x1C) bytes apart.
 // The manual prints DP positions as pre-split "high low" 7-bit byte pairs, so
 // e.g. LFO1 Type "01 06" means position (1<<7)|0x06 = 0x86, not hex 0x106.
 constexpr std::uint16_t kOscBase[3] = {0x47, 0x5C, 0x71};
@@ -99,7 +99,7 @@ std::vector<ParamInfo> build() {
     add(t, cont("filter.envRelease", "Filter Env Release", "Filter", 0x1F, 0x7F, 0, 0, 127, 33));
     add(t, cont("filter.lfoDepth", "Filter LFO Depth", "Filter", 0x20, 0x7F, 0, 0, 127, 29));
     add(t, cont("filter.lfoWheelDepth", "Filter LFO Wheel Depth", "Filter", 0x21, 0x7F, 0, 0, 127));
-    // Manual documents 50..200, but the DP field is 7-bit; the upper half is
+    // Manual documents 50..200, but the DP field is 7-bit, and the upper half is
     // only reachable via a full patch dump. Cap the DP-editable range at 127.
     add(t, cont("global.pitchSyncSpeed", "Pitch Sync Speed", "Global", 0x22, 0x7F, 0, 50, 127));
     add(t, cont("global.pitchSyncHCut", "Pitch Sync HardCut", "Global", 0x23, 0x0F, 0, 0, 15));

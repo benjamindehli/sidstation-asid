@@ -3,7 +3,7 @@
 // Builds a synth-style editor straight from the core parameter registry: one
 // titled Section per group (Global, Filter, Osc 1-3, LFO 1-4, Direct Ctrl),
 // each holding a knob (numeric params) or toggle (booleans) bound to the APVTS.
-// The whole thing scrolls in a Viewport. Header-only; included once from
+// The whole thing scrolls in a Viewport. Header only, included once from
 // PluginEditor.cpp.
 #pragma once
 

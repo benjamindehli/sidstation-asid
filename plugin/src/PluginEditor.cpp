@@ -162,7 +162,7 @@ void LibrarianComponent::sendSelected() {
     const int row = patchList.getSelectedRow();
     if (row < 0 || row >= static_cast<int>(items.size())) return;
     const auto& item = items[static_cast<std::size_t>(row)];
-    // A single patch dump overwrites the unit's currently-selected patch only —
+    // A single patch dump overwrites the unit's currently-selected patch only -
     // non-destructive to the rest of memory (unlike restoring a whole bank).
     proc.sendSyxToUnit(item.message);
     statusLabel.setText("Sent " + item.display + " to unit.", juce::dontSendNotification);

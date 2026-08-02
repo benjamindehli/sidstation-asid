@@ -1,4 +1,4 @@
-// SidStation Editor — plugin editor.
+// SidStation Editor - plugin editor.
 //
 // A tabbed UI: a "Librarian" tab for MIDI device selection and patch
 // dump/receive/save/send, and a "Parameters" tab that (for now) hosts the

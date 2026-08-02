@@ -1,6 +1,6 @@
 // SidStation SysEx protocol constants and helpers.
 //
-// Framework-agnostic. No JUCE, no audio, no GUI dependencies — this header is
+// Framework-agnostic. No JUCE, no audio, no GUI dependencies - this header is
 // the ground truth for the Elektron SidStation MIDI System-Exclusive format as
 // documented in the SidStation Owners Manual (r22b, OS1.1), pages 39-43.
 #pragma once

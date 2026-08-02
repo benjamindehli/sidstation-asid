@@ -2,7 +2,7 @@
 //
 // MIDI input arrives in arbitrary chunks: a single SysEx (e.g. a patch dump)
 // may span many callbacks, and system-realtime bytes (0xF8..0xFF) can be
-// interleaved inside it. Feed bytes in as they arrive; get back complete
+// interleaved inside it. Feed bytes in as they arrive, and get back complete
 // F0..F7 messages as they finish. Framework-agnostic and header-only so the
 // plugin's MIDI input and the probe can share it.
 #pragma once
@@ -15,7 +15,7 @@ namespace sidstation {
 
 class SysExAssembler {
 public:
-    // Feeds raw MIDI bytes; returns every complete SysEx message that finished
+    // Feeds raw MIDI bytes and returns every complete SysEx message that finished
     // within this call (usually zero or one, but more for a bulk "all patches"
     // stream).
     std::vector<Bytes> feed(const Byte* data, std::size_t len) {

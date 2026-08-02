@@ -30,7 +30,7 @@ struct Patch {
     static constexpr std::size_t kNameLength = 10;
 
     // Full logical patch-data byte array (index 0.. ). Bytes 0..9 hold the
-    // ASCII name; the remainder follow the patch-data layout on manual page 41.
+    // ASCII name. The remainder follow the patch-data layout on manual page 41.
     Bytes data;
 
     std::string name() const;
@@ -43,10 +43,10 @@ Bytes encodePatchDump(const Patch& patch);
 // Parses a Patch Dump SysEx message. Returns nullopt on framing mismatch.
 std::optional<Patch> decodePatchDump(const Bytes& msg);
 
-// "Patch all clear" — wipes every patch position (manual page 39).
+// "Patch all clear" - wipes every patch position (manual page 39).
 Bytes encodePatchAllClear();
 
-// "Skip Patch" — advances the current patch position (manual page 39).
+// "Skip Patch" - advances the current patch position (manual page 39).
 Bytes encodeSkipPatch();
 
 }  // namespace sidstation

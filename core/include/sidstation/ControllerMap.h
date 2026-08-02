@@ -2,7 +2,7 @@
 //
 // The SidStation receives roughly 100 CC assignments (manual pages 38-39), all
 // carried on ParamInfo::cc. Direct-Program messages cover every parameter and
-// are the plugin's primary edit path; CC is offered as an alternative for the
+// are the plugin's primary edit path. CC is offered as an alternative for the
 // subset the unit exposes as controllers.
 #pragma once
 

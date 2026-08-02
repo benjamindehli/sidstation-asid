@@ -1,4 +1,4 @@
-// SidStation Editor — plugin processor.
+// SidStation Editor - plugin processor.
 //
 // The plugin presents to the DAW as an instrument (MIDI in, audio out). Its
 // automatable parameters are generated directly from the core protocol

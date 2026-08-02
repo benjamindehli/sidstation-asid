@@ -6,7 +6,7 @@ namespace sidstation {
 namespace {
 constexpr Byte kPad          = 0x2D;
 constexpr int  kPadCount     = 24;
-constexpr Byte kDataMagic    = 0x45;  // 'E' — start of patch data
+constexpr Byte kDataMagic    = 0x45;  // 'E' - start of patch data
 constexpr Byte kAllClearId   = 0x01;
 constexpr Byte kAllClearMagic = 0x45;
 constexpr int  kAllClearPad  = 14;

@@ -1,4 +1,4 @@
-// MidiHub — direct MIDI device access for the SidStation editor.
+// MidiHub - direct MIDI device access for the SidStation editor.
 //
 // Rather than relying on the DAW to route MIDI, the plugin opens the USB-MIDI
 // interface itself (chosen in the editor). This gives identical behaviour in

@@ -1,4 +1,4 @@
-// sidprobe — a small standalone tool to talk to a real SidStation and validate
+// sidprobe - a small standalone tool to talk to a real SidStation and validate
 // the core protocol library against hardware (milestone 2).
 //
 // It sends Direct-Program / CC / note / raw messages and pretty-prints any
@@ -58,7 +58,7 @@ static std::string lower(std::string s) {
         // Round-trip check: re-encode and compare framing length.
         Bytes re = encodePatchDump(*patch);
         std::printf("    Round-trip re-encode: %zu bytes %s\n", re.size(),
-                    re == msg ? "(identical)" : "(differs — inspect framing!)");
+                    re == msg ? "(identical)" : "(differs - inspect framing!)");
         return;
     }
     if (auto dp = decodeDirectProgram(msg); dp.valid) {
@@ -67,7 +67,7 @@ static std::string lower(std::string s) {
         return;
     }
     if (sysex::hasValidInit(msg))
-        std::printf("    (SidStation SysEx, type byte 0x%02X — not yet decoded)\n",
+        std::printf("    (SidStation SysEx, type byte 0x%02X - not yet decoded)\n",
                     msg.size() > 6 ? msg[6] : 0);
     else
         std::printf("    (non-SidStation / unrecognised SysEx)\n");
@@ -75,7 +75,7 @@ static std::string lower(std::string s) {
 }
 
 // ---------------------------------------------------------------------------
-// MIDI backend — platform specific
+// MIDI backend - platform specific
 // ---------------------------------------------------------------------------
 #if defined(__APPLE__)
 #include <CoreFoundation/CoreFoundation.h>
@@ -150,7 +150,7 @@ struct MidiBackend {
             MIDIPortConnectSource(inPort, source, nullptr);
             std::printf("Listening on: [%d] %s\n", inIdx, endpointName(source).c_str());
         } else {
-            std::printf("Listening on: (none — RX disabled)\n");
+            std::printf("Listening on: (none - RX disabled)\n");
         }
         return true;
     }
@@ -170,7 +170,7 @@ struct MidiBackend {
 struct MidiBackend {
     bool dryRun = true;
     static void listPorts() {
-        std::printf("(dry-run build: no real MIDI ports — CoreMIDI is macOS-only)\n");
+        std::printf("(dry-run build: no real MIDI ports - CoreMIDI is macOS-only)\n");
     }
     static int autoPick(bool) { return -1; }
     bool open(int, int) {
@@ -224,7 +224,7 @@ static void printHelp() {
         "  help                       this help\n"
         "  quit                       exit\n"
         "\nTip: dump a patch FROM the unit using its front panel; incoming SysEx is\n"
-        "decoded automatically. (Patch all-clear is intentionally omitted — it wipes\n"
+        "decoded automatically. (Patch all-clear is intentionally omitted - it wipes\n"
         "patch memory; use `raw` deliberately if you really need it.)\n");
 }
 

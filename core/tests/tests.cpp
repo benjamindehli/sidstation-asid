@@ -48,7 +48,7 @@ static Bytes dp(Byte pHi, Byte pLo, Byte mask, Byte shift, Byte data) {
 }
 
 static void testDirectProgramFraming() {
-    // Manual example (page 43): "DP: 01 76 0f 04 08" — first table position = Noise.
+    // Manual example (page 43): "DP: 01 76 0f 04 08" - first table position = Noise.
     DpAddress tablePos{static_cast<std::uint16_t>((0x01 << 7) | 0x76), 0x0F, 0x04};
     checkBytes("DP framing table1/Noise", encodeDirectProgram(tablePos, 0x08),
                dp(0x01, 0x76, 0x0F, 0x04, 0x08));
@@ -91,7 +91,7 @@ static void testParamAddresses() {
         {"osc2.waveform",    0x00, 0x6B, 0x0F, 0x04},
         {"osc3.waveform",    0x01, 0x00, 0x0F, 0x04},
         {"osc3.tableSpeed",  0x01, 0x05, 0x7F, 0x00},
-        // LFOs (page 42) — these confirm the high/low split handling
+        // LFOs (page 42) - these confirm the high/low split handling
         {"lfo1.type",        0x01, 0x06, 0x07, 0x00},
         {"lfo1.ctrlSource",  0x01, 0x06, 0x0F, 0x04},
         {"lfo1.speed",       0x01, 0x08, 0x7F, 0x00},

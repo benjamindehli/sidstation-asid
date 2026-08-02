@@ -1,4 +1,4 @@
-// SidStation parameter registry — the single source of truth that ties each
+// SidStation parameter registry - the single source of truth that ties each
 // editable parameter to its Direct-Program address, its logical value range,
 // and (where one exists) its MIDI CC number.
 //

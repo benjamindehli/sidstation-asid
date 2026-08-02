@@ -74,7 +74,7 @@ void SidStationAudioProcessor::parameterChanged(const juce::String& parameterID,
 }
 
 void SidStationAudioProcessor::sendAllParameters() {
-    // A full parameter push is a bulk transfer — pace it so the unit keeps up.
+    // A full parameter push is a bulk transfer - pace it so the unit keeps up.
     std::vector<Bytes> msgs;
     for (const auto& p : parameters())
         if (auto* param = apvts.getRawParameterValue(S(p.id)))

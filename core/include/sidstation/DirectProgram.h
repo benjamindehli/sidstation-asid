@@ -1,4 +1,4 @@
-// SidStation "Direct Program" (DP) SysEx messages — set a single parameter in
+// SidStation "Direct Program" (DP) SysEx messages - set a single parameter in
 // the unit's live memory without sending a whole patch dump.
 //
 // Wire format (manual pages 39-42):
@@ -30,8 +30,8 @@ struct DpAddress {
         : position(pos), mask(m), shift(s) {}
 };
 
-// Encodes a Direct Program message. `data` is the raw field value (0..mask);
-// it is NOT pre-shifted — the unit shifts it internally.
+// Encodes a Direct Program message. `data` is the raw field value (0..mask).
+// It is NOT pre-shifted - the unit shifts it internally.
 inline Bytes encodeDirectProgram(const DpAddress& addr, Byte data) {
     Bytes out;
     out.reserve(13);
