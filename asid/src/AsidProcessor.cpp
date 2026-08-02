@@ -39,6 +39,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::make_unique<Choice>(juce::ParameterID{"filterMode", 1}, "Filter Mode",
                                         juce::StringArray{"Low", "Band", "High"}, 0));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("volume", "Volume", 0, 15, 15)));
+    // Milliseconds added to each note's scheduled play time, to line the
+    // hardware sound up with the DAW's audio output. Shared by all instances.
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("latency", "Output Latency", 0, 500, 0)));
     return layout;
 }
 
@@ -104,7 +107,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (forceAll || vol != sent.volume) { sent.volume = vol; flush(asidPlayer.setVolume(vol)); }
 }
 
-static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume"};
+static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume", "latency"};
 
 AsidProcessor::AsidProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
@@ -130,7 +133,7 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
     if (static_cast<int>(std::lround(value)) == sh.valueFor(id)) return;
     // The user changed a shared control here: publish it to the other instances.
     sh.publish(paramInt("cutoff"), paramInt("resonance"), paramInt("filterMode"),
-               paramInt("volume"), this);
+               paramInt("volume"), paramInt("latency"), this);
 }
 
 void AsidProcessor::sharedUpdated() {
@@ -139,6 +142,7 @@ void AsidProcessor::sharedUpdated() {
     setParamValue("resonance", sh.resonance.load());
     setParamValue("filterMode", sh.mode.load());
     setParamValue("volume", sh.volume.load());
+    setParamValue("latency", sh.latency.load());
 }
 
 void AsidProcessor::setParamValue(const char* id, int value) {
@@ -153,10 +157,54 @@ bool AsidProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
 
 void AsidProcessor::sendAsid(const Bytes& asidMessage) {
     if (asidMessage.size() < 2) return;
-    // Sent straight from the audio callback so all instances go out together,
-    // which keeps the voices tight. MidiHub locks its own output briefly.
     midiHub.sendMessage(juce::MidiMessage::createSysExMessage(
         asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2));
+}
+
+void AsidProcessor::addFrame(juce::MidiBuffer& out, const Bytes& frame, int samplePos) {
+    if (frame.size() < 2) return;
+    out.addEvent(juce::MidiMessage::createSysExMessage(
+                     frame.data() + 1, static_cast<int>(frame.size()) - 2),
+                 samplePos);
+}
+
+void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voice) {
+    const double sr = juce::jmax(1.0, getSampleRate());
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    const double latencyMs = static_cast<double>(paramInt("latency"));
+
+    // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
+    // one "sample" is one ms), then handed to the timed background sender.
+    juce::MidiBuffer out;
+
+    for (const auto meta : midiMessages) {
+        const auto m = meta.getMessage();
+        const bool on = m.isNoteOn();
+        const bool off = m.isNoteOff();
+        if (!on && !off) continue;
+
+        const int ch = m.getChannel() - 1;
+        const double eventMs = nowMs + meta.samplePosition * 1000.0 / sr + latencyMs;
+
+        // Watch the real gate bit across the event to tell an attack (0->1) from
+        // a legato pitch change (1->1) or a release (1->0).
+        const bool gateBefore = (asidPlayer.state().control(voice) & sid::kGate) != 0;
+        const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
+                               : asidPlayer.noteOff(ch, m.getNoteNumber());
+        const bool gateAfter = (asidPlayer.state().control(voice) & sid::kGate) != 0;
+
+        double target = juce::jmax(eventMs, voiceClockMs);  // never before the last frame
+        if (gateAfter && !gateBefore)                       // attack: guarantee the gate-low window
+            target = juce::jmax(target, gateLowMs + kMinGateLowMs);
+
+        const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
+        for (const auto& f : frames) addFrame(out, f, posMs);
+
+        voiceClockMs = target;
+        if (!gateAfter && gateBefore) gateLowMs = target;   // release starts the window
+    }
+
+    if (!out.isEmpty()) midiHub.sendScheduled(out, nowMs, 1000.0);
 }
 
 void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -167,6 +215,21 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int voice = paramInt("asidVoice");
     asidPlayer.setTargetVoice(voice);
 
+    // Diagnostic snapshot: what does the host actually tell us about timing?
+    if (auto* ph = getPlayHead()) {
+        if (const auto pos = ph->getPosition()) {
+            dbgPlaying.store(pos->getIsPlaying() ? 1 : 0);
+            if (const auto t = pos->getTimeInSeconds()) dbgPlayheadSec.store(*t);
+            if (const auto hostNs = pos->getHostTimeNs()) {
+                dbgHostAvail.store(1);
+                dbgOffsetMs.store(static_cast<double>(*hostNs) / 1.0e6
+                                  - juce::Time::getMillisecondCounterHiRes());
+            } else {
+                dbgHostAvail.store(0);
+            }
+        }
+    }
+
     // On first block or after a device (re)open, push the full state.
     bool forceControls = false;
     if (initRequest.exchange(false)) {
@@ -175,18 +238,11 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         forceControls = true;  // push the current control values after the start state
     }
 
+    // Controls go out immediately (not rhythmic, and this sets the filter before
+    // any note that depends on it plays).
     applyControlChanges(voice, forceControls);
 
-    for (const auto meta : midiMessages) {
-        const auto m = meta.getMessage();
-        const int ch = m.getChannel() - 1;
-        if (m.isNoteOn())
-            for (const auto& frame : asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity()))
-                sendAsid(frame);
-        else if (m.isNoteOff())
-            for (const auto& frame : asidPlayer.noteOff(ch, m.getNoteNumber()))
-                sendAsid(frame);
-    }
+    scheduleNotes(midiMessages, voice);
 
     buffer.clear();  // sound comes from the hardware
 }

@@ -65,6 +65,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
     setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
+    setupKnob(latencyKnob, latencyLabel, "Lat ms", "latency", latencyAtt);
 
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
@@ -75,8 +76,26 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     filterModeBox.addItem("High", 3);
     filterModeAtt = std::make_unique<ComboAtt>(state, "filterMode", filterModeBox);
 
+    diagLabel.setFont(juce::Font(juce::FontOptions().withHeight(11.0f)));
+    diagLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.55f));
+    diagLabel.setJustificationType(juce::Justification::centredLeft);
+    addAndMakeVisible(diagLabel);
+
     refreshDevices();
-    setSize(560, 500);
+    setSize(560, 524);
+    startTimerHz(10);
+}
+
+AsidEditor::~AsidEditor() { stopTimer(); }
+
+void AsidEditor::timerCallback() {
+    const auto d = proc.diag();
+    juce::String host = d.hostAvail == 1
+                            ? "yes (" + juce::String(d.offsetMs, 1) + " ms)"
+                            : (d.hostAvail == 0 ? "NO (sending immediately)" : "unknown");
+    diagLabel.setText("host time: " + host + "   play: " + juce::String(d.playheadSec, 2)
+                          + " s   " + (d.playing ? "running" : "stopped"),
+                      juce::dontSendNotification);
 }
 
 void AsidEditor::refreshDevices() {
@@ -153,8 +172,12 @@ void AsidEditor::resized() {
     knobCell(sharedKnobs, cutoffKnob, cutoffLabel);
     knobCell(sharedKnobs, resKnob, resLabel);
     knobCell(sharedKnobs, volumeKnob, volumeLabel);
+    knobCell(sharedKnobs, latencyKnob, latencyLabel);
     sharedKnobs.removeFromLeft(12);
     auto modeCol = sharedKnobs.removeFromLeft(120);
     modeLabel.setBounds(modeCol.removeFromTop(16));
     filterModeBox.setBounds(modeCol.removeFromTop(26));
+
+    r.removeFromTop(8);
+    diagLabel.setBounds(r.removeFromTop(16));
 }

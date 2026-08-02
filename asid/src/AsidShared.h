@@ -28,7 +28,8 @@ public:
     }
 
     static bool isShared(const juce::String& id) {
-        return id == "cutoff" || id == "resonance" || id == "filterMode" || id == "volume";
+        return id == "cutoff" || id == "resonance" || id == "filterMode" || id == "volume"
+            || id == "latency";
     }
 
     void addClient(Client* c) {
@@ -41,11 +42,12 @@ public:
     }
 
     // Stores new shared values and tells every client except the source.
-    void publish(int cutoff_, int resonance_, int mode_, int volume_, Client* source) {
+    void publish(int cutoff_, int resonance_, int mode_, int volume_, int latency_, Client* source) {
         cutoff.store(cutoff_);
         resonance.store(resonance_);
         mode.store(mode_);
         volume.store(volume_);
+        latency.store(latency_);
         hasData.store(true);
 
         juce::Array<Client*> copy;
@@ -59,6 +61,7 @@ public:
         if (id == "resonance") return resonance.load();
         if (id == "filterMode") return mode.load();
         if (id == "volume") return volume.load();
+        if (id == "latency") return latency.load();
         return -1;
     }
 
@@ -75,6 +78,7 @@ public:
 
     std::atomic<int> cutoff{2047}, resonance{0}, mode{0}, volume{15};
     std::atomic<int> routing{0};
+    std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};
 
 private:

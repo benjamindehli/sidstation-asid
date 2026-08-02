@@ -1,7 +1,8 @@
 // SidStation ASID - plugin editor.
 //
-// Pick the MIDI output and which SID voice this instance drives, toggle ASID
-// play, and shape the voice: waveform, envelope, pulse width, and the filter.
+// Pick the MIDI output and which SID voice this instance drives, and shape the
+// sound: per-voice waveform, envelope, pulse width, sync and ring, plus the
+// shared filter, volume and output latency.
 #pragma once
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -10,13 +11,16 @@
 
 #include "AsidProcessor.h"
 
-class AsidEditor : public juce::AudioProcessorEditor {
+class AsidEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
     explicit AsidEditor(AsidProcessor&);
+    ~AsidEditor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
 
 private:
+    void timerCallback() override;
+
     using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ButtonAtt = juce::AudioProcessorValueTreeState::ButtonAttachment;
     using ComboAtt = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -52,12 +56,14 @@ private:
     std::unique_ptr<ButtonAtt> routeAtt;
 
     // Shared across all three voices.
-    juce::Slider cutoffKnob, resKnob, volumeKnob;
-    juce::Label cutoffLabel, resLabel, volumeLabel;
-    std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt;
+    juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
+    juce::Label cutoffLabel, resLabel, volumeLabel, latencyLabel;
+    std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
     juce::Label modeLabel{{}, "Mode:"};
     juce::ComboBox filterModeBox;
     std::unique_ptr<ComboAtt> filterModeAtt;
+
+    juce::Label diagLabel;  // live host-timing readout, to diagnose sync
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 

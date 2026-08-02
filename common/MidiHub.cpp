@@ -103,6 +103,12 @@ void MidiHub::sendPacedMessages(const std::vector<juce::MidiMessage>& messages, 
     output->sendBlockOfMessages(buffer, juce::Time::getMillisecondCounter(), 1000.0);
 }
 
+void MidiHub::sendScheduled(const juce::MidiBuffer& buffer, double startTimeMs, double sampleRate) {
+    const juce::ScopedLock sl(outputLock);
+    if (output != nullptr && !buffer.isEmpty())
+        output->sendBlockOfMessages(buffer, startTimeMs, juce::jmax(1.0, sampleRate));
+}
+
 void MidiHub::handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message) {
     if (!message.isSysEx() || listener == nullptr) return;
     // getRawData() includes the F0..F7 framing for a SysEx message.

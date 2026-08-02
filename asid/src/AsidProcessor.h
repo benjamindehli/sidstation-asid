@@ -47,6 +47,18 @@ public:
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return midiHub; }
 
+    // Live timing snapshot for the editor's diagnostic readout. Tells us what the
+    // host actually provides so we can see why sync behaves as it does.
+    struct Diag {
+        int hostAvail = -1;    // -1 unknown, 0 no host time, 1 yes
+        double offsetMs = 0;   // hostTimeMs - now, reveals render lookahead
+        double playheadSec = 0;
+        int playing = 0;
+    };
+    Diag diag() const {
+        return {dbgHostAvail.load(), dbgOffsetMs.load(), dbgPlayheadSec.load(), dbgPlaying.load()};
+    }
+
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.
     // The plugin always streams ASID, there is no on/off, since that is its job.
@@ -54,9 +66,15 @@ public:
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
-    // Sends one ASID frame to the device now (from processBlock, for tight
-    // timing across instances). Each change is sent twice to flush it in.
+    // Sends one ASID frame to the device now (from processBlock). Used for the
+    // start state and control edits, which are not note-timing critical.
     void sendAsid(const sidstation::Bytes& asidMessage);
+    // Adds one ASID frame to a buffer at a sample offset within the block.
+    void addFrame(juce::MidiBuffer& out, const sidstation::Bytes& frame, int samplePos);
+    // Turns the block's note events into timed ASID frames and sends them. Holds
+    // an attack (gate 0->1) back if the gate has not been low long enough for the
+    // SidStation to retrigger, so fast repeats on one voice do not go silent.
+    void scheduleNotes(const juce::MidiBuffer& midiMessages, int voice);
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
     int paramInt(const char* id) const;
@@ -70,6 +88,16 @@ private:
     MidiHub midiHub;
     sidstation::AsidVoicePlayer asidPlayer;
     std::atomic<bool> initRequest{true};  // send full state on first block / device open
+
+    // Note scheduling state (this instance's single voice).
+    static constexpr double kMinGateLowMs = 35.0;  // gate-low needed before a retrigger
+    double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
+    double gateLowMs = -1.0e9;    // target time the gate last went low
+
+    // Diagnostics, written on the audio thread, read by the editor.
+    std::atomic<int> dbgHostAvail{-1};
+    std::atomic<double> dbgOffsetMs{0}, dbgPlayheadSec{0};
+    std::atomic<int> dbgPlaying{0};
 
     // Last control values sent, for change detection on the audio thread.
     struct Sent {

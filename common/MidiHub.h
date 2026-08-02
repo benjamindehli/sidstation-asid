@@ -4,9 +4,9 @@
 // interface itself. This gives identical behaviour in any DAW and in Standalone,
 // which is what a hardware editor and the ASID player both need.
 //
-// Sends are made from the message thread (see each processor's drain timer).
-// Incoming SysEx is decoded on JUCE's MIDI thread and handed to the listener,
-// which must be thread-aware (the processor stashes it under a lock).
+// Immediate sends may come from the audio thread; timed sends (sendScheduled,
+// sendPaced) hand off to JUCE's MIDI background thread. Incoming SysEx is decoded
+// on JUCE's MIDI thread and handed to the listener, which must be thread-aware.
 #pragma once
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -64,6 +64,11 @@ public:
     // Same idea for a list of arbitrary MIDI messages (used to pace a full CC
     // parameter push).
     void sendPacedMessages(const std::vector<juce::MidiMessage>& messages, int delayMs);
+    // Delivers a block of MIDI on the background thread, timed to an absolute
+    // wall-clock start (in the Time::getMillisecondCounter() base). Event sample
+    // positions are offsets from that start at `sampleRate`. Used to align notes
+    // to the host's play time so hardware and DAW agree.
+    void sendScheduled(const juce::MidiBuffer& buffer, double startTimeMs, double sampleRate);
 
 private:
     void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage&) override;
