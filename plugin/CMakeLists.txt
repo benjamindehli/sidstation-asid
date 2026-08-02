@@ -27,7 +27,9 @@ juce_add_plugin(SidStationEditor
     AU_MAIN_TYPE              kAudioUnitType_MusicDevice)
 
 target_sources(SidStationEditor PRIVATE
-    src/PluginProcessor.cpp)
+    src/PluginProcessor.cpp
+    src/PluginEditor.cpp
+    src/MidiHub.cpp)
 
 target_compile_definitions(SidStationEditor PUBLIC
     JUCE_WEB_BROWSER=0

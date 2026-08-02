@@ -55,3 +55,27 @@ the two; oscillators and LFOs diverge.
   upper half is only reachable via a full patch dump. Capped at 127 for DP.
 - **Voice-play gate behaviour**: whether setting an oscillator's fixed note via
   DP retriggers the SID envelope/gate — central to the three-voice play engine.
+
+## Findings from real patch banks (2026-08-02)
+
+Validated the codec against four real SidStation `.syx` banks (Giraya, Klaus P
+Rausch, Ninjabank, Presets_r1):
+
+- **Decoding works on real data**: patch names and data decode correctly across
+  ~90-100 patches per bank. `scanPatchFolder`/`extractPatches` handle bulk banks.
+- **Bank structure**: a bank = one `PatchAllClear` (0x01) + for each of 128 slots
+  either a `PatchDump` (0x02) or a `SkipPatch` (0x03). So sending a whole bank
+  file is **destructive** — it wipes patch memory first. Sending a single patch
+  = one 0x02 message and is non-destructive.
+- **Size field is unreliable / ignored on receive**: different banks disagree on
+  its meaning (Giraya uses byte-count; Klaus uses byte-count − 145). The device
+  parses to F7. Our encoder writes the logical byte count; round-trip against
+  third-party banks differs *only* in these two bytes — data is byte-identical.
+  When we ever generate dumps to send, this field's exact convention is still an
+  open question (send raw bytes when possible).
+- **Legacy header**: `SidStation_Presets_r1.syx` uses a different/older init
+  (`F0 00 45 01 00…` instead of `F0 00 20 3C 01 00`); our decoder correctly
+  rejects it rather than mis-parsing. Supporting that legacy format is optional.
+- **Bulk sends must be paced**: per Elektron's C6 tool, 5-50 ms between packets;
+  zero-delay bursts overflow the unit and fail silently. The plugin now paces
+  bulk sends (`MidiHub::sendPaced`).

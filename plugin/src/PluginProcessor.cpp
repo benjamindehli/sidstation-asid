@@ -2,7 +2,9 @@
 
 #include <cmath>
 
+#include "PluginEditor.h"
 #include "sidstation/DirectProgram.h"
+#include "sidstation/SyxFile.h"
 
 using namespace sidstation;
 
@@ -38,9 +40,12 @@ SidStationAudioProcessor::SidStationAudioProcessor()
         idToInfo[p.id] = &p;
         apvts.addParameterListener(S(p.id), this);
     }
+    midiHub.setListener(this);
+    startTimer(15);  // drain queued Direct-Program edits to the device
 }
 
 SidStationAudioProcessor::~SidStationAudioProcessor() {
+    stopTimer();
     for (const auto& p : parameters())
         apvts.removeParameterListener(S(p.id), this);
 }
@@ -54,7 +59,6 @@ bool SidStationAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts
 
 void SidStationAudioProcessor::queueDirectProgram(const ParamInfo& info, int value) {
     Bytes dp = directProgramFor(info, value);  // full F0..F7
-    // JUCE's createSysExMessage takes the inner bytes and adds F0/F7 itself.
     auto msg = juce::MidiMessage::createSysExMessage(dp.data() + 1,
                                                      static_cast<int>(dp.size()) - 2);
     const juce::SpinLock::ScopedLockType sl(pendingLock);
@@ -70,35 +74,54 @@ void SidStationAudioProcessor::parameterChanged(const juce::String& parameterID,
 }
 
 void SidStationAudioProcessor::sendAllParameters() {
-    for (const auto& p : parameters()) {
+    // A full parameter push is a bulk transfer — pace it so the unit keeps up.
+    std::vector<Bytes> msgs;
+    for (const auto& p : parameters())
         if (auto* param = apvts.getRawParameterValue(S(p.id)))
-            queueDirectProgram(p, static_cast<int>(std::lround(param->load())));
+            msgs.push_back(directProgramFor(p, static_cast<int>(std::lround(param->load()))));
+    midiHub.sendPaced(msgs, 15);
+}
+
+void SidStationAudioProcessor::sendSyxToUnit(const Bytes& data) {
+    // Bulk .syx (single patch, or a whole bank of ~190 messages) must be paced.
+    midiHub.sendPaced(splitSysExMessages(data), 25);
+}
+
+void SidStationAudioProcessor::timerCallback() {
+    // Move queued edits out under the lock, then send without holding it.
+    juce::Array<juce::MidiMessage> toSend;
+    {
+        const juce::SpinLock::ScopedLockType sl(pendingLock);
+        toSend.swapWith(pending);
     }
+    for (const auto& m : toSend)
+        midiHub.sendMessage(m);
+}
+
+void SidStationAudioProcessor::midiPatchReceived(const Patch& patch, const Bytes& raw) {
+    const juce::ScopedLock sl(recvLock);
+    received = ReceivedPatch{patch, raw};
+}
+
+std::optional<SidStationAudioProcessor::ReceivedPatch>
+SidStationAudioProcessor::takeReceivedPatch() {
+    const juce::ScopedLock sl(recvLock);
+    auto out = received;
+    received.reset();
+    return out;
 }
 
 void SidStationAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
                                             juce::MidiBuffer& midiMessages) {
     juce::ScopedNoDenormals noDenormals;
-
-    // Instrument scaffold: no audio synthesis yet (the sound comes from the
-    // hardware). Output silence; audio pass-through from the unit is a later
-    // milestone.
+    juce::ignoreUnused(midiMessages);
+    // No audio synthesis: sound comes from the hardware. MIDI to the SidStation
+    // goes out via the directly-opened device (MidiHub), not this buffer.
     buffer.clear();
-
-    // Incoming MIDI (notes, etc.) already sits in midiMessages and is passed
-    // through to the hardware. Append any queued Direct-Program edits.
-    const juce::SpinLock::ScopedTryLockType tl(pendingLock);
-    if (tl.isLocked() && !pending.isEmpty()) {
-        for (const auto& m : pending)
-            midiMessages.addEvent(m, 0);
-        pending.clearQuick();
-    }
 }
 
 juce::AudioProcessorEditor* SidStationAudioProcessor::createEditor() {
-    // Scaffold: an auto-generated editor exposing every parameter. Replaced by
-    // a custom GUI in a later milestone.
-    return new juce::GenericAudioProcessorEditor(*this);
+    return new SidStationEditor(*this);
 }
 
 void SidStationAudioProcessor::getStateInformation(juce::MemoryBlock& destData) {
@@ -107,14 +130,12 @@ void SidStationAudioProcessor::getStateInformation(juce::MemoryBlock& destData) 
 }
 
 void SidStationAudioProcessor::setStateInformation(const void* data, int sizeInBytes) {
-    // Restore without blasting DP messages at the hardware.
     suppressSending.store(true);
     if (auto xml = getXmlFromBinary(data, sizeInBytes))
         apvts.replaceState(juce::ValueTree::fromXml(*xml));
     suppressSending.store(false);
 }
 
-// This creates new instances of the plugin.
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() {
     return new SidStationAudioProcessor();
 }
