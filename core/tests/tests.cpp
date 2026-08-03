@@ -497,16 +497,29 @@ static void testLfo() {
     lfo.advance(0.75, 1.0);  // crosses 1.0 -> wraps to 0.25
     CHECK(std::abs(lfo.phase() - 0.25) < 1e-9, "advance wraps the phase into 0..1");
 
-    // Sample-and-hold holds between wraps and changes across one.
-    lfo.setShape(LfoShape::Random);
+    // Sample & Hold holds one value between wraps and changes across one.
+    lfo.setShape(LfoShape::SampleHold);
     lfo.reset();
     lfo.setPhase(0.1);
     const double a = lfo.value();
     lfo.setPhase(0.4);
-    CHECK(std::abs(lfo.value() - a) < 1e-12, "random holds its value within a cycle");
+    CHECK(std::abs(lfo.value() - a) < 1e-12, "sample & hold holds its value within a cycle");
     lfo.setPhase(0.05);  // wrapped back below the previous phase
-    CHECK(std::abs(lfo.value() - a) > 1e-12, "random picks a new value on a wrap");
-    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random stays bipolar");
+    CHECK(std::abs(lfo.value() - a) > 1e-12, "sample & hold picks a new value on a wrap");
+    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "sample & hold stays bipolar");
+
+    // Random glides within a cycle and stays continuous across the wrap.
+    lfo.setShape(LfoShape::Random);
+    lfo.reset();
+    lfo.setPhase(0.0);
+    const double g0 = lfo.value();
+    lfo.setPhase(0.5);
+    CHECK(std::abs(lfo.value() - g0) > 1e-9, "random glides within a cycle, it does not hold");
+    lfo.setPhase(0.999);
+    const double gEnd = lfo.value();
+    lfo.setPhase(0.001);  // wrap: rndFrom becomes the previous rndTo
+    CHECK(std::abs(gEnd - lfo.value()) < 0.05, "random is continuous across the wrap");
+    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random glide stays bipolar");
 }
 
 int main() {

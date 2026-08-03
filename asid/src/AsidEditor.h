@@ -69,8 +69,9 @@ private:
     // LFO (per voice, targets pulse width for now).
     juce::Label lfoHeading{{}, "LFO"};
     juce::Label lfoTargetLabel{{}, "Target:"}, lfoShapeLabel{{}, "Shape:"}, lfoDivLabel{{}, "Sync:"};
-    juce::ComboBox lfoTargetBox, lfoShapeBox, lfoDivBox;
-    std::unique_ptr<ComboAtt> lfoTargetAtt, lfoShapeAtt, lfoDivAtt;
+    juce::Label lfoUpdateLabel{{}, "Update:"};
+    juce::ComboBox lfoTargetBox, lfoShapeBox, lfoDivBox, lfoUpdateBox;
+    std::unique_ptr<ComboAtt> lfoTargetAtt, lfoShapeAtt, lfoDivAtt, lfoUpdateAtt;
     juce::ToggleButton lfoSyncButton{"Tempo Sync"};
     std::unique_ptr<ButtonAtt> lfoSyncAtt;
     juce::Slider lfoRateKnob, lfoDepthKnob;

@@ -101,8 +101,8 @@ private:
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
-    // Modulation state (this instance's single LFO).
-    static constexpr double kModIntervalMs = 15.0;  // ~66 Hz stream, smooth but still light
+    // Modulation state (this instance's single LFO). The stream interval comes
+    // from the LFO update-rate parameter (PAL/NTSC/Eco/Smooth).
     sidstation::Lfo lfo;
     double lastModMs = 0.0;       // last time a modulation frame went out
     int lastModPw = -1;           // last pulse width sent, to skip tiny changes

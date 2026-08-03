@@ -10,7 +10,9 @@
 
 namespace sidstation {
 
-enum class LfoShape { Sine, Triangle, SawUp, SawDown, Square, Random };
+// SampleHold steps to a new random value each cycle; Random picks the same
+// values but glides between them. Keep this order in sync with the UI choices.
+enum class LfoShape { Sine, Triangle, SawUp, SawDown, Square, SampleHold, Random };
 
 class Lfo {
 public:
@@ -29,12 +31,15 @@ public:
     void reset();
 
 private:
-    void onWrap();  // refresh the sample-and-hold value for the Random shape
+    void onWrap();  // pick the next random endpoint at a cycle boundary
 
     LfoShape shape = LfoShape::Sine;
     double ph = 0.0;
-    unsigned int rng = 0x1234567u;  // deterministic, so Random is reproducible in tests
-    double held = 0.0;              // current sample-and-hold value
+    unsigned int rng = 0x1234567u;  // deterministic, so the random shapes reproduce in tests
+    // Two endpoints per cycle: Sample & Hold sits on rndFrom, Random glides from
+    // rndFrom to rndTo across the cycle. On a wrap rndTo becomes the new rndFrom,
+    // so the glide is continuous.
+    double rndFrom = 0.0, rndTo = 0.0;
 };
 
 }  // namespace sidstation

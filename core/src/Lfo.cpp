@@ -18,12 +18,16 @@ double randBipolar(unsigned int& s) {
 }
 }  // namespace
 
-void Lfo::onWrap() { held = randBipolar(rng); }
+void Lfo::onWrap() {
+    rndFrom = rndTo;            // continue from where the last cycle ended
+    rndTo = randBipolar(rng);  // and head toward a fresh value
+}
 
 void Lfo::reset() {
     ph = 0.0;
     rng = 0x1234567u;
-    held = randBipolar(rng);
+    rndFrom = randBipolar(rng);
+    rndTo = randBipolar(rng);
 }
 
 void Lfo::advance(double dtSeconds, double rateHz) {
@@ -44,8 +48,9 @@ double Lfo::value() const {
         case LfoShape::Triangle: return 1.0 - 4.0 * std::abs(ph - 0.5);
         case LfoShape::SawUp:    return 2.0 * ph - 1.0;
         case LfoShape::SawDown:  return 1.0 - 2.0 * ph;
-        case LfoShape::Square:   return ph < 0.5 ? 1.0 : -1.0;
-        case LfoShape::Random:   return held;
+        case LfoShape::Square:     return ph < 0.5 ? 1.0 : -1.0;
+        case LfoShape::SampleHold: return rndFrom;
+        case LfoShape::Random:     return rndFrom + (rndTo - rndFrom) * ph;  // glide across the cycle
     }
     return 0.0;
 }

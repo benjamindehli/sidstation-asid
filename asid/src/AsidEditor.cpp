@@ -85,9 +85,15 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     addAndMakeVisible(lfoShapeLabel);
     addAndMakeVisible(lfoShapeBox);
-    for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Random"})
+    for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"})
         lfoShapeBox.addItem(s, lfoShapeBox.getNumItems() + 1);
     lfoShapeAtt = std::make_unique<ComboAtt>(state, "lfoShape", lfoShapeBox);
+
+    addAndMakeVisible(lfoUpdateLabel);
+    addAndMakeVisible(lfoUpdateBox);
+    for (const char* u : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"})
+        lfoUpdateBox.addItem(u, lfoUpdateBox.getNumItems() + 1);
+    lfoUpdateAtt = std::make_unique<ComboAtt>(state, "lfoUpdate", lfoUpdateBox);
 
     addAndMakeVisible(lfoSyncButton);
     lfoSyncAtt = std::make_unique<ButtonAtt>(state, "lfoSync", lfoSyncButton);
@@ -130,6 +136,8 @@ void AsidEditor::updateEnablement() {
     lfoRateLabel.setEnabled(pulse);
     lfoDivLabel.setEnabled(pulse);
     lfoDivBox.setEnabled(pulse);
+    lfoUpdateLabel.setEnabled(pulse);
+    lfoUpdateBox.setEnabled(pulse);
     lfoDepthKnob.setEnabled(pulse);
     lfoDepthLabel.setEnabled(pulse);
 }
@@ -241,9 +249,14 @@ void AsidEditor::resized() {
     knobCell(lfoKnobs, lfoRateKnob, lfoRateLabel);
     knobCell(lfoKnobs, lfoDepthKnob, lfoDepthLabel);
     lfoKnobs.removeFromLeft(12);
-    auto divCol = lfoKnobs.removeFromLeft(120);
-    lfoDivLabel.setBounds(divCol.removeFromTop(16));
-    lfoDivBox.setBounds(divCol.removeFromTop(26));
+    auto rightCol = lfoKnobs;
+    auto divRow = rightCol.removeFromTop(26);
+    lfoDivLabel.setBounds(divRow.removeFromLeft(52));
+    lfoDivBox.setBounds(divRow.removeFromLeft(96));
+    rightCol.removeFromTop(6);
+    auto updRow = rightCol.removeFromTop(26);
+    lfoUpdateLabel.setBounds(updRow.removeFromLeft(52));
+    lfoUpdateBox.setBounds(updRow.removeFromLeft(120));
 
     r.removeFromTop(8);
     diagLabel.setBounds(r.removeFromTop(16));

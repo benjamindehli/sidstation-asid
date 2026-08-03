@@ -15,6 +15,17 @@ juce::AudioParameterFloat* floatParam(const char* id, const char* name,
     return new juce::AudioParameterFloat(juce::ParameterID{id, 1}, name, range, def);
 }
 
+// Modulation stream interval in ms for the update-rate choice.
+double modIntervalForRate(int idx) {
+    switch (idx) {
+        case 0: return 40.0;             // Eco 25 Hz
+        case 1: return 20.0;             // PAL 50 Hz
+        case 2: return 1000.0 / 60.0;    // NTSC 60 Hz
+        case 3: return 10.0;             // Smooth 100 Hz
+    }
+    return 20.0;
+}
+
 // Note division to beats, for tempo-synced LFO phase.
 double beatsForDivision(int idx) {
     switch (idx) {
@@ -68,7 +79,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
                                         juce::StringArray{"Off", "Pulse Width"}, 0));
     layout.add(std::make_unique<Choice>(
         juce::ParameterID{"lfoShape", 1}, "LFO Shape",
-        juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Random"}, 0));
+        juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"}, 0));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"lfoSync", 1}, "LFO Sync", false));
     layout.add(std::unique_ptr<juce::AudioParameterFloat>(floatParam(
         "lfoRate", "LFO Rate", juce::NormalisableRange<float>(0.05f, 20.0f, 0.0f, 0.35f), 2.0f)));
@@ -76,6 +87,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
         juce::ParameterID{"lfoDivision", 1}, "LFO Division",
         juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("lfoDepth", "LFO Depth", 0, 100, 50)));
+    // How often the modulation streams to the unit. Lower saves MIDI traffic;
+    // PAL/NTSC are the authentic C64 single-speed update rates. Default PAL.
+    layout.add(std::make_unique<Choice>(
+        juce::ParameterID{"lfoUpdate", 1}, "LFO Update Rate",
+        juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
     return layout;
 }
 
@@ -177,12 +193,13 @@ void AsidProcessor::updateModulation(int voice) {
     }
     lfoOwnedPw = true;
 
+    const double modInterval = modIntervalForRate(paramInt("lfoUpdate"));
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (nowMs - lastModMs < kModIntervalMs) return;  // hold the stream near 66 Hz
-    const double dt = (lastModMs <= 0.0 ? kModIntervalMs : nowMs - lastModMs) / 1000.0;
+    if (nowMs - lastModMs < modInterval) return;  // stream at the chosen update rate
+    const double dt = (lastModMs <= 0.0 ? modInterval : nowMs - lastModMs) / 1000.0;
     lastModMs = nowMs;
 
-    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 5, paramInt("lfoShape"))));
+    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt("lfoShape"))));
 
     if (paramInt("lfoSync") != 0) {
         bool playing = false;
