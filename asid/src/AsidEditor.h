@@ -26,6 +26,9 @@ private:
     using ComboAtt = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
     void refreshDevices();
+    // Pulse width and the LFO only matter on a pulse wave, so grey them out
+    // otherwise. Driven from the timer, since the waveform is a plain parameter.
+    void updateEnablement();
     void setupKnob(juce::Slider&, juce::Label&, const juce::String& name,
                    const juce::String& paramId, std::unique_ptr<SliderAtt>&);
 

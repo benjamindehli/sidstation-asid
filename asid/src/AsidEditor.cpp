@@ -107,13 +107,35 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(diagLabel);
 
     refreshDevices();
+    updateEnablement();
     setSize(560, 610);
     startTimerHz(10);
 }
 
 AsidEditor::~AsidEditor() { stopTimer(); }
 
+void AsidEditor::updateEnablement() {
+    bool pulse = false;
+    if (auto* p = state.getRawParameterValue("waveform"))
+        pulse = juce::roundToInt(p->load()) == 2;  // Pulse
+    pwKnob.setEnabled(pulse);
+    pwLabel.setEnabled(pulse);
+    lfoHeading.setEnabled(pulse);
+    lfoTargetLabel.setEnabled(pulse);
+    lfoTargetBox.setEnabled(pulse);
+    lfoShapeLabel.setEnabled(pulse);
+    lfoShapeBox.setEnabled(pulse);
+    lfoSyncButton.setEnabled(pulse);
+    lfoRateKnob.setEnabled(pulse);
+    lfoRateLabel.setEnabled(pulse);
+    lfoDivLabel.setEnabled(pulse);
+    lfoDivBox.setEnabled(pulse);
+    lfoDepthKnob.setEnabled(pulse);
+    lfoDepthLabel.setEnabled(pulse);
+}
+
 void AsidEditor::timerCallback() {
+    updateEnablement();
     const auto d = proc.diag();
     diagLabel.setText(juce::String(d.playing ? "running" : "stopped") + "   play: "
                           + juce::String(d.playheadSec, 2) + " s   align delay: "

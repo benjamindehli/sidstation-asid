@@ -166,7 +166,10 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
 }
 
 void AsidProcessor::updateModulation(int voice) {
-    const bool active = (paramInt("lfoTarget") == 1) && (paramInt("lfoDepth") > 0);  // 1 == Pulse Width
+    // Only run when the target is pulse width, there is depth, and the voice is
+    // actually a pulse wave, so nothing is streamed when it would do nothing.
+    const bool active = (paramInt("lfoTarget") == 1) && (paramInt("lfoDepth") > 0)
+                        && (paramInt("waveform") == 2);  // 1 == Pulse Width target, 2 == Pulse wave
     if (!active) {
         // Hand pulse width back to the static control on the next block.
         if (lfoOwnedPw) { lfoOwnedPw = false; sent.pw = -1; lastModPw = -1; }
@@ -175,7 +178,7 @@ void AsidProcessor::updateModulation(int voice) {
     lfoOwnedPw = true;
 
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (nowMs - lastModMs < kModIntervalMs) return;  // hold the stream near 30 Hz
+    if (nowMs - lastModMs < kModIntervalMs) return;  // hold the stream near 66 Hz
     const double dt = (lastModMs <= 0.0 ? kModIntervalMs : nowMs - lastModMs) / 1000.0;
     lastModMs = nowMs;
 
@@ -201,7 +204,7 @@ void AsidProcessor::updateModulation(int voice) {
     const int basePw = paramInt("pulseWidth");
     const int swing = static_cast<int>(lfo.value() * (paramInt("lfoDepth") / 100.0) * 2047.0);
     const int modPw = juce::jlimit(0, 4095, basePw + swing);
-    if (lastModPw >= 0 && std::abs(modPw - lastModPw) < 8) return;  // skip inaudible steps
+    if (modPw == lastModPw) return;  // send every distinct step, so the slide stays smooth
     lastModPw = modPw;
 
     // Stream the pulse-width register once. This is a continuous stream, so the
