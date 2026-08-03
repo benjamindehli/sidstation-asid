@@ -10,6 +10,25 @@ namespace {
 juce::AudioParameterInt* intParam(const char* id, const char* name, int lo, int hi, int def) {
     return new juce::AudioParameterInt(juce::ParameterID{id, 1}, name, lo, hi, def);
 }
+juce::AudioParameterFloat* floatParam(const char* id, const char* name,
+                                      juce::NormalisableRange<float> range, float def) {
+    return new juce::AudioParameterFloat(juce::ParameterID{id, 1}, name, range, def);
+}
+
+// Note division to beats, for tempo-synced LFO phase.
+double beatsForDivision(int idx) {
+    switch (idx) {
+        case 0: return 4.0;        // 1/1
+        case 1: return 2.0;        // 1/2
+        case 2: return 1.0;        // 1/4
+        case 3: return 2.0 / 3.0;  // 1/4 triplet
+        case 4: return 0.5;        // 1/8
+        case 5: return 1.0 / 3.0;  // 1/8 triplet
+        case 6: return 0.25;       // 1/16
+        case 7: return 1.0 / 6.0;  // 1/16 triplet
+    }
+    return 1.0;
+}
 }  // namespace
 
 juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() {
@@ -42,6 +61,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     // Milliseconds added to each note's scheduled play time, to line the
     // hardware sound up with the DAW's audio output. Shared by all instances.
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("latency", "Output Latency", 0, 500, 0)));
+
+    // Modulation: one plugin-side LFO per voice (the SID has none). Pulse width
+    // is the only target for now; the engine is written to add more later.
+    layout.add(std::make_unique<Choice>(juce::ParameterID{"lfoTarget", 1}, "LFO Target",
+                                        juce::StringArray{"Off", "Pulse Width"}, 0));
+    layout.add(std::make_unique<Choice>(
+        juce::ParameterID{"lfoShape", 1}, "LFO Shape",
+        juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Random"}, 0));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"lfoSync", 1}, "LFO Sync", false));
+    layout.add(std::unique_ptr<juce::AudioParameterFloat>(floatParam(
+        "lfoRate", "LFO Rate", juce::NormalisableRange<float>(0.05f, 20.0f, 0.0f, 0.35f), 2.0f)));
+    layout.add(std::make_unique<Choice>(
+        juce::ParameterID{"lfoDivision", 1}, "LFO Division",
+        juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("lfoDepth", "LFO Depth", 0, 100, 50)));
     return layout;
 }
 
@@ -75,7 +109,8 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         flush(asidPlayer.setSustainRelease(voice, s, rel));
     }
     const int pw = paramInt("pulseWidth");
-    if (forceAll || pw != sent.pw) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
+    // Skip the static pulse width while the LFO is driving it, or they fight.
+    if (!lfoOwnedPw && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
     const int sync = paramInt("sync");
     if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
@@ -105,6 +140,49 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
     const int vol = paramInt("volume");
     if (forceAll || vol != sent.volume) { sent.volume = vol; flush(asidPlayer.setVolume(vol)); }
+void AsidProcessor::updateModulation(int voice) {
+    const bool active = (paramInt("lfoTarget") == 1) && (paramInt("lfoDepth") > 0);  // 1 == Pulse Width
+    if (!active) {
+        // Hand pulse width back to the static control on the next block.
+        if (lfoOwnedPw) { lfoOwnedPw = false; sent.pw = -1; lastModPw = -1; }
+        return;
+    }
+    lfoOwnedPw = true;
+
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    if (nowMs - lastModMs < kModIntervalMs) return;  // hold the stream near 30 Hz
+    const double dt = (lastModMs <= 0.0 ? kModIntervalMs : nowMs - lastModMs) / 1000.0;
+    lastModMs = nowMs;
+
+    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 5, paramInt("lfoShape"))));
+
+    if (paramInt("lfoSync") != 0) {
+        bool playing = false;
+        double ppq = 0.0, bpm = 120.0;
+        if (auto* ph = getPlayHead()) {
+            if (const auto pos = ph->getPosition()) {
+                playing = pos->getIsPlaying();
+                if (const auto q = pos->getPpqPosition()) ppq = *q;
+                if (const auto b = pos->getBpm()) bpm = *b;
+            }
+        }
+        const double beats = beatsForDivision(paramInt("lfoDivision"));
+        if (playing) lfo.setPhase(ppq / beats);              // locked to the song
+        else lfo.advance(dt, (bpm / 60.0) / beats);          // free-run at the synced rate when stopped
+    } else {
+        lfo.advance(dt, static_cast<double>(paramFloat("lfoRate")));
+    }
+
+    const int basePw = paramInt("pulseWidth");
+    const int swing = static_cast<int>(lfo.value() * (paramInt("lfoDepth") / 100.0) * 2047.0);
+    const int modPw = juce::jlimit(0, 4095, basePw + swing);
+    if (lastModPw >= 0 && std::abs(modPw - lastModPw) < 8) return;  // skip inaudible steps
+    lastModPw = modPw;
+
+    // Stream the pulse-width register once. This is a continuous stream, so the
+    // next update (or any note) flushes each step in, which halves the traffic
+    // versus double-sending every frame.
+    sendAsid(asidPlayer.setPulseWidth(voice, modPw));
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume", "latency"};
@@ -265,6 +343,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Controls go out immediately (not rhythmic, and this sets the filter before
     // any note that depends on it plays).
     applyControlChanges(voice, forceControls);
+    updateModulation(voice);
 
     scheduleNotes(midiMessages, voice);
 

@@ -63,6 +63,17 @@ private:
     juce::ComboBox filterModeBox;
     std::unique_ptr<ComboAtt> filterModeAtt;
 
+    // LFO (per voice, targets pulse width for now).
+    juce::Label lfoHeading{{}, "LFO"};
+    juce::Label lfoTargetLabel{{}, "Target:"}, lfoShapeLabel{{}, "Shape:"}, lfoDivLabel{{}, "Sync:"};
+    juce::ComboBox lfoTargetBox, lfoShapeBox, lfoDivBox;
+    std::unique_ptr<ComboAtt> lfoTargetAtt, lfoShapeAtt, lfoDivAtt;
+    juce::ToggleButton lfoSyncButton{"Tempo Sync"};
+    std::unique_ptr<ButtonAtt> lfoSyncAtt;
+    juce::Slider lfoRateKnob, lfoDepthKnob;
+    juce::Label lfoRateLabel, lfoDepthLabel;
+    std::unique_ptr<SliderAtt> lfoRateAtt, lfoDepthAtt;
+
     juce::Label diagLabel;  // live host-timing readout, to diagnose sync
 
     juce::Array<juce::MidiDeviceInfo> outDevices;

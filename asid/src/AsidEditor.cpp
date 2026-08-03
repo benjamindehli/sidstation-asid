@@ -28,6 +28,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     };
     heading(voiceHeading);
     heading(sharedHeading);
+    heading(lfoHeading);
 
     addAndMakeVisible(waveLabel);
     addAndMakeVisible(waveformBox);
@@ -76,13 +77,37 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     filterModeBox.addItem("High", 3);
     filterModeAtt = std::make_unique<ComboAtt>(state, "filterMode", filterModeBox);
 
+    addAndMakeVisible(lfoTargetLabel);
+    addAndMakeVisible(lfoTargetBox);
+    lfoTargetBox.addItem("Off", 1);
+    lfoTargetBox.addItem("Pulse Width", 2);
+    lfoTargetAtt = std::make_unique<ComboAtt>(state, "lfoTarget", lfoTargetBox);
+
+    addAndMakeVisible(lfoShapeLabel);
+    addAndMakeVisible(lfoShapeBox);
+    for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Random"})
+        lfoShapeBox.addItem(s, lfoShapeBox.getNumItems() + 1);
+    lfoShapeAtt = std::make_unique<ComboAtt>(state, "lfoShape", lfoShapeBox);
+
+    addAndMakeVisible(lfoSyncButton);
+    lfoSyncAtt = std::make_unique<ButtonAtt>(state, "lfoSync", lfoSyncButton);
+
+    addAndMakeVisible(lfoDivLabel);
+    addAndMakeVisible(lfoDivBox);
+    for (const char* d : {"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"})
+        lfoDivBox.addItem(d, lfoDivBox.getNumItems() + 1);
+    lfoDivAtt = std::make_unique<ComboAtt>(state, "lfoDivision", lfoDivBox);
+
+    setupKnob(lfoRateKnob, lfoRateLabel, "Rate Hz", "lfoRate", lfoRateAtt);
+    setupKnob(lfoDepthKnob, lfoDepthLabel, "Depth", "lfoDepth", lfoDepthAtt);
+
     diagLabel.setFont(juce::Font(juce::FontOptions().withHeight(11.0f)));
     diagLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.55f));
     diagLabel.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(diagLabel);
 
     refreshDevices();
-    setSize(560, 524);
+    setSize(560, 610);
     startTimerHz(10);
 }
 
@@ -175,6 +200,28 @@ void AsidEditor::resized() {
     auto modeCol = sharedKnobs.removeFromLeft(120);
     modeLabel.setBounds(modeCol.removeFromTop(16));
     filterModeBox.setBounds(modeCol.removeFromTop(26));
+
+    // LFO section.
+    r.removeFromTop(14);
+    lfoHeading.setBounds(r.removeFromTop(18));
+    r.removeFromTop(6);
+    auto lfoRow = r.removeFromTop(26);
+    lfoTargetLabel.setBounds(lfoRow.removeFromLeft(52));
+    lfoTargetBox.setBounds(lfoRow.removeFromLeft(110));
+    lfoRow.removeFromLeft(12);
+    lfoShapeLabel.setBounds(lfoRow.removeFromLeft(48));
+    lfoShapeBox.setBounds(lfoRow.removeFromLeft(110));
+    lfoRow.removeFromLeft(12);
+    lfoSyncButton.setBounds(lfoRow.removeFromLeft(120));
+
+    r.removeFromTop(6);
+    auto lfoKnobs = r.removeFromTop(84);
+    knobCell(lfoKnobs, lfoRateKnob, lfoRateLabel);
+    knobCell(lfoKnobs, lfoDepthKnob, lfoDepthLabel);
+    lfoKnobs.removeFromLeft(12);
+    auto divCol = lfoKnobs.removeFromLeft(120);
+    lfoDivLabel.setBounds(divCol.removeFromTop(16));
+    lfoDivBox.setBounds(divCol.removeFromTop(26));
 
     r.removeFromTop(8);
     diagLabel.setBounds(r.removeFromTop(16));

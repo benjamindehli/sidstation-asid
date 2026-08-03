@@ -1,6 +1,7 @@
 // Minimal dependency-free test harness for the SidStation core protocol lib.
 // Cross-checks encoders against literal byte sequences documented in the
 // SidStation Owners Manual (r22b, OS1.1), pages 39-43.
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -11,6 +12,7 @@
 #include "sidstation/Patch.h"
 #include "sidstation/Asid.h"
 #include "sidstation/AsidVoicePlayer.h"
+#include "sidstation/Lfo.h"
 #include "sidstation/SysExStream.h"
 #include "sidstation/SyxFile.h"
 #include "sidstation/VoiceEngine.h"
@@ -457,6 +459,56 @@ static void testAsidPlayer() {
           "clearing sync leaves ring set");
 }
 
+static void testLfo() {
+    Lfo lfo;
+    lfo.reset();
+
+    // Sine landmarks.
+    lfo.setShape(LfoShape::Sine);
+    lfo.setPhase(0.0);
+    CHECK(std::abs(lfo.value()) < 1e-9, "sine at phase 0 is 0");
+    lfo.setPhase(0.25);
+    CHECK(std::abs(lfo.value() - 1.0) < 1e-9, "sine at phase 0.25 is +1");
+    lfo.setPhase(0.75);
+    CHECK(std::abs(lfo.value() + 1.0) < 1e-9, "sine at phase 0.75 is -1");
+
+    // Triangle: -1 at the ends, +1 at the middle.
+    lfo.setShape(LfoShape::Triangle);
+    lfo.setPhase(0.0);
+    CHECK(std::abs(lfo.value() + 1.0) < 1e-9, "triangle at phase 0 is -1");
+    lfo.setPhase(0.5);
+    CHECK(std::abs(lfo.value() - 1.0) < 1e-9, "triangle at phase 0.5 is +1");
+
+    // Saw up and square.
+    lfo.setShape(LfoShape::SawUp);
+    lfo.setPhase(0.0);
+    CHECK(std::abs(lfo.value() + 1.0) < 1e-9, "saw up starts at -1");
+    lfo.setShape(LfoShape::Square);
+    lfo.setPhase(0.25);
+    CHECK(lfo.value() > 0.0, "square is high in the first half");
+    lfo.setPhase(0.75);
+    CHECK(lfo.value() < 0.0, "square is low in the second half");
+
+    // Free-running advance accumulates phase and wraps.
+    lfo.setShape(LfoShape::Sine);
+    lfo.setPhase(0.0);
+    lfo.advance(0.5, 1.0);  // 1 Hz for half a second -> phase 0.5
+    CHECK(std::abs(lfo.phase() - 0.5) < 1e-9, "advance moves phase by dt*rate");
+    lfo.advance(0.75, 1.0);  // crosses 1.0 -> wraps to 0.25
+    CHECK(std::abs(lfo.phase() - 0.25) < 1e-9, "advance wraps the phase into 0..1");
+
+    // Sample-and-hold holds between wraps and changes across one.
+    lfo.setShape(LfoShape::Random);
+    lfo.reset();
+    lfo.setPhase(0.1);
+    const double a = lfo.value();
+    lfo.setPhase(0.4);
+    CHECK(std::abs(lfo.value() - a) < 1e-12, "random holds its value within a cycle");
+    lfo.setPhase(0.05);  // wrapped back below the previous phase
+    CHECK(std::abs(lfo.value() - a) > 1e-12, "random picks a new value on a wrap");
+    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random stays bipolar");
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -470,6 +522,7 @@ int main() {
     testVoiceEngine();
     testAsid();
     testAsidPlayer();
+    testLfo();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

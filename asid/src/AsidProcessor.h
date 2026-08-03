@@ -13,6 +13,7 @@
 #include "AsidShared.h"
 #include "MidiHub.h"
 #include "sidstation/AsidVoicePlayer.h"
+#include "sidstation/Lfo.h"
 
 class AsidProcessor : public juce::AudioProcessor,
                       private juce::AudioProcessorValueTreeState::Listener,
@@ -76,7 +77,11 @@ private:
     void scheduleNotes(const juce::MidiBuffer& midiMessages, int voice);
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
+    // Runs the plugin-side LFO and streams its target register (pulse width) at a
+    // modest rate while it is active. The SID has no LFOs of its own.
+    void updateModulation(int voice);
     int paramInt(const char* id) const;
+    float paramFloat(const char* id) const;
 
     // Cross-instance sync of the shared filter and volume.
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -95,6 +100,13 @@ private:
     double gateLowMs = -1.0e9;    // target time the gate last went low
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
+
+    // Modulation state (this instance's single LFO).
+    static constexpr double kModIntervalMs = 33.0;  // ~30 Hz stream, easy on MIDI
+    sidstation::Lfo lfo;
+    double lastModMs = 0.0;       // last time a modulation frame went out
+    int lastModPw = -1;           // last pulse width sent, to skip tiny changes
+    bool lfoOwnedPw = false;      // LFO is driving pulse width, so skip the static send
 
     // Diagnostics, written on the audio thread, read by the editor.
     std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};
