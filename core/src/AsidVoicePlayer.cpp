@@ -52,6 +52,7 @@ Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
     const int base = SidState::voiceBase(a.oscillator);
     std::vector<SidWrite> w;
     if (a.gateOn) {
+        currentNote[a.oscillator] = a.midiNote;  // remember for pitch modulation
         sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote, clockHz));
         sidState.setGate(a.oscillator, true);
         // Frequency, envelope and control (control sorts last, so the gate is
@@ -62,6 +63,7 @@ Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
         w.push_back({static_cast<Byte>(base + 6), sidState.reg[base + 6]});
         w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
     } else {
+        currentNote[a.oscillator] = -1;  // nothing sounding, no pitch mod
         sidState.setGate(a.oscillator, false);
         w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
     }
@@ -168,6 +170,14 @@ Bytes AsidVoicePlayer::setResonanceRouting(int res0to15, int routingBits0to7) {
     filterRouting = static_cast<Byte>(routingBits0to7 & 0x0F);
     sidState.setResonanceRouting(clampNibble(res0to15), filterRouting);
     return encodeAsidUpdate({{0x17, sidState.reg[23]}});
+}
+
+Bytes AsidVoicePlayer::setPitchMod(int voice, double semitones) {
+    if (voice < 0 || voice > 2 || currentNote[voice] < 0) return {};
+    sidState.setFrequency(voice, sidFrequency(currentNote[voice] + semitones, clockHz));
+    const int base = SidState::voiceBase(voice);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 0), sidState.reg[base + 0]},
+                             {static_cast<Byte>(base + 1), sidState.reg[base + 1]}});
 }
 
 Bytes AsidVoicePlayer::setSync(int voice, bool on) {

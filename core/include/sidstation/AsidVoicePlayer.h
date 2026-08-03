@@ -53,6 +53,10 @@ public:
     Bytes setSync(int voice, bool on);   // hard sync to the next voice's oscillator
     Bytes setRing(int voice, bool on);   // ring modulation with the next voice
 
+    // Rewrites the frequency register at the current note offset by `semitones`
+    // (for pitch modulation). Returns empty when the voice has no note sounding.
+    Bytes setPitchMod(int voice, double semitones);
+
     void setClock(double hz) { clockHz = hz; }
 
     // Which SID voice this player drives. -1 means the three-voice, per-channel
@@ -74,6 +78,7 @@ private:
     double clockHz = sid::kClockPal;
     Byte filterRouting = 0;  // no voices routed through the filter by default
     int targetVoice = -1;
+    int currentNote[3] = {-1, -1, -1};  // sounding MIDI note per voice, for pitch mod
 };
 
 }  // namespace sidstation

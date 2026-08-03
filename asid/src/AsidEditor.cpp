@@ -79,8 +79,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     addAndMakeVisible(lfoTargetLabel);
     addAndMakeVisible(lfoTargetBox);
-    lfoTargetBox.addItem("Off", 1);
-    lfoTargetBox.addItem("Pulse Width", 2);
+    for (const char* t : {"Off", "Pulse Width", "Pitch", "Cutoff"})
+        lfoTargetBox.addItem(t, lfoTargetBox.getNumItems() + 1);
     lfoTargetAtt = std::make_unique<ComboAtt>(state, "lfoTarget", lfoTargetBox);
 
     addAndMakeVisible(lfoShapeLabel);
@@ -121,25 +121,13 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 AsidEditor::~AsidEditor() { stopTimer(); }
 
 void AsidEditor::updateEnablement() {
+    // Pulse width only matters on a pulse wave. The LFO stays enabled since it
+    // can also target pitch and cutoff.
     bool pulse = false;
     if (auto* p = state.getRawParameterValue("waveform"))
         pulse = juce::roundToInt(p->load()) == 2;  // Pulse
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
-    lfoHeading.setEnabled(pulse);
-    lfoTargetLabel.setEnabled(pulse);
-    lfoTargetBox.setEnabled(pulse);
-    lfoShapeLabel.setEnabled(pulse);
-    lfoShapeBox.setEnabled(pulse);
-    lfoSyncButton.setEnabled(pulse);
-    lfoRateKnob.setEnabled(pulse);
-    lfoRateLabel.setEnabled(pulse);
-    lfoDivLabel.setEnabled(pulse);
-    lfoDivBox.setEnabled(pulse);
-    lfoUpdateLabel.setEnabled(pulse);
-    lfoUpdateBox.setEnabled(pulse);
-    lfoDepthKnob.setEnabled(pulse);
-    lfoDepthLabel.setEnabled(pulse);
 }
 
 void AsidEditor::timerCallback() {

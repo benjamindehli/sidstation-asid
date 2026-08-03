@@ -104,9 +104,10 @@ private:
     // Modulation state (this instance's single LFO). The stream interval comes
     // from the LFO update-rate parameter (PAL/NTSC/Eco/Smooth).
     sidstation::Lfo lfo;
-    double lastModMs = 0.0;       // last time a modulation frame went out
-    int lastModPw = -1;           // last pulse width sent, to skip tiny changes
-    bool lfoOwnedPw = false;      // LFO is driving pulse width, so skip the static send
+    double lastModMs = 0.0;                // last time a modulation frame went out
+    sidstation::Bytes lastModFrame;        // last frame sent, to skip identical steps
+    bool lfoOwnedPw = false;               // LFO drives pulse width, skip the static send
+    bool lfoOwnedCutoff = false;           // LFO drives the shared cutoff, skip the static send
 
     // Diagnostics, written on the audio thread, read by the editor.
     std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};

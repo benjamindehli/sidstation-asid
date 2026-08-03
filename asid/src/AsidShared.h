@@ -77,6 +77,20 @@ public:
     }
     double playOffset() const { return refOffsetMs.load(); }
 
+    // Cutoff is one shared filter, so only one instance may modulate it at a
+    // time. An instance claims it while its LFO targets cutoff; others targeting
+    // cutoff stay idle until it is free.
+    bool claimCutoffMod(Client* c) {
+        Client* expected = nullptr;
+        return cutoffModOwner.load() == c || cutoffModOwner.compare_exchange_strong(expected, c);
+    }
+    void releaseCutoffMod(Client* c) {
+        Client* self = c;
+        cutoffModOwner.compare_exchange_strong(self, nullptr);
+    }
+    bool isCutoffModOwner(Client* c) const { return cutoffModOwner.load() == c; }
+    bool cutoffModActive() const { return cutoffModOwner.load() != nullptr; }
+
     // The filter routing register holds one bit per voice, all in one shared
     // register. Each instance sets its own voice's bit here so any instance can
     // write the full byte without wiping the others.
@@ -94,6 +108,7 @@ public:
     std::atomic<bool> hasData{false};
 
     std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
+    std::atomic<Client*> cutoffModOwner{nullptr};  // sole instance modulating the shared cutoff
 
 private:
     juce::CriticalSection lock;

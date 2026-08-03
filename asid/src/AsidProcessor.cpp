@@ -76,7 +76,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     // Modulation: one plugin-side LFO per voice (the SID has none). Pulse width
     // is the only target for now; the engine is written to add more later.
     layout.add(std::make_unique<Choice>(juce::ParameterID{"lfoTarget", 1}, "LFO Target",
-                                        juce::StringArray{"Off", "Pulse Width"}, 0));
+                                        juce::StringArray{"Off", "Pulse Width", "Pitch", "Cutoff"}, 0));
     layout.add(std::make_unique<Choice>(
         juce::ParameterID{"lfoShape", 1}, "LFO Shape",
         juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"}, 0));
@@ -167,7 +167,9 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     const int cutoff = paramInt("cutoff");
     if (forceAll || cutoff != sent.cutoff) {
         sent.cutoff = cutoff;
-        if (forceAll || cutoff != echoCutoff.load()) flush(asidPlayer.setCutoff(cutoff));
+        // Skip while an LFO is sweeping the shared cutoff, or they fight.
+        const bool cutoffFree = !AsidShared::get().cutoffModActive();
+        if (cutoffFree && (forceAll || cutoff != echoCutoff.load())) flush(asidPlayer.setCutoff(cutoff));
     }
     const int mode = paramInt("filterMode");
     if (forceAll || mode != sent.mode) {
@@ -182,16 +184,27 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
 }
 
 void AsidProcessor::updateModulation(int voice) {
-    // Only run when the target is pulse width, there is depth, and the voice is
-    // actually a pulse wave, so nothing is streamed when it would do nothing.
-    const bool active = (paramInt("lfoTarget") == 1) && (paramInt("lfoDepth") > 0)
-                        && (paramInt("waveform") == 2);  // 1 == Pulse Width target, 2 == Pulse wave
-    if (!active) {
-        // Hand pulse width back to the static control on the next block.
-        if (lfoOwnedPw) { lfoOwnedPw = false; sent.pw = -1; lastModPw = -1; }
-        return;
-    }
-    lfoOwnedPw = true;
+    const int target = paramInt("lfoTarget");  // 0 Off, 1 Pulse Width, 2 Pitch, 3 Cutoff
+    const int depth = paramInt("lfoDepth");
+
+    // Cutoff is one shared filter, so claim it while we target it, release it
+    // otherwise. Only the owner streams it; others targeting cutoff stay idle.
+    if (target == 3 && depth > 0) AsidShared::get().claimCutoffMod(this);
+    else AsidShared::get().releaseCutoffMod(this);
+
+    bool active = depth > 0 && target != 0;
+    if (target == 1) active = active && (paramInt("waveform") == 2);  // pulse width needs a pulse wave
+    if (target == 3) active = active && AsidShared::get().isCutoffModOwner(this);
+
+    // Hand a taken-over static control back when the LFO stops driving it.
+    const bool ownPw = active && target == 1;
+    const bool ownCutoff = active && target == 3;
+    if (lfoOwnedPw && !ownPw) sent.pw = -1;
+    if (lfoOwnedCutoff && !ownCutoff) sent.cutoff = -1;
+    lfoOwnedPw = ownPw;
+    lfoOwnedCutoff = ownCutoff;
+
+    if (!active) { lastModFrame.clear(); return; }
 
     const double modInterval = modIntervalForRate(paramInt("lfoUpdate"));
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
@@ -200,7 +213,6 @@ void AsidProcessor::updateModulation(int voice) {
     lastModMs = nowMs;
 
     lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt("lfoShape"))));
-
     if (paramInt("lfoSync") != 0) {
         bool playing = false;
         double ppq = 0.0, bpm = 120.0;
@@ -218,16 +230,24 @@ void AsidProcessor::updateModulation(int voice) {
         lfo.advance(dt, static_cast<double>(paramFloat("lfoRate")));
     }
 
-    const int basePw = paramInt("pulseWidth");
-    const int swing = static_cast<int>(lfo.value() * (paramInt("lfoDepth") / 100.0) * 2047.0);
-    const int modPw = juce::jlimit(0, 4095, basePw + swing);
-    if (modPw == lastModPw) return;  // send every distinct step, so the slide stays smooth
-    lastModPw = modPw;
+    const double v = lfo.value();          // bipolar [-1, 1]
+    const double amt = depth / 100.0;
 
-    // Stream the pulse-width register once. This is a continuous stream, so the
-    // next update (or any note) flushes each step in, which halves the traffic
-    // versus double-sending every frame.
-    sendAsid(asidPlayer.setPulseWidth(voice, modPw));
+    Bytes frame;
+    if (target == 1) {
+        const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * amt * 2047.0));
+        frame = asidPlayer.setPulseWidth(voice, pw);
+    } else if (target == 2) {
+        frame = asidPlayer.setPitchMod(voice, v * amt * 12.0);  // up to +-1 octave at full depth
+    } else if (target == 3) {
+        const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * amt * 2047.0));
+        frame = asidPlayer.setCutoff(co);
+    }
+
+    // Skip empty (pitch with no note) and unchanged frames; the stream self-flushes.
+    if (frame.empty() || frame == lastModFrame) return;
+    lastModFrame = frame;
+    sendAsid(frame);
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume", "latency"};
@@ -245,6 +265,7 @@ AsidProcessor::AsidProcessor()
 AsidProcessor::~AsidProcessor() {
     // Drop this voice's routing bit so a removed instance stops filtering.
     AsidShared::get().setRoutingBit(paramInt("asidVoice"), false);
+    AsidShared::get().releaseCutoffMod(this);
     AsidShared::get().removeClient(this);
     for (const char* id : kSharedIds) apvts.removeParameterListener(id, this);
 }

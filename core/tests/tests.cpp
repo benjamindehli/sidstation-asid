@@ -457,6 +457,18 @@ static void testAsidPlayer() {
     p.setSync(0, false);
     CHECK((p.state().reg[4] & sid::kSync) == 0 && (p.state().reg[4] & sid::kRing) != 0,
           "clearing sync leaves ring set");
+
+    // Pitch modulation only applies while a note is sounding.
+    AsidVoicePlayer pm;
+    pm.setTargetVoice(0);
+    CHECK(pm.setPitchMod(0, 1.0).empty(), "pitch mod does nothing with no note");
+    pm.noteOn(0, 60, 100);
+    auto freq0 = [&] { return pm.state().reg[0] | (pm.state().reg[1] << 8); };
+    const int baseFreq = freq0();
+    CHECK(!pm.setPitchMod(0, 12.0).empty(), "pitch mod writes frequency while a note sounds");
+    CHECK(freq0() > baseFreq, "an octave up raises the frequency value");
+    pm.noteOff(0, 60);
+    CHECK(pm.setPitchMod(0, 5.0).empty(), "pitch mod stops once the note is released");
 }
 
 static void testLfo() {
