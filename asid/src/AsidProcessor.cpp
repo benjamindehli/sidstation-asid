@@ -303,8 +303,16 @@ bool AsidProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
 
 void AsidProcessor::sendAsid(const Bytes& asidMessage) {
     if (asidMessage.size() < 2) return;
-    midiHub.sendMessage(juce::MidiMessage::createSysExMessage(
-        asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2));
+    // Route through the same timed background sender as the notes (at "now"), so
+    // control and modulation frames stay ordered with the note frames on the one
+    // port. Sending some frames immediately from the audio thread while notes go
+    // out on the background thread races them, which scrambles the one-message-
+    // late flush and, for pitch (shared frequency register), stuck/lost notes.
+    juce::MidiBuffer buf;
+    buf.addEvent(juce::MidiMessage::createSysExMessage(
+                     asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2),
+                 0);
+    midiHub.sendScheduled(buf, juce::Time::getMillisecondCounterHiRes(), 1000.0);
 }
 
 void AsidProcessor::addFrame(juce::MidiBuffer& out, const Bytes& frame, int samplePos) {
