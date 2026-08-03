@@ -112,6 +112,16 @@ private:
     std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};
     std::atomic<int> dbgPlaying{0};
 
+    // Coalesce control sends so a knob drag cannot flood the MIDI port and jitter
+    // the notes. Applies to everything except the forced full-state push.
+    static constexpr double kControlIntervalMs = 16.0;  // ~60 Hz
+    double lastControlMs = 0.0;
+
+    // Last shared value synced in from another instance. A shared change only
+    // needs sending by the instance where it actually happened (the one filter
+    // is common), so a value that matches its echo is skipped here.
+    std::atomic<int> echoCutoff{-1}, echoResonance{-1}, echoMode{-1}, echoVolume{-1};
+
     // Last control values sent, for change detection on the audio thread.
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;

@@ -84,8 +84,18 @@ int AsidProcessor::paramInt(const char* id) const {
     return 0;
 }
 
+float AsidProcessor::paramFloat(const char* id) const {
+    if (auto* p = apvts.getRawParameterValue(id)) return p->load();
+    return 0.0f;
+}
+
 void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (voice != sent.voice) { forceAll = true; sent.voice = voice; }
+    if (!forceAll) {
+        const double nowMs = juce::Time::getMillisecondCounterHiRes();
+        if (nowMs - lastControlMs < kControlIntervalMs) return;  // coalesce rapid knob drags
+        lastControlMs = nowMs;
+    }
     auto flush = [&](const Bytes& f) {
         if (!f.empty()) { sendAsid(f); sendAsid(f); }  // send twice to apply
     };
@@ -118,28 +128,43 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     // Filter routing is chosen per voice but lives in a register shared by all
     // voices. Set our voice's bit in the shared routing, then write the whole
     // resonance+routing register so we never wipe the other voices' bits.
+    // Resonance is shared, so only the instance where it actually changed sends
+    // it (a synced-in echo is skipped). Routing bits are per voice: whoever
+    // toggled sends. Both live in register 0x17.
     const int route = paramInt("filterRoute");
     const int res = paramInt("resonance");
-    bool reg17dirty = forceAll;
+    bool reg17dirty = false;
     if (forceAll || route != sent.route) {
         sent.route = route;
         AsidShared::get().setRoutingBit(voice, route != 0);
         reg17dirty = true;
     }
-    if (forceAll || res != sent.resonance) { sent.resonance = res; reg17dirty = true; }
+    if (forceAll || res != sent.resonance) {
+        sent.resonance = res;
+        if (forceAll || res != echoResonance.load()) reg17dirty = true;
+    }
     if (reg17dirty)
         flush(asidPlayer.setResonanceRouting(res, AsidShared::get().routing.load()));
 
-    // Shared controls.
+    // Shared filter and volume: only the instance that changed the value sends
+    // it. The others share the one physical filter, so they stay off the wire.
     const int cutoff = paramInt("cutoff");
-    if (forceAll || cutoff != sent.cutoff) { sent.cutoff = cutoff; flush(asidPlayer.setCutoff(cutoff)); }
+    if (forceAll || cutoff != sent.cutoff) {
+        sent.cutoff = cutoff;
+        if (forceAll || cutoff != echoCutoff.load()) flush(asidPlayer.setCutoff(cutoff));
+    }
     const int mode = paramInt("filterMode");
     if (forceAll || mode != sent.mode) {
         sent.mode = mode;
-        flush(asidPlayer.setFilterMode(kMode[juce::jlimit(0, 2, mode)]));
+        if (forceAll || mode != echoMode.load()) flush(asidPlayer.setFilterMode(kMode[juce::jlimit(0, 2, mode)]));
     }
     const int vol = paramInt("volume");
-    if (forceAll || vol != sent.volume) { sent.volume = vol; flush(asidPlayer.setVolume(vol)); }
+    if (forceAll || vol != sent.volume) {
+        sent.volume = vol;
+        if (forceAll || vol != echoVolume.load()) flush(asidPlayer.setVolume(vol));
+    }
+}
+
 void AsidProcessor::updateModulation(int voice) {
     const bool active = (paramInt("lfoTarget") == 1) && (paramInt("lfoDepth") > 0);  // 1 == Pulse Width
     if (!active) {
@@ -216,10 +241,12 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
 
 void AsidProcessor::sharedUpdated() {
     auto& sh = AsidShared::get();
-    setParamValue("cutoff", sh.cutoff.load());
-    setParamValue("resonance", sh.resonance.load());
-    setParamValue("filterMode", sh.mode.load());
-    setParamValue("volume", sh.volume.load());
+    // Set the param and remember it as an echo, so applyControlChanges knows this
+    // value came from another instance and does not re-send it to the hardware.
+    setParamValue("cutoff", sh.cutoff.load());       echoCutoff.store(sh.cutoff.load());
+    setParamValue("resonance", sh.resonance.load()); echoResonance.store(sh.resonance.load());
+    setParamValue("filterMode", sh.mode.load());     echoMode.store(sh.mode.load());
+    setParamValue("volume", sh.volume.load());       echoVolume.store(sh.volume.load());
     setParamValue("latency", sh.latency.load());
 }
 
