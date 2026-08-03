@@ -103,6 +103,7 @@ private:
 
     // Modulation state (this instance's single LFO). The stream interval comes
     // from the LFO update-rate parameter (PAL/NTSC/Eco/Smooth).
+    static constexpr double kPitchGuardMs = 50.0;  // hold pitch mod off around note events
     sidstation::Lfo lfo;
     double lastModMs = 0.0;                // last time a modulation frame went out
     sidstation::Bytes lastModFrame;        // last frame sent, to skip identical steps

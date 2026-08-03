@@ -238,6 +238,11 @@ void AsidProcessor::updateModulation(int voice) {
         const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * amt * 2047.0));
         frame = asidPlayer.setPulseWidth(voice, pw);
     } else if (target == 2) {
+        // Pitch shares the frequency register with the notes. Keep pitch frames
+        // clear of note events (voiceClockMs is the last note frame's time) so
+        // they cannot disrupt the one-message-late gate flush, which showed up as
+        // stuck and lost notes. Vibrato resumes on the sustained part of the note.
+        if (nowMs < voiceClockMs + kPitchGuardMs) { lastModFrame.clear(); return; }
         frame = asidPlayer.setPitchMod(voice, v * amt * 12.0);  // up to +-1 octave at full depth
     } else if (target == 3) {
         const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * amt * 2047.0));
