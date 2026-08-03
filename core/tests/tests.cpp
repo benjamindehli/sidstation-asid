@@ -411,14 +411,18 @@ static void testAsidPlayer() {
 
     // Per-channel mode (default): channel 0 note drives voice 0 (control reg 4).
     auto frames = p.noteOn(0, 69, 100);
-    CHECK(frames.size() == 2, "note on emits the frame plus a flush");
-    CHECK(frames[0] == frames[1], "flush is a duplicate of the change");
+    CHECK(frames.size() == 2, "note on is the retrigger frame plus a flush");
+    // The retrigger frame writes control (voice 0 -> slots 22 and 25) twice: gate
+    // low then gate high. Both bits are flagged in mask byte 3 (bits 1 and 4).
+    CHECK((frames[0][6] & ((1 << 1) | (1 << 4))) == ((1 << 1) | (1 << 4)),
+          "note on double-writes the control register (primary + secondary slot)");
+    CHECK((frames[1][6] & (1 << 4)) == 0, "flush uses only the primary control slot, no second edge");
     const std::uint16_t f = sidFrequency(69);
     CHECK(p.state().reg[0] == (f & 0xFF) && p.state().reg[1] == ((f >> 8) & 0xFF),
           "voice 0 frequency registers set from the note");
     CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on");
     auto offFrames = p.noteOff(0, 69);
-    CHECK(offFrames.size() == 2, "note off emits the frame plus a flush");
+    CHECK(offFrames.size() == 2, "note off is the gate-off plus a flush");
     CHECK((p.state().reg[4] & sid::kGate) == 0, "voice 0 gated off");
 
     // Target-voice mode: every note goes to the chosen voice regardless of channel.
@@ -439,6 +443,11 @@ static void testAsidPlayer() {
     CHECK(p.state().reg[5] == ((3 << 4) | 5), "attack/decay nibbles in reg 5");
     p.setSustainRelease(0, 12, 2);
     CHECK(p.state().reg[6] == ((12 << 4) | 2), "sustain/release nibbles in reg 6");
+    // Hard-restart drain: a frame plus a flush, and it leaves the stored envelope
+    // untouched (the note-on that follows rewrites the real release).
+    auto drainSeq = p.hardRestartDrain(0);
+    CHECK(drainSeq.size() == 2, "hard-restart drain is a frame plus a flush");
+    CHECK(p.state().reg[6] == ((12 << 4) | 2), "drain does not disturb the stored envelope");
     p.setPulseWidth(0, 0x0800);
     CHECK(p.state().reg[2] == 0x00 && p.state().reg[3] == 0x08, "pulse width split 12-bit");
     p.setFilterRouting(0, true);

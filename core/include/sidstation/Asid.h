@@ -98,6 +98,14 @@ Bytes encodeAsidStop();
 Bytes encodeAsidLcd(const std::string& text);
 Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes);
 
+// Builds one update that also writes a voice's control register twice: gate low
+// in its primary slot, then gate high in its secondary slot (25/26/27). The SID
+// applies slots in order, so the gate goes low then high inside this single
+// frame, retriggering the envelope atomically without any send-timing trick.
+// `otherWrites` carries the frequency and envelope for the note.
+Bytes encodeAsidGateRetrigger(int voice, Byte controlGateLow, Byte controlGateHigh,
+                              const std::vector<SidWrite>& otherWrites);
+
 // MIDI note (may be fractional for pitch bend) to a 16-bit SID frequency value.
 std::uint16_t sidFrequency(double midiNote, double clockHz = sid::kClockPal);
 

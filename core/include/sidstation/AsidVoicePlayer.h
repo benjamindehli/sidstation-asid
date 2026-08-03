@@ -30,11 +30,19 @@ public:
     std::vector<Bytes> start();
     std::vector<Bytes> stop();
 
-    // Note events return the ASID frames to send. Each state change is sent
-    // twice back to back: the unit appears to apply a write only when the next
-    // message arrives, so the second frame flushes the first into effect.
+    // Note events return the ASID frames to send. A note-on is a control
+    // double-write frame (gate low then high in one frame) that retriggers the
+    // envelope atomically, followed by a gate-high flush that makes the unit
+    // apply it without a second retrigger. A note-off is the gate-off plus a
+    // flush. This is robust regardless of other traffic on the wire.
     std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
     std::vector<Bytes> noteOff(int channel, int midiNote);
+
+    // Hard-restart drain: gate the voice off with the release forced fast, so the
+    // envelope falls to zero before the next attack. Sent just before a fresh
+    // note-on, this avoids the SID ADSR bug that silences retriggers at high
+    // sustain. Does not disturb the stored envelope; the note-on rewrites it.
+    std::vector<Bytes> hardRestartDrain(int voice);
 
     // Live controls. Each returns the single ASID update for the change (the
     // caller sends it twice to flush it into effect, like note frames).
@@ -70,8 +78,8 @@ public:
 private:
     // Applies one voice action to the state and returns the single ASID frame.
     Bytes frameForAction(const VoiceAction& a);
-    // Runs the actions and returns each resulting frame twice (frame + flush).
-    std::vector<Bytes> framesWithFlush(const std::vector<VoiceAction>& actions);
+    // Runs the actions and returns one frame each.
+    std::vector<Bytes> frameSequence(const std::vector<VoiceAction>& actions);
 
     SidState sidState;
     VoiceEngine alloc;

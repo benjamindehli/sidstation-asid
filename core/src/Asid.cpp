@@ -41,17 +41,9 @@ Bytes encodeAsidLcd(const std::string& text) {
     return out;
 }
 
-Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes) {
-    // Collect the value per slot (last write to a register wins).
-    Byte value[28] = {0};
-    bool present[28] = {false};
-    for (const auto& w : writes) {
-        const int id = asidSlotForRegister(w.reg);
-        if (id < 0) continue;
-        present[id] = true;
-        value[id] = w.value;
-    }
-
+// Builds the ASID update from a per-slot value/present table. Data bytes go out
+// in ascending slot order, which is the order the unit applies them.
+static Bytes encodeFromSlots(const Byte* value, const bool* present) {
     Byte mask[4] = {0}, msb[4] = {0};
     Bytes data;
     for (int id = 0; id < 28; ++id) {
@@ -69,6 +61,41 @@ Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes) {
     out.insert(out.end(), data.begin(), data.end());
     out.push_back(sysex::kEnd);
     return out;
+}
+
+Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes) {
+    // Collect the value per slot (last write to a register wins).
+    Byte value[28] = {0};
+    bool present[28] = {false};
+    for (const auto& w : writes) {
+        const int id = asidSlotForRegister(w.reg);
+        if (id < 0) continue;
+        present[id] = true;
+        value[id] = w.value;
+    }
+    return encodeFromSlots(value, present);
+}
+
+Bytes encodeAsidGateRetrigger(int voice, Byte controlGateLow, Byte controlGateHigh,
+                              const std::vector<SidWrite>& otherWrites) {
+    if (voice < 0 || voice > 2) return {};
+    Byte value[28] = {0};
+    bool present[28] = {false};
+    for (const auto& w : otherWrites) {
+        const int id = asidSlotForRegister(w.reg);
+        if (id < 0) continue;
+        present[id] = true;
+        value[id] = w.value;
+    }
+    // Control register in its primary slot (22/23/24) then its secondary slot
+    // (25/26/27): gate low first, gate high second, all inside this one frame.
+    const int primary = 22 + voice;
+    const int secondary = 25 + voice;
+    present[primary] = true;
+    value[primary] = controlGateLow;
+    present[secondary] = true;
+    value[secondary] = controlGateHigh;
+    return encodeFromSlots(value, present);
 }
 
 Bytes SidState::fullUpdate() const {

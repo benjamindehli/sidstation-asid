@@ -238,11 +238,6 @@ void AsidProcessor::updateModulation(int voice) {
         const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * amt * 2047.0));
         frame = asidPlayer.setPulseWidth(voice, pw);
     } else if (target == 2) {
-        // Pitch shares the frequency register with the notes. Keep pitch frames
-        // clear of note events (voiceClockMs is the last note frame's time) so
-        // they cannot disrupt the one-message-late gate flush, which showed up as
-        // stuck and lost notes. Vibrato resumes on the sustained part of the note.
-        if (nowMs < voiceClockMs + kPitchGuardMs) { lastModFrame.clear(); return; }
         frame = asidPlayer.setPitchMod(voice, v * amt * 12.0);  // up to +-1 octave at full depth
     } else if (target == 3) {
         const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * amt * 2047.0));
@@ -384,22 +379,31 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) eventMs = aligned;
         }
 
-        // Watch the real gate bit across the event to tell an attack (0->1) from
-        // a legato pitch change (1->1) or a release (1->0).
+        // A fresh attack (gate was off) gets a hard restart; a legato change (gate
+        // stays on) or a note-off does not. Drain is built before the note-on
+        // mutates the state, used only if this turns out to be a fresh attack.
         const bool gateBefore = (asidPlayer.state().control(voice) & sid::kGate) != 0;
+        const auto drain = on ? asidPlayer.hardRestartDrain(voice) : std::vector<Bytes>{};
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
                                : asidPlayer.noteOff(ch, m.getNoteNumber());
         const bool gateAfter = (asidPlayer.state().control(voice) & sid::kGate) != 0;
 
-        double target = juce::jmax(eventMs, voiceClockMs);  // never before the last frame
-        if (gateAfter && !gateBefore)                       // attack: guarantee the gate-low window
-            target = juce::jmax(target, gateLowMs + kMinGateLowMs);
-
-        const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
-        for (const auto& f : frames) addFrame(out, f, posMs);
-
-        voiceClockMs = target;
-        if (!gateAfter && gateBefore) gateLowMs = target;   // release starts the window
+        if (on && gateAfter && !gateBefore) {
+            // Drain the envelope, then attack a short gap later. When the block is
+            // rendered ahead the attack still lands on time; live, it is delayed by
+            // the gap, which is the price of a clean retrigger.
+            const double drainTarget =
+                juce::jmax(nowMs, juce::jmax(eventMs - kHardRestartMs, voiceClockMs));
+            const double attackTarget = drainTarget + kHardRestartMs;
+            for (const auto& f : drain) addFrame(out, f, juce::jmax(0, juce::roundToInt(drainTarget - nowMs)));
+            for (const auto& f : frames) addFrame(out, f, juce::jmax(0, juce::roundToInt(attackTarget - nowMs)));
+            voiceClockMs = attackTarget;
+        } else {
+            const double target = juce::jmax(eventMs, voiceClockMs);
+            const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
+            for (const auto& f : frames) addFrame(out, f, posMs);
+            voiceClockMs = target;
+        }
     }
 
     if (!out.isEmpty()) midiHub.sendScheduled(out, nowMs, 1000.0);
