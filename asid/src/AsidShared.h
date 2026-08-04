@@ -28,8 +28,9 @@ public:
     }
 
     static bool isShared(const juce::String& id) {
-        return id == "cutoff" || id == "resonance" || id == "filterMode" || id == "volume"
-            || id == "latency";
+        return id == "cutoff" || id == "resonance" || id == "volume" || id == "latency"
+            || id == "filt1" || id == "filt2" || id == "filt3"
+            || id == "modeLP" || id == "modeBP" || id == "modeHP";
     }
 
     void addClient(Client* c) {
@@ -41,11 +42,13 @@ public:
         clients.removeFirstMatchingValue(c);
     }
 
-    // Stores new shared values and tells every client except the source.
-    void publish(int cutoff_, int resonance_, int mode_, int volume_, int latency_, Client* source) {
+    // Stores new shared values and tells every client except the source. routing
+    // and mode are 3-bit masks (voice 1/2/3, and LP/BP/HP which combine).
+    void publish(int cutoff_, int resonance_, int mode_, int routing_, int volume_, int latency_, Client* source) {
         cutoff.store(cutoff_);
         resonance.store(resonance_);
         mode.store(mode_);
+        routing.store(routing_);
         volume.store(volume_);
         latency.store(latency_);
         hasData.store(true);
@@ -59,9 +62,14 @@ public:
     int valueFor(const juce::String& id) const {
         if (id == "cutoff") return cutoff.load();
         if (id == "resonance") return resonance.load();
-        if (id == "filterMode") return mode.load();
         if (id == "volume") return volume.load();
         if (id == "latency") return latency.load();
+        if (id == "filt1") return (routing.load() >> 0) & 1;
+        if (id == "filt2") return (routing.load() >> 1) & 1;
+        if (id == "filt3") return (routing.load() >> 2) & 1;
+        if (id == "modeLP") return (mode.load() >> 0) & 1;
+        if (id == "modeBP") return (mode.load() >> 1) & 1;
+        if (id == "modeHP") return (mode.load() >> 2) & 1;
         return -1;
     }
 
@@ -91,18 +99,10 @@ public:
     bool isCutoffModOwner(Client* c) const { return cutoffModOwner.load() == c; }
     bool cutoffModActive() const { return cutoffModOwner.load() != nullptr; }
 
-    // The filter routing register holds one bit per voice, all in one shared
-    // register. Each instance sets its own voice's bit here so any instance can
-    // write the full byte without wiping the others.
-    void setRoutingBit(int voice, bool on) {
-        if (voice < 0 || voice > 2) return;
-        const int bit = 1 << voice;  // voice 0/1/2 -> bit 1/2/4
-        int r = routing.load();
-        r = on ? (r | bit) : (r & ~bit);
-        routing.store(r);
-    }
-
-    std::atomic<int> cutoff{2047}, resonance{0}, mode{0}, volume{15};
+    // The filter routing (one bit per voice) and mode (LP/BP/HP, combinable) both
+    // live in registers shared by all voices, and any instance can edit any bit,
+    // so they are published as whole masks like cutoff and resonance.
+    std::atomic<int> cutoff{2047}, resonance{0}, mode{1}, volume{15};  // mode bit0 = LP
     std::atomic<int> routing{0};
     std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};

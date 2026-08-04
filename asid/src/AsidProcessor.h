@@ -91,6 +91,14 @@ private:
     void updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm);
     int paramInt(const char* id) const;
     int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
+    // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
+    // (bit0 LP, bit1 BP, bit2 HP, combinable).
+    int routingMask() const {
+        return (paramInt("filt1") ? 1 : 0) | (paramInt("filt2") ? 2 : 0) | (paramInt("filt3") ? 4 : 0);
+    }
+    int modeMask() const {
+        return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0);
+    }
     float paramFloat(const char* id) const;
     float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }
 
@@ -124,12 +132,13 @@ private:
     // Last shared value synced in from another instance. A shared change only
     // needs sending by the instance where it actually happened (the one filter
     // is common), so a value that matches its echo is skipped here.
-    std::atomic<int> echoCutoff{-1}, echoResonance{-1}, echoMode{-1}, echoVolume{-1};
+    std::atomic<int> echoCutoff{-1}, echoResonance{-1}, echoMode{-1}, echoRouting{-1}, echoVolume{-1};
 
-    // Last control values sent, for change detection on the audio thread.
+    // Last control values sent, for change detection on the audio thread. routing
+    // and mode are 3-bit masks (routing: voice 1/2/3; mode: LP/BP/HP, combinable).
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
-        int pw = -1, sync = -1, ring = -1, route = -1, coarse = -100, fine = -100;
+        int pw = -1, sync = -1, ring = -1, routing = -1, coarse = -100, fine = -100;
         int cutoff = -1, resonance = -1, mode = -1, volume = -1;
     } sent;
 

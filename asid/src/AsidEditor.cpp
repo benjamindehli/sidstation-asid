@@ -92,9 +92,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(waveformBox);
     addAndMakeVisible(syncButton);
     addAndMakeVisible(ringButton);
-    addAndMakeVisible(routeButton);
-    addAndMakeVisible(modeLabel);
-    addAndMakeVisible(filterModeBox);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -142,12 +139,25 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
-    routeAtt = std::make_unique<ButtonAtt>(state, "filterRoute", routeButton);
 
-    filterModeBox.addItem("Low", 1);
-    filterModeBox.addItem("Band", 2);
-    filterModeBox.addItem("High", 3);
-    filterModeAtt = std::make_unique<ComboAtt>(state, "filterMode", filterModeBox);
+    // Filter Active: one checkbox per voice, all shared, so any instance can
+    // route any voice. Filter Mode: LP/BP/HP, combinable.
+    addAndMakeVisible(filterActiveLabel);
+    const char* voiceNames[3] = {"1", "2", "3"};
+    const char* filtIds[3] = {"filt1", "filt2", "filt3"};
+    for (int i = 0; i < 3; ++i) {
+        filtButtons[i].setButtonText(voiceNames[i]);
+        addAndMakeVisible(filtButtons[i]);
+        filtAtts[i] = std::make_unique<ButtonAtt>(state, filtIds[i], filtButtons[i]);
+    }
+    addAndMakeVisible(filterModeLabel);
+    const char* modeNames[3] = {"LP", "BP", "HP"};
+    const char* modeIds[3] = {"modeLP", "modeBP", "modeHP"};
+    for (int i = 0; i < 3; ++i) {
+        modeButtons[i].setButtonText(modeNames[i]);
+        addAndMakeVisible(modeButtons[i]);
+        modeAtts[i] = std::make_unique<ButtonAtt>(state, modeIds[i], modeButtons[i]);
+    }
 
     setupLfo(pitchLfoUi, "pitchLfo");
     setupLfo(pwLfoUi, "pwLfo");
@@ -155,7 +165,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     refreshDevices();
     updateEnablement();
-    setSize(720, 620);
+    setSize(720, 660);
     startTimerHz(10);  // drives updateEnablement (waveform / sustain / LFO gating)
 }
 
@@ -182,6 +192,16 @@ void AsidEditor::updateEnablement() {
     portaTrigLabel.setEnabled(porta);
     portaTypeBox.setEnabled(porta);
     portaTypeLabel.setEnabled(porta);
+
+    // The filter checkboxes are shared across instances; mark this instance's own
+    // voice so you can see which of the three it drives. Only touch it on change.
+    const int myVoice = juce::jlimit(0, 2, intParam("asidVoice"));
+    if (myVoice != highlightedVoice) {
+        highlightedVoice = myVoice;
+        for (int i = 0; i < 3; ++i)
+            filtButtons[i].setColour(juce::ToggleButton::textColourId,
+                                     i == myVoice ? juce::Colours::orange : juce::Colours::white);
+    }
 
     // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
     // disable it and pin it to 0 when sustain is 15.
@@ -305,11 +325,13 @@ void AsidEditor::resized() {
     knobCell(ampKnobs, releaseKnob, releaseLabel);
 
     sectionHeading(right, sharedHeading);
-    auto filtRow = right.removeFromTop(26);
-    routeButton.setBounds(filtRow.removeFromLeft(150));
-    filtRow.removeFromLeft(8);
-    modeLabel.setBounds(filtRow.removeFromLeft(44));
-    filterModeBox.setBounds(filtRow.removeFromLeft(100));
+    auto activeRow = right.removeFromTop(24);
+    filterActiveLabel.setBounds(activeRow.removeFromLeft(64));
+    for (auto& b : filtButtons) { b.setBounds(activeRow.removeFromLeft(42)); activeRow.removeFromLeft(6); }
+    right.removeFromTop(4);
+    auto modeRow = right.removeFromTop(24);
+    filterModeLabel.setBounds(modeRow.removeFromLeft(64));
+    for (auto& b : modeButtons) { b.setBounds(modeRow.removeFromLeft(56)); modeRow.removeFromLeft(6); }
     right.removeFromTop(6);
     auto sharedKnobs = right.removeFromTop(84);
     knobCell(sharedKnobs, cutoffKnob, cutoffLabel);

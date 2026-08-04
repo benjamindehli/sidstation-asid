@@ -86,15 +86,18 @@ private:
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
     std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt;
 
-    // Shared across all three voices.
-    juce::ToggleButton routeButton{"Route Through Filter"};
-    std::unique_ptr<ButtonAtt> routeAtt;
+    // Shared across all three voices. Filter Active is one checkbox per voice
+    // (the instance's own voice is highlighted); filter Mode bits combine.
+    juce::Label filterActiveLabel{{}, "Filter:"};
+    juce::ToggleButton filtButtons[3];
+    std::unique_ptr<ButtonAtt> filtAtts[3];
+    juce::Label filterModeLabel{{}, "Mode:"};
+    juce::ToggleButton modeButtons[3];  // LP, BP, HP
+    std::unique_ptr<ButtonAtt> modeAtts[3];
+    int highlightedVoice = -1;  // which filter checkbox is currently marked as ours
     juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
     juce::Label cutoffLabel, resLabel, volumeLabel, latencyLabel;
     std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
-    juce::Label modeLabel{{}, "Mode:"};
-    juce::ComboBox filterModeBox;
-    std::unique_ptr<ComboAtt> filterModeAtt;
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 

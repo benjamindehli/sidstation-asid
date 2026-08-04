@@ -67,14 +67,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
         juce::StringArray{"Smooth", "Stepped"}, 0));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"sync", 1}, "Sync", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
-    layout.add(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID{"filterRoute", 1}, "Route Through Filter", false));
 
     // Shared across all three voices (one physical SID filter and master volume).
+    // Filter routing is per voice (filt1/2/3) but shared, so any instance can
+    // route any voice. Filter mode bits (LP/BP/HP) combine, as the SID allows.
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt1", 1}, "Filter Voice 1", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt2", 1}, "Filter Voice 2", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt3", 1}, "Filter Voice 3", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeLP", 1}, "Filter Low Pass", true));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeBP", 1}, "Filter Band Pass", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeHP", 1}, "Filter High Pass", false));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("cutoff", "Cutoff", 0, 2047, 2047)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("resonance", "Resonance", 0, 15, 0)));
-    layout.add(std::make_unique<Choice>(juce::ParameterID{"filterMode", 1}, "Filter Mode",
-                                        juce::StringArray{"Low", "Band", "High"}, 0));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("volume", "Volume", 0, 15, 15)));
     // Milliseconds added to each note's scheduled play time, to line the
     // hardware sound up with the DAW's audio output. Shared by all instances.
@@ -128,7 +132,6 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     };
 
     static const Byte kWave[4] = {sid::kTriangle, sid::kSaw, sid::kPulse, sid::kNoise};
-    static const Byte kMode[3] = {sid::kLowPass, sid::kBandPass, sid::kHighPass};
 
     const int wave = paramInt("waveform");
     if (forceAll || wave != sent.wave) {
@@ -162,26 +165,23 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
     if (forceAll || ring != sent.ring) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
-    // Filter routing is chosen per voice but lives in a register shared by all
-    // voices. Set our voice's bit in the shared routing, then write the whole
-    // resonance+routing register so we never wipe the other voices' bits.
-    // Resonance is shared, so only the instance where it actually changed sends
-    // it (a synced-in echo is skipped). Routing bits are per voice: whoever
-    // toggled sends. Both live in register 0x17.
-    const int route = paramInt("filterRoute");
+    // Filter routing (3 shared voice bits) and resonance both live in register
+    // 0x17. Routing and resonance are shared, so only the instance where the
+    // value actually changed sends it (a synced-in echo is skipped).
+    const int routing = routingMask();
     const int res = paramInt("resonance");
     bool reg17dirty = false;
-    if (forceAll || route != sent.route) {
-        sent.route = route;
-        AsidShared::get().setRoutingBit(voice, route != 0);
-        reg17dirty = true;
+    if (forceAll || routing != sent.routing) {
+        sent.routing = routing;
+        AsidShared::get().routing.store(routing);
+        if (forceAll || routing != echoRouting.load()) reg17dirty = true;
     }
     if (forceAll || res != sent.resonance) {
         sent.resonance = res;
         if (forceAll || res != echoResonance.load()) reg17dirty = true;
     }
     if (reg17dirty)
-        flush(asidPlayer.setResonanceRouting(res, AsidShared::get().routing.load()));
+        flush(asidPlayer.setResonanceRouting(res, routing));
 
     // Shared filter and volume: only the instance that changed the value sends
     // it. The others share the one physical filter, so they stay off the wire.
@@ -192,10 +192,14 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         const bool cutoffFree = !AsidShared::get().cutoffModActive();
         if (cutoffFree && (forceAll || cutoff != echoCutoff.load())) flush(asidPlayer.setCutoff(cutoff));
     }
-    const int mode = paramInt("filterMode");
+    const int mode = modeMask();
     if (forceAll || mode != sent.mode) {
         sent.mode = mode;
-        if (forceAll || mode != echoMode.load()) flush(asidPlayer.setFilterMode(kMode[juce::jlimit(0, 2, mode)]));
+        // Translate the logical LP/BP/HP mask to the SID mode bits (combinable).
+        const Byte modeBits = static_cast<Byte>((mode & 1 ? sid::kLowPass : 0)
+                                              | (mode & 2 ? sid::kBandPass : 0)
+                                              | (mode & 4 ? sid::kHighPass : 0));
+        if (forceAll || mode != echoMode.load()) flush(asidPlayer.setFilterMode(modeBits));
     }
     const int vol = paramInt("volume");
     if (forceAll || vol != sent.volume) {
@@ -341,7 +345,8 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     lfoOwnedCutoff = cutOn;
 }
 
-static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume", "latency"};
+static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency",
+                                   "filt1", "filt2", "filt3", "modeLP", "modeBP", "modeHP"};
 
 AsidProcessor::AsidProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
@@ -354,8 +359,8 @@ AsidProcessor::AsidProcessor()
 }
 
 AsidProcessor::~AsidProcessor() {
-    // Drop this voice's routing bit so a removed instance stops filtering.
-    AsidShared::get().setRoutingBit(paramInt("asidVoice"), false);
+    // Filter routing is now shared state (filt1/2/3), not owned by this instance,
+    // so leave it for the others; only drop this instance's cutoff-mod claim.
     AsidShared::get().releaseCutoffMod(this);
     AsidShared::get().removeClient(this);
     for (const char* id : kSharedIds) apvts.removeParameterListener(id, this);
@@ -367,7 +372,7 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
     // Ignore an echo of a value we just synced in from another instance.
     if (static_cast<int>(std::lround(value)) == sh.valueFor(id)) return;
     // The user changed a shared control here: publish it to the other instances.
-    sh.publish(paramInt("cutoff"), paramInt("resonance"), paramInt("filterMode"),
+    sh.publish(paramInt("cutoff"), paramInt("resonance"), modeMask(), routingMask(),
                paramInt("volume"), paramInt("latency"), this);
 }
 
@@ -377,9 +382,18 @@ void AsidProcessor::sharedUpdated() {
     // value came from another instance and does not re-send it to the hardware.
     setParamValue("cutoff", sh.cutoff.load());       echoCutoff.store(sh.cutoff.load());
     setParamValue("resonance", sh.resonance.load()); echoResonance.store(sh.resonance.load());
-    setParamValue("filterMode", sh.mode.load());     echoMode.store(sh.mode.load());
     setParamValue("volume", sh.volume.load());       echoVolume.store(sh.volume.load());
     setParamValue("latency", sh.latency.load());
+    const int r = sh.routing.load();
+    setParamValue("filt1", (r >> 0) & 1);
+    setParamValue("filt2", (r >> 1) & 1);
+    setParamValue("filt3", (r >> 2) & 1);
+    echoRouting.store(r);
+    const int md = sh.mode.load();
+    setParamValue("modeLP", (md >> 0) & 1);
+    setParamValue("modeBP", (md >> 1) & 1);
+    setParamValue("modeHP", (md >> 2) & 1);
+    echoMode.store(md);
 }
 
 void AsidProcessor::setParamValue(const char* id, int value) {
