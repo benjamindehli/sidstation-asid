@@ -110,6 +110,13 @@ public:
     std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
     std::atomic<Client*> cutoffModOwner{nullptr};  // sole instance modulating the shared cutoff
 
+    // Total bytes ever sent to the device across all instances. Monotonic, so an
+    // editor derives the current rate from the delta over its own poll interval.
+    // The SidStation's MIDI is 31250 baud, ~3125 bytes/sec, shared by every voice.
+    static constexpr double kMidiBytesPerSec = 3125.0;
+    std::atomic<long long> bytesSent{0};
+    void addBytes(int n) { bytesSent.fetch_add(n > 0 ? n : 0, std::memory_order_relaxed); }
+
 private:
     juce::CriticalSection lock;
     juce::Array<Client*> clients;

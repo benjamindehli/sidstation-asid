@@ -7,7 +7,8 @@ add_library(sidstation_core STATIC
     src/VoiceEngine.cpp
     src/Asid.cpp
     src/AsidVoicePlayer.cpp
-    src/Lfo.cpp)
+    src/Lfo.cpp
+    src/WaveTable.cpp)
 
 target_include_directories(sidstation_core PUBLIC include)
 target_compile_features(sidstation_core PUBLIC cxx_std_17)

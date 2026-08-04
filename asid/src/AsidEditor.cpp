@@ -88,6 +88,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(oscPage);
     addChildComponent(ampModPage);  // hidden until its tab is chosen
     addChildComponent(sharedPage);
+    addChildComponent(wtPage);
 
     // Tab bar: a radio row of buttons that switch which page shows.
     auto tab = [this](juce::TextButton& b, int index) {
@@ -101,6 +102,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     tab(oscTabBtn, 0);
     tab(ampModTabBtn, 1);
     tab(sharedTabBtn, 2);
+    tab(waveTabBtn, 3);
 
     // Group boxes go into their page first, so the frames sit behind the controls.
     auto group = [](juce::Component& page, juce::GroupComponent& g, const juce::String& t) {
@@ -116,6 +118,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     group(sharedPage, filterGroup, "FILTER");
     group(sharedPage, cutModGroup, "CUTOFF MOD");
     group(sharedPage, masterGroup, "MASTER");
+    group(wtPage, wtConfigGroup, "WAVETABLE");
+    group(wtPage, wtStepsGroup, "STEPS");
 
     // Global header (above the tabs): MIDI out and SID voice apply to the whole
     // instance, so they sit outside the tabbed pages.
@@ -124,6 +128,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(refreshButton);
     addAndMakeVisible(voiceLabel);
     addAndMakeVisible(voiceBox);
+    addAndMakeVisible(midiLoadLabel);
 
     // ---- OSC page: Oscillator, Glide ----
     oscPage.addAndMakeVisible(waveLabel);
@@ -202,6 +207,27 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(sharedPage, volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
     setupKnob(sharedPage, latencyKnob, latencyLabel, "Lat ms", "latency", latencyAtt);
 
+    // ---- WAVE page: wavetable config and the per-step rows ----
+    wtPage.addAndMakeVisible(wtOnButton);
+    wtOnAtt = std::make_unique<ButtonAtt>(state, "wtOn", wtOnButton);
+    setupKnob(wtPage, wtSpeedKnob, wtSpeedLabel, "Speed", "wtSpeed", wtSpeedAtt);
+    setupKnob(wtPage, wtLengthKnob, wtLengthLabel, "Length", "wtLength", wtLengthAtt);
+    setupKnob(wtPage, wtLoopKnob, wtLoopLabel, "Loop", "wtLoop", wtLoopAtt);
+    const juce::StringArray wtWaves{"Triangle", "Sawtooth", "Pulse", "Noise",
+                                    "Tri+Saw", "Pulse+Tri", "Pulse+Saw", "Silence"};
+    for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
+        wtStepNum[i].setText(juce::String(i + 1), juce::dontSendNotification);
+        wtStepNum[i].setJustificationType(juce::Justification::centredRight);
+        wtPage.addAndMakeVisible(wtStepNum[i]);
+        wtPage.addAndMakeVisible(wtWaveBox[i]);
+        for (int w = 0; w < wtWaves.size(); ++w) wtWaveBox[i].addItem(wtWaves[w], w + 1);
+        wtWaveAtt[i] = std::make_unique<ComboAtt>(state, "wtWave" + juce::String(i), wtWaveBox[i]);
+        wtArpSlider[i].setSliderStyle(juce::Slider::IncDecButtons);
+        wtArpSlider[i].setTextBoxStyle(juce::Slider::TextBoxLeft, false, 42, 20);
+        wtPage.addAndMakeVisible(wtArpSlider[i]);
+        wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
+    }
+
     refreshDevices();
     updateEnablement();
     setTab(0);
@@ -216,9 +242,11 @@ void AsidEditor::setTab(int t) {
     oscPage.setVisible(t == 0);
     ampModPage.setVisible(t == 1);
     sharedPage.setVisible(t == 2);
+    wtPage.setVisible(t == 3);
     oscTabBtn.setToggleState(t == 0, juce::dontSendNotification);
     ampModTabBtn.setToggleState(t == 1, juce::dontSendNotification);
     sharedTabBtn.setToggleState(t == 2, juce::dontSendNotification);
+    waveTabBtn.setToggleState(t == 3, juce::dontSendNotification);
 }
 
 void AsidEditor::updateEnablement() {
@@ -242,6 +270,16 @@ void AsidEditor::updateEnablement() {
     portaTrigLabel.setEnabled(porta);
     portaTypeBox.setEnabled(porta);
     portaTypeLabel.setEnabled(porta);
+
+    // The wavetable's config and steps are live only when it is on.
+    const bool wtOn = boolParam("wtOn");
+    for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
+        s->setEnabled(wtOn);
+    for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
+        wtWaveBox[i].setEnabled(wtOn);
+        wtArpSlider[i].setEnabled(wtOn);
+        wtStepNum[i].setEnabled(wtOn);
+    }
 
     // The filter checkboxes are shared across instances; mark this instance's own
     // voice so you can see which of the three it drives. Only touch it on change.
@@ -283,7 +321,24 @@ void AsidEditor::updateEnablement() {
     applyLfo(cutLfoUi, boolParam("cutLfoOn"), boolParam("cutLfoSync"));
 }
 
-void AsidEditor::timerCallback() { updateEnablement(); }
+void AsidEditor::timerCallback() {
+    updateEnablement();
+
+    // MIDI load: bytes sent (all instances) since the last poll, over the ceiling.
+    const long long now = AsidShared::get().bytesSent.load(std::memory_order_relaxed);
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    if (lastBytesMs > 0.0) {
+        const double dt = (nowMs - lastBytesMs) / 1000.0;
+        if (dt > 0.0) {
+            const double rate = static_cast<double>(now - lastBytes) / dt;  // bytes/sec
+            const float load = static_cast<float>(rate / AsidShared::kMidiBytesPerSec);
+            midiLoad = 0.6f * midiLoad + 0.4f * load;  // smooth the reading
+            repaint(meterArea);
+        }
+    }
+    lastBytes = now;
+    lastBytesMs = nowMs;
+}
 
 void AsidEditor::refreshDevices() {
     outDevices = MidiHub::availableOutputs();
@@ -302,6 +357,28 @@ void AsidEditor::paint(juce::Graphics& g) {
     g.fillAll(juce::Colour(SidLookAndFeel::kFg));
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
     g.fillRect(getLocalBounds().reduced(kBorder));
+
+    // MIDI load meter: segmented blocks lit to the current fraction. The top
+    // fifth turns white as a warning; over 100% every block is white (overload).
+    if (!meterArea.isEmpty()) {
+        const int segs = 20;
+        const int gap = 2;
+        const int segW = (meterArea.getWidth() - (segs - 1) * gap) / segs;
+        const bool over = midiLoad >= 1.0f;
+        for (int i = 0; i < segs; ++i) {
+            juce::Rectangle<int> seg(meterArea.getX() + i * (segW + gap), meterArea.getY(),
+                                     segW, meterArea.getHeight());
+            const bool lit = midiLoad > static_cast<float>(i) / segs;
+            juce::Colour col;
+            if (!lit) col = juce::Colour(SidLookAndFeel::kPanel);
+            else if (over || i >= 16) col = juce::Colour(SidLookAndFeel::kHot);  // warning / overload
+            else col = juce::Colour(SidLookAndFeel::kFg);
+            g.setColour(col);
+            g.fillRect(seg);
+        }
+        g.setColour(juce::Colour(SidLookAndFeel::kFg));
+        g.drawRect(meterArea, 1);
+    }
 }
 
 void AsidEditor::resized() {
@@ -312,30 +389,37 @@ void AsidEditor::resized() {
     // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid
     // horizontally with labels over the controls.
     auto header = area.removeFromTop(38);
-    auto midi = header.removeFromLeft(216);
+    auto midi = header.removeFromLeft(210);
     outLabel.setBounds(midi.removeFromTop(14));
-    refreshButton.setBounds(midi.removeFromRight(64));
+    refreshButton.setBounds(midi.removeFromRight(60));
     midi.removeFromRight(6);
     outputBox.setBounds(midi);
-    header.removeFromLeft(16);
-    voiceLabel.setBounds(header.removeFromTop(14));
-    voiceBox.setBounds(header.removeFromLeft(120));
+    header.removeFromLeft(14);
+    auto voice = header.removeFromLeft(130);
+    voiceLabel.setBounds(voice.removeFromTop(14));
+    voiceBox.setBounds(voice.removeFromTop(24));
+    header.removeFromLeft(14);
+    midiLoadLabel.setBounds(header.removeFromTop(14));
+    meterArea = header.removeFromTop(20);
     area.removeFromTop(8);
 
     auto tabs = area.removeFromTop(26);
-    const int tw = (tabs.getWidth() - 8) / 3;
+    const int tw = (tabs.getWidth() - 12) / 4;
     oscTabBtn.setBounds(tabs.removeFromLeft(tw));    tabs.removeFromLeft(4);
     ampModTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);
-    sharedTabBtn.setBounds(tabs.removeFromLeft(tw));
+    sharedTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);
+    waveTabBtn.setBounds(tabs.removeFromLeft(tw));
     area.removeFromTop(8);
 
-    // All three pages fill the same area; each lays out in its own local coords.
+    // All pages fill the same area; each lays out in its own local coords.
     oscPage.setBounds(area);
     ampModPage.setBounds(area);
     sharedPage.setBounds(area);
+    wtPage.setBounds(area);
     layoutOscPage(oscPage.getLocalBounds());
     layoutAmpModPage(ampModPage.getLocalBounds());
     layoutSharedPage(sharedPage.getLocalBounds());
+    layoutWavePage(wtPage.getLocalBounds());
 }
 
 void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
@@ -421,5 +505,34 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
         auto c = innerBox(box);
         knobCell(c, volumeKnob, volumeLabel);
         knobCell(c, latencyKnob, latencyLabel);
+    }
+}
+
+void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
+    {  // WAVETABLE config: On, Speed, Length, Loop
+        auto box = area.removeFromTop(kRowBox);
+        wtConfigGroup.setBounds(box);
+        auto c = innerBox(box);
+        toggleInline(c.removeFromLeft(56), wtOnButton);
+        c.removeFromLeft(12);
+        knobCell(c, wtSpeedKnob, wtSpeedLabel);
+        knobCell(c, wtLengthKnob, wtLengthLabel);
+        knobCell(c, wtLoopKnob, wtLoopLabel);
+    }
+    area.removeFromTop(10);
+    {  // STEPS: one row per step (number, waveform, arpeggio)
+        const int steps = AsidProcessor::kWtSteps;
+        auto box = area.removeFromTop(22 + steps * 26 + 8);
+        wtStepsGroup.setBounds(box);
+        auto c = innerBox(box);
+        for (int i = 0; i < steps; ++i) {
+            auto row = c.removeFromTop(24);
+            wtStepNum[i].setBounds(row.removeFromLeft(22));
+            row.removeFromLeft(8);
+            wtWaveBox[i].setBounds(row.removeFromLeft(140));
+            row.removeFromLeft(16);
+            wtArpSlider[i].setBounds(row.removeFromLeft(110));
+            c.removeFromTop(2);
+        }
     }
 }

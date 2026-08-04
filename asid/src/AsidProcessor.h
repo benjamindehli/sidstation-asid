@@ -14,11 +14,14 @@
 #include "MidiHub.h"
 #include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Lfo.h"
+#include "sidstation/WaveTable.h"
 
 class AsidProcessor : public juce::AudioProcessor,
                       private juce::AudioProcessorValueTreeState::Listener,
                       private AsidShared::Client {
 public:
+    static constexpr int kWtSteps = 8;  // wavetable step count
+
     AsidProcessor();
     ~AsidProcessor() override;
 
@@ -89,6 +92,9 @@ private:
                      bool playing, double ppq, double bpm);
     // Runs the portamento glide plus pitch-LFO vibrato as one frequency stream.
     void updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm);
+    // Steps the wavetable once per frame: writes the step's waveform and stores
+    // its arpeggio offset (folded into updatePitch's frequency).
+    void updateWaveTable(int voice, bool blockHasNotes);
     int paramInt(const char* id) const;
     int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
@@ -120,6 +126,11 @@ private:
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
     ModStream pitchStream, pwStream, cutStream;
+    sidstation::WaveTablePlayer wtPlayer;
+    double wtLastMs = 0.0;        // last wavetable frame time
+    int wtArp = 0;                // current wavetable arpeggio offset (semitones)
+    int wtWaveSent = -1;          // last waveform bits the wavetable wrote
+    bool wtOwnsWave = false;      // wavetable is driving the waveform register
     double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send

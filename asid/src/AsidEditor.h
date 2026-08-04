@@ -36,6 +36,7 @@ private:
     void layoutOscPage(juce::Rectangle<int> area);
     void layoutAmpModPage(juce::Rectangle<int> area);
     void layoutSharedPage(juce::Rectangle<int> area);
+    void layoutWavePage(juce::Rectangle<int> area);
 
     // One reusable block of controls for a single LFO target.
     struct LfoControls {
@@ -63,9 +64,16 @@ private:
 
     juce::Label title{{}, "SidStation ASID"};
     // Tab bar and the three pages the tabs switch between.
-    juce::TextButton oscTabBtn{"OSC"}, ampModTabBtn{"AMP+MOD"}, sharedTabBtn{"SHARED"};
-    juce::Component oscPage, ampModPage, sharedPage;
+    juce::TextButton oscTabBtn{"OSC"}, ampModTabBtn{"AMP+MOD"}, sharedTabBtn{"SHARED"}, waveTabBtn{"WAVE"};
+    juce::Component oscPage, ampModPage, sharedPage, wtPage;
     int currentTab = 0;
+
+    // MIDI load meter (bytes/sec vs the SidStation's ~3125 B/s ceiling).
+    juce::Label midiLoadLabel{{}, "MIDI LOAD"};
+    juce::Rectangle<int> meterArea;
+    long long lastBytes = 0;
+    double lastBytesMs = 0.0;
+    float midiLoad = 0.0f;
 
     juce::Label outLabel{{}, "MIDI Out:"};
     juce::ComboBox outputBox;
@@ -79,6 +87,19 @@ private:
     juce::GroupComponent oscGroup, glideGroup, ampGroup;
     juce::GroupComponent pitchModGroup, pwModGroup, filterGroup, cutModGroup, masterGroup;
     LfoControls pitchLfoUi, pwLfoUi, cutLfoUi;
+
+    // Wavetable (WAVE tab): global config plus one row per step.
+    juce::GroupComponent wtConfigGroup, wtStepsGroup;
+    juce::ToggleButton wtOnButton{"On"};
+    std::unique_ptr<ButtonAtt> wtOnAtt;
+    juce::Slider wtSpeedKnob, wtLengthKnob, wtLoopKnob;
+    juce::Label wtSpeedLabel, wtLengthLabel, wtLoopLabel;
+    std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
+    juce::Label wtStepNum[AsidProcessor::kWtSteps];
+    juce::ComboBox wtWaveBox[AsidProcessor::kWtSteps];
+    std::unique_ptr<ComboAtt> wtWaveAtt[AsidProcessor::kWtSteps];
+    juce::Slider wtArpSlider[AsidProcessor::kWtSteps];
+    std::unique_ptr<SliderAtt> wtArpAtt[AsidProcessor::kWtSteps];
 
     // Oscillator.
     juce::Label waveLabel{{}, "Waveform:"};

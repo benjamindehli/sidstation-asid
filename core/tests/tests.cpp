@@ -13,6 +13,7 @@
 #include "sidstation/Asid.h"
 #include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Lfo.h"
+#include "sidstation/WaveTable.h"
 #include "sidstation/SysExStream.h"
 #include "sidstation/SyxFile.h"
 #include "sidstation/VoiceEngine.h"
@@ -552,6 +553,55 @@ static void testLfo() {
     CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random glide stays bipolar");
 }
 
+static void testWaveTable() {
+    WaveTablePlayer wt;
+
+    // Speed 1: one step per frame, running 0,1,2 then looping to 0.
+    wt.configure(3, 0, 1);
+    CHECK(!wt.active(), "wavetable inactive before trigger");
+    wt.trigger();
+    CHECK(wt.active() && wt.currentStep() == 0, "trigger starts at step 0");
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 1, "advance moves to step 1");
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 2, "advance moves to step 2");
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 0, "wraps back to the loop point (0)");
+
+    // Loop point in the middle: 0,1,2,3 then loops to 2,3,2,3...
+    wt.configure(4, 2, 1);
+    wt.trigger();
+    for (int i = 0; i < 3; ++i) wt.advanceFrame();  // -> step 3
+    CHECK(wt.currentStep() == 3, "reaches the last step");
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 2, "loops to the mid loop point, not 0");
+
+    // Speed 3: a step holds for three frames.
+    wt.configure(2, 0, 3);
+    wt.trigger();
+    wt.advanceFrame();
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 0, "speed 3 holds the step for 2 frames");
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 1, "speed 3 advances on the 3rd frame");
+
+    // Loop clamped into range, and an empty table never activates.
+    wt.configure(2, 9, 1);
+    wt.trigger();
+    wt.advanceFrame();
+    wt.advanceFrame();
+    CHECK(wt.currentStep() == 1, "out-of-range loop clamps to the last step");
+    wt.configure(0, 0, 1);
+    wt.trigger();
+    CHECK(!wt.active() && wt.currentStep() == -1, "empty table stays inactive");
+
+    // stop() halts playback.
+    wt.configure(3, 0, 1);
+    wt.trigger();
+    wt.stop();
+    CHECK(!wt.active(), "stop halts the wavetable");
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -566,6 +616,7 @@ int main() {
     testAsid();
     testAsidPlayer();
     testLfo();
+    testWaveTable();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
