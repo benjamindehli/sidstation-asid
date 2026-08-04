@@ -45,11 +45,11 @@ private:
         juce::Label shapeLabel{{}, "Shape:"};
         juce::ComboBox shapeBox;
         juce::ToggleButton syncButton{"Tempo Sync"};
-        juce::ComboBox divBox, updateBox;
-        juce::Label divLabel{{}, "Sync:"}, updateLabel{{}, "Update:"};
+        juce::ComboBox divBox;
+        juce::Label divLabel{{}, "Sync:"};
         juce::Slider rateKnob, depthKnob;
         juce::Label rateLabel, depthLabel;
-        std::unique_ptr<ComboAtt> shapeAtt, divAtt, updateAtt;
+        std::unique_ptr<ComboAtt> shapeAtt, divAtt;
         std::unique_ptr<ButtonAtt> syncAtt;
         std::unique_ptr<SliderAtt> rateAtt, depthAtt;
     };
@@ -74,6 +74,10 @@ private:
     long long lastBytes = 0;
     double lastBytesMs = 0.0;
     float midiLoad = 0.0f;
+
+    juce::Label modRateLabel{{}, "Mod Rate"};
+    juce::ComboBox modRateBox;
+    std::unique_ptr<ComboAtt> modRateAtt;
 
     juce::Label outLabel{{}, "MIDI Out:"};
     juce::ComboBox outputBox;

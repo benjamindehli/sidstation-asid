@@ -100,13 +100,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
             juce::ParameterID{prefix + "Div", 1}, name + " Division",
             juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{prefix + "Depth", 1}, name + " Depth", 0, 100, 50));
-        layout.add(std::make_unique<C>(
-            juce::ParameterID{prefix + "Update", 1}, name + " Update",
-            juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
     };
     addLfo("pitchLfo", "Pitch LFO");
     addLfo("pwLfo", "PW LFO");
     addLfo("cutLfo", "Cutoff LFO");
+
+    // One modulation clock for the whole voice: every source (LFOs, glide,
+    // wavetable) is sampled on this tick and sent in a single combined ASID
+    // frame, so the frame rate stays within what the SidStation applies per SID
+    // frame. PAL 50 Hz is the native SID rate; Smooth over-sends and can drop.
+    layout.add(std::make_unique<Choice>(juce::ParameterID{"modRate", 1}, "Mod Rate",
+        juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
 
     // Wavetable: a per-voice table stepped once per PAL frame (~50 Hz), the SID
     // "waveform table" done in software. Each of the 8 steps sets a waveform and
@@ -238,118 +242,14 @@ double AsidProcessor::sampleLfo(sidstation::Lfo& lfo, const juce::String& prefix
     return lfo.value();  // bipolar [-1, 1]
 }
 
-bool AsidProcessor::advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
-                              double ppq, double bpm, double& valueOut) {
-    const double interval = modIntervalForRate(paramInt(prefix + "Update"));
-    const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (nowMs - m.lastMs < interval) return false;  // stream at the chosen rate
-    const double dt = (m.lastMs <= 0.0 ? interval : nowMs - m.lastMs) / 1000.0;
-    m.lastMs = nowMs;
-    valueOut = sampleLfo(m.lfo, prefix, dt, playing, ppq, bpm);
-    return true;
-}
-
-void AsidProcessor::updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm) {
-    // Idle the stream when there is nothing to drive it, and zero lastMs so the
-    // next tick that DOES stream starts with a fresh, one-interval dt. Without
-    // this the glide step (rate * dt) sees the whole idle gap as dt and jumps
-    // straight to the target: the exact bug that vibrato, by never idling, hid.
-    auto idle = [this]() { pitchStream.lastFrame.clear(); pitchStream.lastMs = 0.0; };
-
-    const int curNote = asidPlayer.currentNoteOf(voice);
-    if (curNote < 0) { idle(); return; }         // keep glidePitch so "Always" glides from it
-    if (glidePitch < 0.0) glidePitch = curNote;  // note started without a glide claim
-
-    const int portaTimeMs = paramInt("portaTime");
-    const bool gliding = portaTimeMs > 0 && std::abs(glidePitch - curNote) > 0.01;
-    const int pitchDepth = paramInt("pitchLfoDepth");
-    const bool vibratoOn = paramInt("pitchLfoOn") && pitchDepth > 0;
-
-    // A frequency write must not land on a note-event block (that collision is the
-    // stuck note). Otherwise the stream runs whenever glide, vibrato, or a
-    // wavetable arpeggio is driving the pitch.
-    if (blockHasNotes || (!gliding && !vibratoOn && !wtOwnsWave)) { idle(); return; }
-
-    // Stream at the vibrato LFO's update rate when it runs, else a steady 50 Hz
-    // for a glide on its own.
-    const double interval = vibratoOn ? modIntervalForRate(paramInt("pitchLfoUpdate")) : 20.0;
-    const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (nowMs - pitchStream.lastMs < interval) return;
-    // First tick after idle uses one interval; otherwise the real gap, capped so
-    // a scheduling hiccup cannot make one glide step leap.
-    double dt = (pitchStream.lastMs <= 0.0) ? interval : (nowMs - pitchStream.lastMs);
-    dt = juce::jmin(dt, 4.0 * interval) / 1000.0;
-    pitchStream.lastMs = nowMs;
-
-    // Glide the pitch toward the target at a constant rate (portaTime = ms per octave).
-    if (gliding) {
-        const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;
-        if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
-        else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
-    }
-    // Stepped portamento quantises the glide to whole semitones.
-    const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;
-
-    double vibrato = 0.0;
-    if (vibratoOn) vibrato = sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * (pitchDepth / 100.0) * 12.0;
-
-    // setPitchMod adds to the player's integer note, so offset by the glide delta,
-    // plus vibrato and the wavetable arpeggio.
-    const auto frame = asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
-    if (frame.empty()) return;
-    // The unit applies each write one message late, so a lone write hangs pending
-    // until another follows. While gliding or running a wavetable, send every tick
-    // even if the frame is unchanged: the steady stream keeps each step flushed,
-    // the same way vibrato does. Otherwise send only on change.
-    if (gliding || wtOwnsWave || frame != pitchStream.lastFrame) {
-        pitchStream.lastFrame = frame;
-        sendAsid(frame);
-        // When a glide reaches the target and no vibrato follows to carry the
-        // stream, push one benign flush so the final frequency lands instead of
-        // hanging a step short.
-        if (gliding && !vibratoOn && std::abs(glidePitch - curNote) < 1.0e-9)
-            sendAsid(asidPlayer.settleFrame(voice));
-    }
-}
-
-void AsidProcessor::updateWaveTable(int voice, bool blockHasNotes) {
-    const int curNote = asidPlayer.currentNoteOf(voice);
-    const bool on = paramInt("wtOn") != 0 && curNote >= 0;
-    if (!on) {
-        if (wtOwnsWave) sent.wave = -1;   // hand the waveform back to the static control
-        wtOwnsWave = false;
-        wtWaveSent = -1;
-        wtArp = 0;
-        wtLastMs = 0.0;
-        wtPlayer.stop();
-        return;
-    }
-    wtOwnsWave = true;
-    wtPlayer.configure(paramInt("wtLength"), paramInt("wtLoop"), paramInt("wtSpeed"));
-    if (blockHasNotes) return;  // note-on triggers the table in scheduleNotes
-
-    // Step at the PAL frame rate. First tick after a (re)start applies step 0.
-    const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (wtLastMs > 0.0) {
-        if (nowMs - wtLastMs < 20.0) return;
-        wtPlayer.advanceFrame();
-    }
-    wtLastMs = nowMs;
-
-    const int step = wtPlayer.currentStep();
-    if (step < 0) return;
-    static const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
-    const int choice = juce::jlimit(0, 7, paramInt("wtWave" + juce::String(step)));
-    const auto wb = kWtWave[choice];
-    if (wb != wtWaveSent) {
-        wtWaveSent = wb;
-        sendAsid(asidPlayer.setWaveform(voice, wb));
-    }
-    wtArp = paramInt("wtArp" + juce::String(step));  // updatePitch folds this into the frequency
-}
-
+// Every modulation source runs on one clock and its register changes go out in a
+// single combined ASID frame per tick, so the SidStation (which applies ~one ASID
+// update per SID frame) never gets more frames than it can use. Running many mods
+// with separate frames overran that limit and starved some registers.
 void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
-    // Transport, read once for any tempo-synced LFO.
+    using sidstation::SidState;
+    const int base = SidState::voiceBase(voice);
+
     bool playing = false;
     double ppq = 0.0, bpm = 120.0;
     if (auto* ph = getPlayHead()) {
@@ -360,45 +260,105 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         }
     }
 
-    // Wavetable first (it sets the arpeggio offset the pitch stream folds in),
-    // then the combined pitch stream (glide + vibrato + arp).
-    updateWaveTable(voice, blockHasNotes);
-    updatePitch(voice, blockHasNotes, playing, ppq, bpm);
+    const int curNote = asidPlayer.currentNoteOf(voice);
 
-    // Pulse-width LFO (per voice, pulse wave only). It owns the pulse-width
-    // register while active so applyControlChanges leaves it alone.
+    // Ownership and active-state bookkeeping (every block, so hand-offs are prompt).
+    const bool wtActive = paramInt("wtOn") != 0 && curNote >= 0;
+    if (wtActive) wtPlayer.configure(paramInt("wtLength"), paramInt("wtLoop"), paramInt("wtSpeed"));
+    else { if (wtOwnsWave) sent.wave = -1; wtPlayer.stop(); wtArp = 0; }
+    wtOwnsWave = wtActive;
+
     const int pwDepth = paramInt("pwLfoDepth");
     const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0 && paramInt("waveform") == 2;  // 2 == Pulse
-    if (pwOn) {
-        double v;
-        if (advanceLfo(pwStream, "pwLfo", playing, ppq, bpm, v)) {
-            const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * (pwDepth / 100.0) * 2047.0));
-            const auto frame = asidPlayer.setPulseWidth(voice, pw);
-            if (frame != pwStream.lastFrame) { pwStream.lastFrame = frame; sendAsid(frame); }
-        }
-    } else {
-        if (lfoOwnedPw) sent.pw = -1;  // hand pulse width back to the static control
-        pwStream.lastFrame.clear();
-    }
+    if (!pwOn && lfoOwnedPw) sent.pw = -1;
     lfoOwnedPw = pwOn;
 
-    // Cutoff LFO (shared filter, one owner at a time).
     const int cutDepth = paramInt("cutLfoDepth");
     if (paramInt("cutLfoOn") && cutDepth > 0) AsidShared::get().claimCutoffMod(this);
     else AsidShared::get().releaseCutoffMod(this);
     const bool cutOn = cutDepth > 0 && AsidShared::get().isCutoffModOwner(this);
-    if (cutOn) {
-        double v;
-        if (advanceLfo(cutStream, "cutLfo", playing, ppq, bpm, v)) {
-            const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * (cutDepth / 100.0) * 2047.0));
-            const auto frame = asidPlayer.setCutoff(co);
-            if (frame != cutStream.lastFrame) { cutStream.lastFrame = frame; sendAsid(frame); }
-        }
-    } else {
-        if (lfoOwnedCutoff) sent.cutoff = -1;
-        cutStream.lastFrame.clear();
-    }
+    if (!cutOn && lfoOwnedCutoff) sent.cutoff = -1;
     lfoOwnedCutoff = cutOn;
+
+    const int portaTimeMs = paramInt("portaTime");
+    const int pitchDepth = paramInt("pitchLfoDepth");
+    const bool vibratoOn = paramInt("pitchLfoOn") && pitchDepth > 0;
+
+    bool gliding = false;
+    if (curNote >= 0) {
+        if (glidePitch < 0.0) glidePitch = curNote;
+        gliding = portaTimeMs > 0 && std::abs(glidePitch - curNote) > 0.01;
+    }
+    const bool pitchOn = curNote >= 0 && (gliding || vibratoOn || wtActive);
+    const bool anyMod = pitchOn || pwOn || cutOn || wtActive;
+
+    // A frequency/pulse write must not land on a note-event block (that collision
+    // is the stuck note). Idle when nothing modulates, zeroing the clock so the
+    // next active tick starts with a fresh dt (else a resumed glide leaps).
+    const double interval = modIntervalForRate(paramInt("modRate"));
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    if (blockHasNotes || !anyMod) { modTickMs = 0.0; return; }
+    if (modTickMs > 0.0 && nowMs - modTickMs < interval) return;
+    double dt = (modTickMs <= 0.0) ? interval : juce::jmin(nowMs - modTickMs, 4.0 * interval);
+    dt /= 1000.0;
+    modTickMs = nowMs;
+
+    const auto& sid = asidPlayer.state();
+    std::vector<sidstation::SidWrite> writes;
+    auto addReg = [&](int reg) { writes.push_back({static_cast<sidstation::Byte>(reg), sid.reg[reg]}); };
+
+    // Wavetable: apply the current step's waveform, then advance for the next tick
+    // (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
+    if (wtActive) {
+        if (const int step = wtPlayer.currentStep(); step >= 0) {
+            static const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
+            asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave" + juce::String(step)))]);
+            wtArp = paramInt("wtArp" + juce::String(step));
+            addReg(base + 4);  // control register (waveform + gate)
+        }
+        wtPlayer.advanceFrame();
+    }
+
+    // Pitch: portamento glide + vibrato + wavetable arpeggio, one frequency value.
+    bool glideLanded = false;
+    if (pitchOn) {
+        if (gliding) {
+            const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;  // ms per octave
+            if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
+            else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
+            glideLanded = std::abs(glidePitch - curNote) < 1.0e-9;
+        }
+        const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
+        const double vibrato = vibratoOn
+            ? sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * (pitchDepth / 100.0) * 12.0
+            : 0.0;
+        asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
+        addReg(base + 0);
+        addReg(base + 1);
+    }
+
+    if (pwOn) {
+        const double v = sampleLfo(pwStream.lfo, "pwLfo", dt, playing, ppq, bpm);
+        asidPlayer.setPulseWidth(voice, juce::jlimit(0, 4095,
+            paramInt("pulseWidth") + static_cast<int>(v * (pwDepth / 100.0) * 2047.0)));
+        addReg(base + 2);
+        addReg(base + 3);
+    }
+
+    if (cutOn) {
+        const double v = sampleLfo(cutStream.lfo, "cutLfo", dt, playing, ppq, bpm);
+        asidPlayer.setCutoff(juce::jlimit(0, 2047,
+            paramInt("cutoff") + static_cast<int>(v * (cutDepth / 100.0) * 2047.0)));
+        addReg(21);  // cutoff low/high (registers 21, 22)
+        addReg(22);
+    }
+
+    if (!writes.empty()) sendAsid(sidstation::encodeAsidUpdate(writes));
+
+    // If a glide just reached the target and nothing else keeps the stream alive,
+    // push one benign flush so the final frequency lands (the unit is one late).
+    if (glideLanded && !vibratoOn && !pwOn && !cutOn && !wtActive)
+        sendAsid(asidPlayer.settleFrame(voice));
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency",
@@ -553,10 +513,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             if (glide) asidPlayer.setNextGlideStart(glidePitch);  // start at the held pitch
             else glidePitch = m.getNoteNumber();                  // jump straight to the note
 
-            // Restart the wavetable from step 0 on a fresh attack.
-            wtPlayer.trigger();
-            wtLastMs = 0.0;
-            wtWaveSent = -1;
+            wtPlayer.trigger();  // restart the wavetable from step 0 on a fresh attack
         }
 
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())

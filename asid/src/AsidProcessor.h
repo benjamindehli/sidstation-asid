@@ -82,19 +82,9 @@ private:
     // of its own. blockHasNotes holds the pitch stream off note-event blocks so a
     // frequency write does not collide with a note-off.
     void updateModulation(int voice, bool blockHasNotes);
-    // Advances one LFO stream from its `prefix`-named parameters; returns true and
-    // the bipolar value when it is time to send a frame this block.
-    bool advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
-                    double ppq, double bpm, double& valueOut);
-    // Advances one LFO by dt and returns its bipolar value, with no rate gate.
-    // Shared by advanceLfo and the combined pitch (glide + vibrato) stream.
+    // Advances one LFO by dt and returns its bipolar value (no rate gate).
     double sampleLfo(sidstation::Lfo&, const juce::String& prefix, double dt,
                      bool playing, double ppq, double bpm);
-    // Runs the portamento glide plus pitch-LFO vibrato as one frequency stream.
-    void updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm);
-    // Steps the wavetable once per frame: writes the step's waveform and stores
-    // its arpeggio offset (folded into updatePitch's frequency).
-    void updateWaveTable(int voice, bool blockHasNotes);
     int paramInt(const char* id) const;
     int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
@@ -125,11 +115,10 @@ private:
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
-    ModStream pitchStream, pwStream, cutStream;
+    ModStream pitchStream, pwStream, cutStream;  // only the .lfo of each is used now
     sidstation::WaveTablePlayer wtPlayer;
-    double wtLastMs = 0.0;        // last wavetable frame time
+    double modTickMs = 0.0;       // one modulation clock for the whole voice
     int wtArp = 0;                // current wavetable arpeggio offset (semitones)
-    int wtWaveSent = -1;          // last waveform bits the wavetable wrote
     bool wtOwnsWave = false;      // wavetable is driving the waveform register
     double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send

@@ -56,18 +56,12 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
         u.divBox.addItem(d, u.divBox.getNumItems() + 1);
     u.divAtt = std::make_unique<ComboAtt>(state, prefix + "Div", u.divBox);
 
-    parent.addAndMakeVisible(u.updateLabel);
-    parent.addAndMakeVisible(u.updateBox);
-    for (const char* up : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"})
-        u.updateBox.addItem(up, u.updateBox.getNumItems() + 1);
-    u.updateAtt = std::make_unique<ComboAtt>(state, prefix + "Update", u.updateBox);
-
     setupKnob(parent, u.rateKnob, u.rateLabel, "Rate Hz", prefix + "Rate", u.rateAtt);
     setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
 }
 
 void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
-    // One wide inline row: on, shape, sync, rate, depth, division, update rate.
+    // One wide inline row: on, shape, sync, rate, depth, division.
     auto next = [&area](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(8); return c; };
     toggleInline(next(46), u.enableButton);
     labeledOver(next(116), u.shapeLabel, u.shapeBox);
@@ -75,7 +69,6 @@ void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
     { auto k = next(74); u.rateLabel.setBounds(k.removeFromTop(14)); u.rateKnob.setBounds(k); }
     { auto k = next(74); u.depthLabel.setBounds(k.removeFromTop(14)); u.depthKnob.setBounds(k); }
     labeledOver(next(64), u.divLabel, u.divBox);
-    labeledOver(next(96), u.updateLabel, u.updateBox);
 }
 
 AsidEditor::AsidEditor(AsidProcessor& p)
@@ -129,6 +122,11 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(voiceLabel);
     addAndMakeVisible(voiceBox);
     addAndMakeVisible(midiLoadLabel);
+    addAndMakeVisible(modRateLabel);
+    addAndMakeVisible(modRateBox);
+    for (const char* r : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"})
+        modRateBox.addItem(r, modRateBox.getNumItems() + 1);
+    modRateAtt = std::make_unique<ComboAtt>(state, "modRate", modRateBox);
 
     // ---- OSC page: Oscillator, Glide ----
     oscPage.addAndMakeVisible(waveLabel);
@@ -305,8 +303,6 @@ void AsidEditor::updateEnablement() {
     auto applyLfo = [](LfoControls& u, bool on, bool sync) {
         u.shapeBox.setEnabled(on);
         u.syncButton.setEnabled(on);
-        u.updateBox.setEnabled(on);
-        u.updateLabel.setEnabled(on);
         u.depthKnob.setEnabled(on);
         u.depthLabel.setEnabled(on);
         u.rateKnob.setEnabled(on && !sync);
@@ -389,16 +385,20 @@ void AsidEditor::resized() {
     // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid
     // horizontally with labels over the controls.
     auto header = area.removeFromTop(38);
-    auto midi = header.removeFromLeft(210);
+    auto midi = header.removeFromLeft(200);
     outLabel.setBounds(midi.removeFromTop(14));
-    refreshButton.setBounds(midi.removeFromRight(60));
+    refreshButton.setBounds(midi.removeFromRight(58));
     midi.removeFromRight(6);
     outputBox.setBounds(midi);
-    header.removeFromLeft(14);
-    auto voice = header.removeFromLeft(130);
+    header.removeFromLeft(12);
+    auto voice = header.removeFromLeft(108);
     voiceLabel.setBounds(voice.removeFromTop(14));
     voiceBox.setBounds(voice.removeFromTop(24));
-    header.removeFromLeft(14);
+    header.removeFromLeft(12);
+    auto mod = header.removeFromLeft(128);
+    modRateLabel.setBounds(mod.removeFromTop(14));
+    modRateBox.setBounds(mod.removeFromTop(24));
+    header.removeFromLeft(12);
     midiLoadLabel.setBounds(header.removeFromTop(14));
     meterArea = header.removeFromTop(20);
     area.removeFromTop(8);
