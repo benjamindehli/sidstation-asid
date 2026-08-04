@@ -54,6 +54,14 @@ public:
     void requestReinit() { initRequest.store(true); }
 
 private:
+    // One modulation stream per LFO target: its LFO, when it last sent, and the
+    // last frame sent (to skip identical steps).
+    struct ModStream {
+        sidstation::Lfo lfo;
+        double lastMs = 0.0;
+        sidstation::Bytes lastFrame;
+    };
+
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     // Sends one ASID frame to the device now (from processBlock). Used for the
     // start state and control edits, which are not note-timing critical.
@@ -66,13 +74,19 @@ private:
     void scheduleNotes(const juce::MidiBuffer& midiMessages, int voice);
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
-    // Runs the plugin-side LFO and streams its target register at a modest rate
-    // while it is active. Pitch shares the frequency register with the notes, so
-    // it is held off on any block that also carries a note event, to keep a pitch
-    // write from colliding with a note-off. The SID has no LFOs of its own.
+    // Runs the three plugin-side LFOs (pitch, pulse width, cutoff) and streams
+    // each target register at its own modest rate while active. The SID has none
+    // of its own. blockHasNotes holds the pitch stream off note-event blocks so a
+    // frequency write does not collide with a note-off.
     void updateModulation(int voice, bool blockHasNotes);
+    // Advances one LFO stream from its `prefix`-named parameters; returns true and
+    // the bipolar value when it is time to send a frame this block.
+    bool advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
+                    double ppq, double bpm, double& valueOut);
     int paramInt(const char* id) const;
+    int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     float paramFloat(const char* id) const;
+    float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }
 
     // Cross-instance sync of the shared filter and volume.
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -91,13 +105,9 @@ private:
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
-    // Modulation state (this instance's single LFO). The stream interval comes
-    // from the LFO update-rate parameter (PAL/NTSC/Eco/Smooth).
-    sidstation::Lfo lfo;
-    double lastModMs = 0.0;                // last time a modulation frame went out
-    sidstation::Bytes lastModFrame;        // last frame sent, to skip identical steps
-    bool lfoOwnedPw = false;               // LFO drives pulse width, skip the static send
-    bool lfoOwnedCutoff = false;           // LFO drives the shared cutoff, skip the static send
+    ModStream pitchStream, pwStream, cutStream;
+    bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
+    bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send
 
     // Coalesce control sends so a knob drag cannot flood the MIDI port and jitter
     // the notes. Applies to everything except the forced full-state push.

@@ -10,10 +10,6 @@ namespace {
 juce::AudioParameterInt* intParam(const char* id, const char* name, int lo, int hi, int def) {
     return new juce::AudioParameterInt(juce::ParameterID{id, 1}, name, lo, hi, def);
 }
-juce::AudioParameterFloat* floatParam(const char* id, const char* name,
-                                      juce::NormalisableRange<float> range, float def) {
-    return new juce::AudioParameterFloat(juce::ParameterID{id, 1}, name, range, def);
-}
 
 // Modulation stream interval in ms for the update-rate choice.
 double modIntervalForRate(int idx) {
@@ -75,25 +71,29 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     // hardware sound up with the DAW's audio output. Shared by all instances.
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("latency", "Output Latency", 0, 500, 0)));
 
-    // Modulation: one plugin-side LFO per voice (the SID has none). Pulse width
-    // is the only target for now; the engine is written to add more later.
-    layout.add(std::make_unique<Choice>(juce::ParameterID{"lfoTarget", 1}, "LFO Target",
-                                        juce::StringArray{"Off", "Pulse Width", "Pitch", "Cutoff"}, 0));
-    layout.add(std::make_unique<Choice>(
-        juce::ParameterID{"lfoShape", 1}, "LFO Shape",
-        juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"}, 0));
-    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"lfoSync", 1}, "LFO Sync", false));
-    layout.add(std::unique_ptr<juce::AudioParameterFloat>(floatParam(
-        "lfoRate", "LFO Rate", juce::NormalisableRange<float>(0.05f, 20.0f, 0.0f, 0.35f), 2.0f)));
-    layout.add(std::make_unique<Choice>(
-        juce::ParameterID{"lfoDivision", 1}, "LFO Division",
-        juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
-    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("lfoDepth", "LFO Depth", 0, 100, 50)));
-    // How often the modulation streams to the unit. Lower saves MIDI traffic;
-    // PAL/NTSC are the authentic C64 single-speed update rates. Default PAL.
-    layout.add(std::make_unique<Choice>(
-        juce::ParameterID{"lfoUpdate", 1}, "LFO Update Rate",
-        juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
+    // Modulation: one plugin-side LFO per target (the SID has none). Pitch and
+    // pulse width are per voice; cutoff is the one shared filter. Depth 0 = off.
+    auto addLfo = [&layout](const juce::String& prefix, const juce::String& name) {
+        using C = juce::AudioParameterChoice;
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{prefix + "On", 1}, name + " On", false));
+        layout.add(std::make_unique<C>(
+            juce::ParameterID{prefix + "Shape", 1}, name + " Shape",
+            juce::StringArray{"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"}, 0));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{prefix + "Sync", 1}, name + " Sync", false));
+        layout.add(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID{prefix + "Rate", 1}, name + " Rate",
+            juce::NormalisableRange<float>(0.05f, 20.0f, 0.0f, 0.35f), 2.0f));
+        layout.add(std::make_unique<C>(
+            juce::ParameterID{prefix + "Div", 1}, name + " Division",
+            juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{prefix + "Depth", 1}, name + " Depth", 0, 100, 50));
+        layout.add(std::make_unique<C>(
+            juce::ParameterID{prefix + "Update", 1}, name + " Update",
+            juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
+    };
+    addLfo("pitchLfo", "Pitch LFO");
+    addLfo("pwLfo", "PW LFO");
+    addLfo("cutLfo", "Cutoff LFO");
     return layout;
 }
 
@@ -195,75 +195,88 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
 }
 
-void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
-    const int target = paramInt("lfoTarget");  // 0 Off, 1 Pulse Width, 2 Pitch, 3 Cutoff
-    const int depth = paramInt("lfoDepth");
-
-    // Cutoff is one shared filter, so claim it while we target it, release it
-    // otherwise. Only the owner streams it; others targeting cutoff stay idle.
-    if (target == 3 && depth > 0) AsidShared::get().claimCutoffMod(this);
-    else AsidShared::get().releaseCutoffMod(this);
-
-    bool active = depth > 0 && target != 0;
-    if (target == 1) active = active && (paramInt("waveform") == 2);  // pulse width needs a pulse wave
-    if (target == 3) active = active && AsidShared::get().isCutoffModOwner(this);
-
-    // Hand a taken-over static control back when the LFO stops driving it.
-    const bool ownPw = active && target == 1;
-    const bool ownCutoff = active && target == 3;
-    if (lfoOwnedPw && !ownPw) sent.pw = -1;
-    if (lfoOwnedCutoff && !ownCutoff) sent.cutoff = -1;
-    lfoOwnedPw = ownPw;
-    lfoOwnedCutoff = ownCutoff;
-
-    if (!active) { lastModFrame.clear(); return; }
-
-    const double modInterval = modIntervalForRate(paramInt("lfoUpdate"));
+bool AsidProcessor::advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
+                              double ppq, double bpm, double& valueOut) {
+    const double interval = modIntervalForRate(paramInt(prefix + "Update"));
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    if (nowMs - lastModMs < modInterval) return;  // stream at the chosen update rate
-    const double dt = (lastModMs <= 0.0 ? modInterval : nowMs - lastModMs) / 1000.0;
-    lastModMs = nowMs;
+    if (nowMs - m.lastMs < interval) return false;  // stream at the chosen rate
+    const double dt = (m.lastMs <= 0.0 ? interval : nowMs - m.lastMs) / 1000.0;
+    m.lastMs = nowMs;
 
-    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt("lfoShape"))));
-    if (paramInt("lfoSync") != 0) {
-        bool playing = false;
-        double ppq = 0.0, bpm = 120.0;
-        if (auto* ph = getPlayHead()) {
-            if (const auto pos = ph->getPosition()) {
-                playing = pos->getIsPlaying();
-                if (const auto q = pos->getPpqPosition()) ppq = *q;
-                if (const auto b = pos->getBpm()) bpm = *b;
+    m.lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt(prefix + "Shape"))));
+    if (paramInt(prefix + "Sync") != 0) {
+        const double beats = beatsForDivision(paramInt(prefix + "Div"));
+        if (playing) m.lfo.setPhase(ppq / beats);          // locked to the song
+        else m.lfo.advance(dt, (bpm / 60.0) / beats);      // free-run at the synced rate when stopped
+    } else {
+        m.lfo.advance(dt, static_cast<double>(paramFloat(prefix + "Rate")));
+    }
+    valueOut = m.lfo.value();  // bipolar [-1, 1]
+    return true;
+}
+
+void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
+    // Transport, read once for any tempo-synced LFO.
+    bool playing = false;
+    double ppq = 0.0, bpm = 120.0;
+    if (auto* ph = getPlayHead()) {
+        if (const auto pos = ph->getPosition()) {
+            playing = pos->getIsPlaying();
+            if (const auto q = pos->getPpqPosition()) ppq = *q;
+            if (const auto b = pos->getBpm()) bpm = *b;
+        }
+    }
+
+    // Pitch LFO (per voice). Held off on note-event blocks so a frequency write
+    // does not collide with a note-off. Empty when no note is sounding.
+    const int pitchDepth = paramInt("pitchLfoDepth");
+    if (paramInt("pitchLfoOn") && pitchDepth > 0 && !blockHasNotes) {
+        double v;
+        if (advanceLfo(pitchStream, "pitchLfo", playing, ppq, bpm, v)) {
+            const auto frame = asidPlayer.setPitchMod(voice, v * (pitchDepth / 100.0) * 12.0);
+            if (!frame.empty() && frame != pitchStream.lastFrame) {
+                pitchStream.lastFrame = frame;
+                sendAsid(frame);
             }
         }
-        const double beats = beatsForDivision(paramInt("lfoDivision"));
-        if (playing) lfo.setPhase(ppq / beats);              // locked to the song
-        else lfo.advance(dt, (bpm / 60.0) / beats);          // free-run at the synced rate when stopped
     } else {
-        lfo.advance(dt, static_cast<double>(paramFloat("lfoRate")));
+        pitchStream.lastFrame.clear();
     }
 
-    const double v = lfo.value();          // bipolar [-1, 1]
-    const double amt = depth / 100.0;
-
-    Bytes frame;
-    if (target == 1) {
-        const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * amt * 2047.0));
-        frame = asidPlayer.setPulseWidth(voice, pw);
-    } else if (target == 2) {
-        frame = asidPlayer.setPitchMod(voice, v * amt * 12.0);  // up to +-1 octave at full depth
-    } else if (target == 3) {
-        const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * amt * 2047.0));
-        frame = asidPlayer.setCutoff(co);
+    // Pulse-width LFO (per voice, pulse wave only). It owns the pulse-width
+    // register while active so applyControlChanges leaves it alone.
+    const int pwDepth = paramInt("pwLfoDepth");
+    const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0 && paramInt("waveform") == 2;  // 2 == Pulse
+    if (pwOn) {
+        double v;
+        if (advanceLfo(pwStream, "pwLfo", playing, ppq, bpm, v)) {
+            const int pw = juce::jlimit(0, 4095, paramInt("pulseWidth") + static_cast<int>(v * (pwDepth / 100.0) * 2047.0));
+            const auto frame = asidPlayer.setPulseWidth(voice, pw);
+            if (frame != pwStream.lastFrame) { pwStream.lastFrame = frame; sendAsid(frame); }
+        }
+    } else {
+        if (lfoOwnedPw) sent.pw = -1;  // hand pulse width back to the static control
+        pwStream.lastFrame.clear();
     }
+    lfoOwnedPw = pwOn;
 
-    // Keep pitch off the wire on a block that also carries a note event, so a
-    // pitch write never lands on top of a note-off (that collision is the stuck
-    // note). Pulse width and cutoff use their own registers and are safe.
-    if (target == 2 && blockHasNotes) return;
-    // Skip empty (pitch with no note) and unchanged frames; the stream self-flushes.
-    if (frame.empty() || frame == lastModFrame) return;
-    lastModFrame = frame;
-    sendAsid(frame);
+    // Cutoff LFO (shared filter, one owner at a time).
+    const int cutDepth = paramInt("cutLfoDepth");
+    if (paramInt("cutLfoOn") && cutDepth > 0) AsidShared::get().claimCutoffMod(this);
+    else AsidShared::get().releaseCutoffMod(this);
+    const bool cutOn = cutDepth > 0 && AsidShared::get().isCutoffModOwner(this);
+    if (cutOn) {
+        double v;
+        if (advanceLfo(cutStream, "cutLfo", playing, ppq, bpm, v)) {
+            const int co = juce::jlimit(0, 2047, paramInt("cutoff") + static_cast<int>(v * (cutDepth / 100.0) * 2047.0));
+            const auto frame = asidPlayer.setCutoff(co);
+            if (frame != cutStream.lastFrame) { cutStream.lastFrame = frame; sendAsid(frame); }
+        }
+    } else {
+        if (lfoOwnedCutoff) sent.cutoff = -1;
+        cutStream.lastFrame.clear();
+    }
+    lfoOwnedCutoff = cutOn;
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "filterMode", "volume", "latency"};
@@ -370,7 +383,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
 
-    const bool pitchActive = paramInt("lfoTarget") == 2 && paramInt("lfoDepth") > 0;
+    const bool pitchActive = paramInt("pitchLfoOn") && paramInt("pitchLfoDepth") > 0;
 
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();

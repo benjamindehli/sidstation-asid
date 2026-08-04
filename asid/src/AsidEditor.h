@@ -26,11 +26,29 @@ private:
     using ComboAtt = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
     void refreshDevices();
-    // Pulse width and the LFO only matter on a pulse wave, so grey them out
-    // otherwise. Driven from the timer, since the waveform is a plain parameter.
+    // Enable/disable controls that only apply in some states (pulse-wave-only
+    // pulse width, sync-vs-free rate). Driven from the timer.
     void updateEnablement();
     void setupKnob(juce::Slider&, juce::Label&, const juce::String& name,
                    const juce::String& paramId, std::unique_ptr<SliderAtt>&);
+
+    // One reusable block of controls for a single LFO target.
+    struct LfoControls {
+        juce::ToggleButton enableButton{"On"};
+        std::unique_ptr<ButtonAtt> enableAtt;
+        juce::Label shapeLabel{{}, "Shape:"};
+        juce::ComboBox shapeBox;
+        juce::ToggleButton syncButton{"Tempo Sync"};
+        juce::ComboBox divBox, updateBox;
+        juce::Label divLabel{{}, "Sync:"}, updateLabel{{}, "Update:"};
+        juce::Slider rateKnob, depthKnob;
+        juce::Label rateLabel, depthLabel;
+        std::unique_ptr<ComboAtt> shapeAtt, divAtt, updateAtt;
+        std::unique_ptr<ButtonAtt> syncAtt;
+        std::unique_ptr<SliderAtt> rateAtt, depthAtt;
+    };
+    void setupLfo(LfoControls&, const juce::String& prefix);
+    void layoutLfo(LfoControls&, juce::Rectangle<int> area);
 
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
@@ -47,7 +65,8 @@ private:
     juce::Label oscHeading{{}, "OSCILLATOR"};
     juce::Label ampHeading{{}, "AMP"};
     juce::Label sharedHeading{{}, "SHARED (all voices)"};
-    juce::Label lfoHeading{{}, "LFO"};
+    juce::Label pitchLfoHeading{{}, "PITCH MOD"}, pwLfoHeading{{}, "PW MOD"}, cutLfoHeading{{}, "CUTOFF MOD"};
+    LfoControls pitchLfoUi, pwLfoUi, cutLfoUi;
 
     // Oscillator.
     juce::Label waveLabel{{}, "Waveform:"};
@@ -73,17 +92,6 @@ private:
     juce::Label modeLabel{{}, "Mode:"};
     juce::ComboBox filterModeBox;
     std::unique_ptr<ComboAtt> filterModeAtt;
-
-    // LFO (single, transitional; becomes per-target later).
-    juce::Label lfoTargetLabel{{}, "Target:"}, lfoShapeLabel{{}, "Shape:"}, lfoDivLabel{{}, "Sync:"};
-    juce::Label lfoUpdateLabel{{}, "Update:"};
-    juce::ComboBox lfoTargetBox, lfoShapeBox, lfoDivBox, lfoUpdateBox;
-    std::unique_ptr<ComboAtt> lfoTargetAtt, lfoShapeAtt, lfoDivAtt, lfoUpdateAtt;
-    juce::ToggleButton lfoSyncButton{"Tempo Sync"};
-    std::unique_ptr<ButtonAtt> lfoSyncAtt;
-    juce::Slider lfoRateKnob, lfoDepthKnob;
-    juce::Label lfoRateLabel, lfoDepthLabel;
-    std::unique_ptr<SliderAtt> lfoRateAtt, lfoDepthAtt;
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 
