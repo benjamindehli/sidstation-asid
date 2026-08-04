@@ -475,6 +475,18 @@ static void testAsidPlayer() {
     CHECK(freq0() > baseFreq, "an octave up raises the frequency value");
     pm.noteOff(0, 60);
     CHECK(pm.setPitchMod(0, 5.0).empty(), "pitch mod stops once the note is released");
+
+    // Coarse/fine tune offsets the played frequency.
+    AsidVoicePlayer tune;
+    tune.setTargetVoice(0);
+    tune.noteOn(0, 60, 100);
+    const int freqPlain = tune.state().reg[0] | (tune.state().reg[1] << 8);
+    tune.setPitchOffset(12.0);   // +1 octave
+    tune.noteOn(0, 60, 100);     // retrigger to pick up the offset
+    const int freqUp = tune.state().reg[0] | (tune.state().reg[1] << 8);
+    CHECK(freqUp > freqPlain * 3 / 2, "coarse tune up raises the played frequency (about double an octave)");
+    CHECK(!tune.setPitchMod(0, 0.0).empty() && (tune.state().reg[0] | (tune.state().reg[1] << 8)) == freqUp,
+          "the tune offset folds into pitch modulation too");
 }
 
 static void testLfo() {

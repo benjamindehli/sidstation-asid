@@ -26,7 +26,9 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         l.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.65f));
         addAndMakeVisible(l);
     };
-    heading(voiceHeading);
+    heading(settingsHeading);
+    heading(oscHeading);
+    heading(ampHeading);
     heading(sharedHeading);
     heading(lfoHeading);
 
@@ -58,11 +60,13 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     waveformBox.addItem("Noise", 4);
     waveformAtt = std::make_unique<ComboAtt>(state, "waveform", waveformBox);
 
+    setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
+    setupKnob(coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
+    setupKnob(fineKnob, fineLabel, "Fine", "fine", fineAtt);
     setupKnob(attackKnob, attackLabel, "Attack", "attack", attackAtt);
     setupKnob(decayKnob, decayLabel, "Decay", "decay", decayAtt);
     setupKnob(sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
     setupKnob(releaseKnob, releaseLabel, "Release", "release", releaseAtt);
-    setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
     setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
     setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
@@ -107,15 +111,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(lfoRateKnob, lfoRateLabel, "Rate Hz", "lfoRate", lfoRateAtt);
     setupKnob(lfoDepthKnob, lfoDepthLabel, "Depth", "lfoDepth", lfoDepthAtt);
 
-    diagLabel.setFont(juce::Font(juce::FontOptions().withHeight(11.0f)));
-    diagLabel.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.55f));
-    diagLabel.setJustificationType(juce::Justification::centredLeft);
-    addAndMakeVisible(diagLabel);
-
     refreshDevices();
     updateEnablement();
-    setSize(560, 610);
-    startTimerHz(10);
+    setSize(560, 720);
+    startTimerHz(10);  // drives updateEnablement (waveform/sustain gating)
 }
 
 AsidEditor::~AsidEditor() { stopTimer(); }
@@ -140,14 +139,7 @@ void AsidEditor::updateEnablement() {
         decayKnob.setValue(0.0, juce::sendNotificationSync);
 }
 
-void AsidEditor::timerCallback() {
-    updateEnablement();
-    const auto d = proc.diag();
-    diagLabel.setText(juce::String(d.playing ? "running" : "stopped") + "   play: "
-                          + juce::String(d.playheadSec, 2) + " s   align delay: "
-                          + juce::String(juce::roundToInt(d.alignMs)) + " ms",
-                      juce::dontSendNotification);
-}
+void AsidEditor::timerCallback() { updateEnablement(); }
 
 void AsidEditor::refreshDevices() {
     outDevices = MidiHub::availableOutputs();
@@ -164,60 +156,66 @@ void AsidEditor::paint(juce::Graphics& g) {
     g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
     // A faint rule under each section heading.
     g.setColour(juce::Colours::white.withAlpha(0.15f));
-    for (const auto* l : {&voiceHeading, &sharedHeading}) {
+    for (const auto* l : {&settingsHeading, &oscHeading, &ampHeading, &sharedHeading, &lfoHeading}) {
         auto b = l->getBounds();
         g.fillRect(b.getX(), b.getBottom() - 1, getWidth() - b.getX() - 14, 1);
     }
 }
 
 void AsidEditor::resized() {
+    auto r = getLocalBounds().reduced(14);
+
     auto knobCell = [](juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
         auto cell = row.removeFromLeft(74);
         l.setBounds(cell.removeFromTop(14));
         s.setBounds(cell);
         row.removeFromLeft(4);
     };
+    auto sectionHeading = [&r](juce::Label& h) {
+        r.removeFromTop(14);
+        h.setBounds(r.removeFromTop(18));
+        r.removeFromTop(6);
+    };
 
-    auto r = getLocalBounds().reduced(14);
     title.setBounds(r.removeFromTop(30));
-    r.removeFromTop(6);
 
+    // Settings.
+    sectionHeading(settingsHeading);
     auto row1 = r.removeFromTop(26);
     outLabel.setBounds(row1.removeFromLeft(66));
     refreshButton.setBounds(row1.removeFromRight(78));
     row1.removeFromRight(8);
     outputBox.setBounds(row1);
-
     r.removeFromTop(8);
     auto row2 = r.removeFromTop(26);
     voiceLabel.setBounds(row2.removeFromLeft(66));
     voiceBox.setBounds(row2.removeFromLeft(130));
 
-    // Per-voice section.
-    r.removeFromTop(14);
-    voiceHeading.setBounds(r.removeFromTop(18));
-    r.removeFromTop(6);
+    // Oscillator.
+    sectionHeading(oscHeading);
     auto waveRow = r.removeFromTop(26);
     waveLabel.setBounds(waveRow.removeFromLeft(74));
     waveformBox.setBounds(waveRow.removeFromLeft(128));
     waveRow.removeFromLeft(16);
     syncButton.setBounds(waveRow.removeFromLeft(72));
     ringButton.setBounds(waveRow.removeFromLeft(72));
-
     r.removeFromTop(6);
-    auto voiceKnobs = r.removeFromTop(84);
-    knobCell(voiceKnobs, attackKnob, attackLabel);
-    knobCell(voiceKnobs, decayKnob, decayLabel);
-    knobCell(voiceKnobs, sustainKnob, sustainLabel);
-    knobCell(voiceKnobs, releaseKnob, releaseLabel);
-    knobCell(voiceKnobs, pwKnob, pwLabel);
+    auto oscKnobs = r.removeFromTop(84);
+    knobCell(oscKnobs, pwKnob, pwLabel);
+    knobCell(oscKnobs, coarseKnob, coarseLabel);
+    knobCell(oscKnobs, fineKnob, fineLabel);
 
-    r.removeFromTop(4);
-    routeButton.setBounds(r.removeFromTop(24).removeFromLeft(180));
+    // Amp.
+    sectionHeading(ampHeading);
+    auto ampKnobs = r.removeFromTop(84);
+    knobCell(ampKnobs, attackKnob, attackLabel);
+    knobCell(ampKnobs, decayKnob, decayLabel);
+    knobCell(ampKnobs, sustainKnob, sustainLabel);
+    knobCell(ampKnobs, releaseKnob, releaseLabel);
 
     // Shared section.
-    r.removeFromTop(14);
-    sharedHeading.setBounds(r.removeFromTop(18));
+    sectionHeading(sharedHeading);
+    routeButton.setBounds(r.removeFromTop(24).removeFromLeft(180));
     r.removeFromTop(6);
     auto sharedKnobs = r.removeFromTop(84);
     knobCell(sharedKnobs, cutoffKnob, cutoffLabel);
@@ -230,9 +228,7 @@ void AsidEditor::resized() {
     filterModeBox.setBounds(modeCol.removeFromTop(26));
 
     // LFO section.
-    r.removeFromTop(14);
-    lfoHeading.setBounds(r.removeFromTop(18));
-    r.removeFromTop(6);
+    sectionHeading(lfoHeading);
     auto lfoRow = r.removeFromTop(26);
     lfoTargetLabel.setBounds(lfoRow.removeFromLeft(52));
     lfoTargetBox.setBounds(lfoRow.removeFromLeft(110));
@@ -255,7 +251,4 @@ void AsidEditor::resized() {
     auto updRow = rightCol.removeFromTop(26);
     lfoUpdateLabel.setBounds(updRow.removeFromLeft(52));
     lfoUpdateBox.setBounds(updRow.removeFromLeft(120));
-
-    r.removeFromTop(8);
-    diagLabel.setBounds(r.removeFromTop(16));
 }

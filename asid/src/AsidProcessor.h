@@ -48,17 +48,6 @@ public:
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return midiHub; }
 
-    // Live timing snapshot for the editor's diagnostic readout, so the alignment
-    // can be seen working (a live track shows ~0, an ahead track its delay).
-    struct Diag {
-        double playheadSec = 0;
-        double alignMs = 0;   // ms this instance is held back to match the live track
-        int playing = 0;
-    };
-    Diag diag() const {
-        return {dbgPlayheadSec.load(), dbgAlignMs.load(), dbgPlaying.load()};
-    }
-
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.
     // The plugin always streams ASID, there is no on/off, since that is its job.
@@ -110,10 +99,6 @@ private:
     bool lfoOwnedPw = false;               // LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;           // LFO drives the shared cutoff, skip the static send
 
-    // Diagnostics, written on the audio thread, read by the editor.
-    std::atomic<double> dbgAlignMs{0}, dbgPlayheadSec{0};
-    std::atomic<int> dbgPlaying{0};
-
     // Coalesce control sends so a knob drag cannot flood the MIDI port and jitter
     // the notes. Applies to everything except the forced full-state push.
     static constexpr double kControlIntervalMs = 16.0;  // ~60 Hz
@@ -127,7 +112,7 @@ private:
     // Last control values sent, for change detection on the audio thread.
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
-        int pw = -1, sync = -1, ring = -1, route = -1;
+        int pw = -1, sync = -1, ring = -1, route = -1, coarse = -100, fine = -100;
         int cutoff = -1, resonance = -1, mode = -1, volume = -1;
     } sent;
 

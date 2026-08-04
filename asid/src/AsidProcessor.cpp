@@ -58,6 +58,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("sustain", "Sustain", 0, 15, 15)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("release", "Release", 0, 15, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("pulseWidth", "Pulse Width", 0, 4095, 2048)));
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("coarse", "Coarse Tune", -24, 24, 0)));
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("fine", "Fine Tune", -50, 50, 0)));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"sync", 1}, "Sync", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
@@ -141,6 +143,12 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     const int pw = paramInt("pulseWidth");
     // Skip the static pulse width while the LFO is driving it, or they fight.
     if (!lfoOwnedPw && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
+    const int coarse = paramInt("coarse"), fine = paramInt("fine");
+    if (forceAll || coarse != sent.coarse || fine != sent.fine) {
+        sent.coarse = coarse; sent.fine = fine;
+        asidPlayer.setPitchOffset(coarse + fine / 100.0);
+        flush(asidPlayer.setPitchMod(voice, 0.0));  // retune a held note (empty if none)
+    }
     const int sync = paramInt("sync");
     if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
@@ -357,10 +365,6 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
 
     if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
     const double refOffset = AsidShared::get().playOffset();
-
-    dbgPlaying.store(playing ? 1 : 0);
-    dbgPlayheadSec.store(blockPlayheadMs / 1000.0);
-    dbgAlignMs.store(playing ? juce::jmax(0.0, (blockPlayheadMs - nowMs) - refOffset) : 0.0);
 
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
     // one "sample" is one ms), then handed to the timed background sender.

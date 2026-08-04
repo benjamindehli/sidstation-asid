@@ -43,22 +43,30 @@ private:
     juce::ComboBox voiceBox;
     std::unique_ptr<ComboAtt> voiceAtt;
 
-    juce::Label voiceHeading{{}, "PER VOICE"};
+    juce::Label settingsHeading{{}, "SETTINGS"};
+    juce::Label oscHeading{{}, "OSCILLATOR"};
+    juce::Label ampHeading{{}, "AMP"};
     juce::Label sharedHeading{{}, "SHARED (all voices)"};
+    juce::Label lfoHeading{{}, "LFO"};
 
-    // Per-voice sound.
+    // Oscillator.
     juce::Label waveLabel{{}, "Waveform:"};
     juce::ComboBox waveformBox;
     std::unique_ptr<ComboAtt> waveformAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
     std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
-    juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob, pwKnob;
-    juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel, pwLabel;
-    std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt, pwAtt;
-    juce::ToggleButton routeButton{"Route Through Filter"};
-    std::unique_ptr<ButtonAtt> routeAtt;
+    juce::Slider pwKnob, coarseKnob, fineKnob;
+    juce::Label pwLabel, coarseLabel, fineLabel;
+    std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt;
+
+    // Amp envelope.
+    juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob;
+    juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
+    std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt;
 
     // Shared across all three voices.
+    juce::ToggleButton routeButton{"Route Through Filter"};
+    std::unique_ptr<ButtonAtt> routeAtt;
     juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
     juce::Label cutoffLabel, resLabel, volumeLabel, latencyLabel;
     std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
@@ -66,8 +74,7 @@ private:
     juce::ComboBox filterModeBox;
     std::unique_ptr<ComboAtt> filterModeAtt;
 
-    // LFO (per voice, targets pulse width for now).
-    juce::Label lfoHeading{{}, "LFO"};
+    // LFO (single, transitional; becomes per-target later).
     juce::Label lfoTargetLabel{{}, "Target:"}, lfoShapeLabel{{}, "Shape:"}, lfoDivLabel{{}, "Sync:"};
     juce::Label lfoUpdateLabel{{}, "Update:"};
     juce::ComboBox lfoTargetBox, lfoShapeBox, lfoDivBox, lfoUpdateBox;
@@ -77,8 +84,6 @@ private:
     juce::Slider lfoRateKnob, lfoDepthKnob;
     juce::Label lfoRateLabel, lfoDepthLabel;
     std::unique_ptr<SliderAtt> lfoRateAtt, lfoDepthAtt;
-
-    juce::Label diagLabel;  // live host-timing readout, to diagnose sync
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 

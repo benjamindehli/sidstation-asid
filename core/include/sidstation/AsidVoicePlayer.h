@@ -63,7 +63,12 @@ public:
 
     // Rewrites the frequency register at the current note offset by `semitones`
     // (for pitch modulation). Returns empty when the voice has no note sounding.
+    // The stored pitch offset (coarse + fine tune) is always folded in too.
     Bytes setPitchMod(int voice, double semitones);
+
+    // Coarse + fine tune, in semitones (fractional), applied to every note and to
+    // pitch modulation. Set live; retune a held note with setPitchMod(voice, 0).
+    void setPitchOffset(double semitones) { pitchOffset = semitones; }
 
     void setClock(double hz) { clockHz = hz; }
 
@@ -87,6 +92,7 @@ private:
     Byte filterRouting = 0;  // no voices routed through the filter by default
     int targetVoice = -1;
     int currentNote[3] = {-1, -1, -1};  // sounding MIDI note per voice, for pitch mod
+    double pitchOffset = 0.0;            // coarse + fine tune, in semitones
 };
 
 }  // namespace sidstation
