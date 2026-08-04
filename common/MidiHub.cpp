@@ -36,6 +36,7 @@ void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
     if (size1 > 0) {
         Frame& f = frameStore[start1];
         f.timeMs = timeMs;
+        f.seq = frameSeq++;
         f.len = len;
         std::memcpy(f.data, data, static_cast<size_t>(len));
         frameFifo.finishedWrite(1);
@@ -46,8 +47,14 @@ void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
 // Consumer side: drain the ring into a time-ordered heap and send each frame at
 // its due time. Runs on its own thread, so CoreMIDI never touches the audio thread.
 void MidiHub::Sender::run() {
-    struct Pending { double timeMs; juce::MidiMessage msg; };
-    struct Later { bool operator()(const Pending& a, const Pending& b) const { return a.timeMs > b.timeMs; } };
+    struct Pending { double timeMs; long long seq; juce::MidiMessage msg; };
+    // Min-heap by send time, then by insertion order so same-time frames (a
+    // note-on's sequence of writes) never get reordered.
+    struct Later {
+        bool operator()(const Pending& a, const Pending& b) const {
+            return a.timeMs != b.timeMs ? a.timeMs > b.timeMs : a.seq > b.seq;
+        }
+    };
     std::priority_queue<Pending, std::vector<Pending>, Later> pending;
 
     while (!threadShouldExit()) {
@@ -56,11 +63,11 @@ void MidiHub::Sender::run() {
             hub.frameFifo.prepareToRead(ready, s1, n1, s2, n2);
             for (int i = 0; i < n1; ++i) {
                 const Frame& f = hub.frameStore[s1 + i];
-                pending.push({f.timeMs, juce::MidiMessage(f.data, f.len)});
+                pending.push({f.timeMs, f.seq, juce::MidiMessage(f.data, f.len)});
             }
             for (int i = 0; i < n2; ++i) {
                 const Frame& f = hub.frameStore[s2 + i];
-                pending.push({f.timeMs, juce::MidiMessage(f.data, f.len)});
+                pending.push({f.timeMs, f.seq, juce::MidiMessage(f.data, f.len)});
             }
             hub.frameFifo.finishedRead(n1 + n2);
         }

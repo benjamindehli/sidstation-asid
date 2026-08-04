@@ -79,10 +79,13 @@ private:
     // dedicated sender thread sends each at its time via sendMessageNow. This
     // keeps CoreMIDI I/O off the audio callback, which Logic's audio/MIDI sync on
     // built-in audio is sensitive to.
-    struct Frame { double timeMs = 0.0; int len = 0; juce::uint8 data[64] = {}; };
+    // seq is an insertion counter: it breaks ties so frames with the same send
+    // time keep their order (a note-on's frames must stay in sequence).
+    struct Frame { double timeMs = 0.0; long long seq = 0; int len = 0; juce::uint8 data[64] = {}; };
     static constexpr int kFifoCapacity = 4096;
     std::vector<Frame> frameStore{kFifoCapacity};
     juce::AbstractFifo frameFifo{kFifoCapacity};
+    long long frameSeq = 0;  // written only by the producer (audio thread)
     void pushFrame(const juce::uint8* data, int len, double timeMs);
 
     struct Sender : juce::Thread {
