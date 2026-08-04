@@ -83,6 +83,12 @@ private:
     // the bipolar value when it is time to send a frame this block.
     bool advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
                     double ppq, double bpm, double& valueOut);
+    // Advances one LFO by dt and returns its bipolar value, with no rate gate.
+    // Shared by advanceLfo and the combined pitch (glide + vibrato) stream.
+    double sampleLfo(sidstation::Lfo&, const juce::String& prefix, double dt,
+                     bool playing, double ppq, double bpm);
+    // Runs the portamento glide plus pitch-LFO vibrato as one frequency stream.
+    void updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm);
     int paramInt(const char* id) const;
     int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     float paramFloat(const char* id) const;
@@ -106,6 +112,7 @@ private:
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 
     ModStream pitchStream, pwStream, cutStream;
+    double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send
 

@@ -74,9 +74,12 @@ private:
     std::unique_ptr<ComboAtt> waveformAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
     std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
-    juce::Slider pwKnob, coarseKnob, fineKnob;
-    juce::Label pwLabel, coarseLabel, fineLabel;
-    std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt;
+    juce::Slider pwKnob, coarseKnob, fineKnob, portaKnob;
+    juce::Label pwLabel, coarseLabel, fineLabel, portaLabel;
+    std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, portaAtt;
+    juce::Label portaTrigLabel{{}, "Glide:"}, portaTypeLabel{{}, "Type:"};
+    juce::ComboBox portaTrigBox, portaTypeBox;
+    std::unique_ptr<ComboAtt> portaTrigAtt, portaTypeAtt;
 
     // Amp envelope.
     juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob;

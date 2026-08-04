@@ -53,7 +53,11 @@ Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
     std::vector<SidWrite> w;
     if (a.gateOn) {
         currentNote[a.oscillator] = a.midiNote;  // remember for pitch modulation
-        sidState.setFrequency(a.oscillator, sidFrequency(a.midiNote + pitchOffset, clockHz));
+        // Gate on at the glide start pitch when portamento asked for one, else at
+        // the note. One-shot: it must ride on this note-on frame, not a later one.
+        const double startNote = (nextGlideStart >= 0.0) ? nextGlideStart : a.midiNote;
+        nextGlideStart = -1.0;
+        sidState.setFrequency(a.oscillator, sidFrequency(startNote + pitchOffset, clockHz));
         sidState.setGate(a.oscillator, true);
         const Byte ctrl = sidState.control(a.oscillator);
         const Byte gateHigh = static_cast<Byte>(ctrl | sid::kGate);

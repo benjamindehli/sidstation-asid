@@ -70,6 +70,18 @@ public:
     // pitch modulation. Set live; retune a held note with setPitchMod(voice, 0).
     void setPitchOffset(double semitones) { pitchOffset = semitones; }
 
+    // The MIDI note currently sounding on a voice, or -1 if none. The processor
+    // reads this as the portamento glide target and the pitch-stream base.
+    int currentNoteOf(int voice) const {
+        return (voice >= 0 && voice <= 2) ? currentNote[voice] : -1;
+    }
+
+    // Portamento: the next gate-on gates on at this fractional pitch instead of
+    // the note number, so a glide starts at the held pitch with no jump. The unit
+    // applies writes one message late, so the note-on itself must carry the start
+    // frequency; a trailing override frame would land a frame too late. One-shot.
+    void setNextGlideStart(double fractionalNote) { nextGlideStart = fractionalNote; }
+
     void setClock(double hz) { clockHz = hz; }
 
     // Which SID voice this player drives. -1 means the three-voice, per-channel
@@ -93,6 +105,7 @@ private:
     int targetVoice = -1;
     int currentNote[3] = {-1, -1, -1};  // sounding MIDI note per voice, for pitch mod
     double pitchOffset = 0.0;            // coarse + fine tune, in semitones
+    double nextGlideStart = -1.0;        // one-shot start pitch for the next gate-on
 };
 
 }  // namespace sidstation

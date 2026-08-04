@@ -119,6 +119,18 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
     setupKnob(coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
     setupKnob(fineKnob, fineLabel, "Fine", "fine", fineAtt);
+    setupKnob(portaKnob, portaLabel, "Glide ms", "portaTime", portaAtt);
+
+    addAndMakeVisible(portaTrigLabel);
+    addAndMakeVisible(portaTrigBox);
+    portaTrigBox.addItem("Legato", 1);
+    portaTrigBox.addItem("Always", 2);
+    portaTrigAtt = std::make_unique<ComboAtt>(state, "portaTrigger", portaTrigBox);
+    addAndMakeVisible(portaTypeLabel);
+    addAndMakeVisible(portaTypeBox);
+    portaTypeBox.addItem("Smooth", 1);
+    portaTypeBox.addItem("Stepped", 2);
+    portaTypeAtt = std::make_unique<ComboAtt>(state, "portaType", portaTypeBox);
     setupKnob(attackKnob, attackLabel, "Attack", "attack", attackAtt);
     setupKnob(decayKnob, decayLabel, "Decay", "decay", decayAtt);
     setupKnob(sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
@@ -163,6 +175,13 @@ void AsidEditor::updateEnablement() {
     const bool pulse = intParam("waveform") == 2;
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
+
+    // Glide trigger and type only matter when portamento time is up.
+    const bool porta = intParam("portaTime") > 0;
+    portaTrigBox.setEnabled(porta);
+    portaTrigLabel.setEnabled(porta);
+    portaTypeBox.setEnabled(porta);
+    portaTypeLabel.setEnabled(porta);
 
     // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
     // disable it and pin it to 0 when sustain is 15.
@@ -262,6 +281,14 @@ void AsidEditor::resized() {
     knobCell(oscKnobs, pwKnob, pwLabel);
     knobCell(oscKnobs, coarseKnob, coarseLabel);
     knobCell(oscKnobs, fineKnob, fineLabel);
+    knobCell(oscKnobs, portaKnob, portaLabel);
+    left.removeFromTop(4);
+    auto portaRow = left.removeFromTop(24);
+    portaTrigLabel.setBounds(portaRow.removeFromLeft(40));
+    portaTrigBox.setBounds(portaRow.removeFromLeft(96));
+    portaRow.removeFromLeft(12);
+    portaTypeLabel.setBounds(portaRow.removeFromLeft(38));
+    portaTypeBox.setBounds(portaRow.removeFromLeft(96));
 
     sectionHeading(left, pitchLfoHeading);
     layoutLfo(pitchLfoUi, left.removeFromTop(108));

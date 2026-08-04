@@ -1,5 +1,6 @@
 #include "AsidProcessor.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "AsidEditor.h"
@@ -56,6 +57,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("pulseWidth", "Pulse Width", 0, 4095, 2048)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("coarse", "Coarse Tune", -24, 24, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("fine", "Fine Tune", -50, 50, 0)));
+    // Portamento: glide time in ms (0 = off), trigger, and stepped/smooth type.
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("portaTime", "Portamento", 0, 2000, 0)));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{"portaTrigger", 1}, "Portamento Trigger",
+        juce::StringArray{"Legato", "Always"}, 0));
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID{"portaType", 1}, "Portamento Type",
+        juce::StringArray{"Smooth", "Stepped"}, 0));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"sync", 1}, "Sync", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
@@ -195,6 +204,19 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
 }
 
+double AsidProcessor::sampleLfo(sidstation::Lfo& lfo, const juce::String& prefix, double dt,
+                               bool playing, double ppq, double bpm) {
+    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt(prefix + "Shape"))));
+    if (paramInt(prefix + "Sync") != 0) {
+        const double beats = beatsForDivision(paramInt(prefix + "Div"));
+        if (playing) lfo.setPhase(ppq / beats);          // locked to the song
+        else lfo.advance(dt, (bpm / 60.0) / beats);      // free-run at the synced rate when stopped
+    } else {
+        lfo.advance(dt, static_cast<double>(paramFloat(prefix + "Rate")));
+    }
+    return lfo.value();  // bipolar [-1, 1]
+}
+
 bool AsidProcessor::advanceLfo(ModStream& m, const juce::String& prefix, bool playing,
                               double ppq, double bpm, double& valueOut) {
     const double interval = modIntervalForRate(paramInt(prefix + "Update"));
@@ -202,17 +224,70 @@ bool AsidProcessor::advanceLfo(ModStream& m, const juce::String& prefix, bool pl
     if (nowMs - m.lastMs < interval) return false;  // stream at the chosen rate
     const double dt = (m.lastMs <= 0.0 ? interval : nowMs - m.lastMs) / 1000.0;
     m.lastMs = nowMs;
-
-    m.lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt(prefix + "Shape"))));
-    if (paramInt(prefix + "Sync") != 0) {
-        const double beats = beatsForDivision(paramInt(prefix + "Div"));
-        if (playing) m.lfo.setPhase(ppq / beats);          // locked to the song
-        else m.lfo.advance(dt, (bpm / 60.0) / beats);      // free-run at the synced rate when stopped
-    } else {
-        m.lfo.advance(dt, static_cast<double>(paramFloat(prefix + "Rate")));
-    }
-    valueOut = m.lfo.value();  // bipolar [-1, 1]
+    valueOut = sampleLfo(m.lfo, prefix, dt, playing, ppq, bpm);
     return true;
+}
+
+void AsidProcessor::updatePitch(int voice, bool blockHasNotes, bool playing, double ppq, double bpm) {
+    // Idle the stream when there is nothing to drive it, and zero lastMs so the
+    // next tick that DOES stream starts with a fresh, one-interval dt. Without
+    // this the glide step (rate * dt) sees the whole idle gap as dt and jumps
+    // straight to the target: the exact bug that vibrato, by never idling, hid.
+    auto idle = [this]() { pitchStream.lastFrame.clear(); pitchStream.lastMs = 0.0; };
+
+    const int curNote = asidPlayer.currentNoteOf(voice);
+    if (curNote < 0) { idle(); return; }         // keep glidePitch so "Always" glides from it
+    if (glidePitch < 0.0) glidePitch = curNote;  // note started without a glide claim
+
+    const int portaTimeMs = paramInt("portaTime");
+    const bool gliding = portaTimeMs > 0 && std::abs(glidePitch - curNote) > 0.01;
+    const int pitchDepth = paramInt("pitchLfoDepth");
+    const bool vibratoOn = paramInt("pitchLfoOn") && pitchDepth > 0;
+
+    // A frequency write must not land on a note-event block (that collision is the
+    // stuck note), and there is nothing to stream unless glide or vibrato is live.
+    if (blockHasNotes || (!gliding && !vibratoOn)) { idle(); return; }
+
+    // Stream at the vibrato LFO's update rate when it runs, else a steady 50 Hz
+    // for a glide on its own.
+    const double interval = vibratoOn ? modIntervalForRate(paramInt("pitchLfoUpdate")) : 20.0;
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    if (nowMs - pitchStream.lastMs < interval) return;
+    // First tick after idle uses one interval; otherwise the real gap, capped so
+    // a scheduling hiccup cannot make one glide step leap.
+    double dt = (pitchStream.lastMs <= 0.0) ? interval : (nowMs - pitchStream.lastMs);
+    dt = juce::jmin(dt, 4.0 * interval) / 1000.0;
+    pitchStream.lastMs = nowMs;
+
+    // Glide the pitch toward the target at a constant rate (portaTime = ms per octave).
+    if (gliding) {
+        const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;
+        if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
+        else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
+    }
+    // Stepped portamento quantises the glide to whole semitones.
+    const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;
+
+    double vibrato = 0.0;
+    if (vibratoOn) vibrato = sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * (pitchDepth / 100.0) * 12.0;
+
+    // setPitchMod adds to the player's integer note, so offset by the glide delta.
+    const auto frame = asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato);
+    if (frame.empty()) return;
+    // The unit applies each write one message late, so a lone write hangs pending
+    // until another follows. While gliding, send every tick even if the frame is
+    // unchanged (a slow glide barely moves the 16-bit value per tick): the steady
+    // stream keeps each step flushed, the same way vibrato does. Otherwise send
+    // only on change.
+    if (gliding || frame != pitchStream.lastFrame) {
+        pitchStream.lastFrame = frame;
+        sendAsid(frame);
+        // When a glide reaches the target and no vibrato follows to carry the
+        // stream, push one benign flush so the final frequency lands instead of
+        // hanging a step short.
+        if (gliding && !vibratoOn && glidePitch == static_cast<double>(curNote))
+            sendAsid(asidPlayer.settleFrame(voice));
+    }
 }
 
 void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
@@ -227,21 +302,8 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         }
     }
 
-    // Pitch LFO (per voice). Held off on note-event blocks so a frequency write
-    // does not collide with a note-off. Empty when no note is sounding.
-    const int pitchDepth = paramInt("pitchLfoDepth");
-    if (paramInt("pitchLfoOn") && pitchDepth > 0 && !blockHasNotes) {
-        double v;
-        if (advanceLfo(pitchStream, "pitchLfo", playing, ppq, bpm, v)) {
-            const auto frame = asidPlayer.setPitchMod(voice, v * (pitchDepth / 100.0) * 12.0);
-            if (!frame.empty() && frame != pitchStream.lastFrame) {
-                pitchStream.lastFrame = frame;
-                sendAsid(frame);
-            }
-        }
-    } else {
-        pitchStream.lastFrame.clear();
-    }
+    // Pitch: portamento glide and pitch-LFO vibrato as one frequency stream.
+    updatePitch(voice, blockHasNotes, playing, ppq, bpm);
 
     // Pulse-width LFO (per voice, pulse wave only). It owns the pulse-width
     // register while active so applyControlChanges leaves it alone.
@@ -383,7 +445,10 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
 
-    const bool pitchActive = paramInt("pitchLfoOn") && paramInt("pitchLfoDepth") > 0;
+    // The pitch stream runs under vibrato or a portamento glide; either way it
+    // stops on release, so the note-off gate-low needs a settle frame behind it.
+    const bool pitchActive = (paramInt("pitchLfoOn") && paramInt("pitchLfoDepth") > 0)
+                             || paramInt("portaTime") > 0;
 
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
@@ -404,6 +469,17 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             const double aligned = (blockPlayheadMs + sampleOffsetMs) - refOffset + latencyMs;
             const double ahead = aligned - nowMs;
             if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) eventMs = aligned;
+        }
+
+        // Portamento decision, made BEFORE the note-on so the note-on frame itself
+        // gates on at the glide start pitch. wasHeld (a note already sounding =
+        // overlap) is the legato test and must be read before noteOn retargets.
+        if (on) {
+            const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
+            const bool always = paramInt("portaTrigger") == 1;  // 0 Legato, 1 Always
+            const bool glide = paramInt("portaTime") > 0 && glidePitch >= 0.0 && (always || wasHeld);
+            if (glide) asidPlayer.setNextGlideStart(glidePitch);  // start at the held pitch
+            else glidePitch = m.getNoteNumber();                  // jump straight to the note
         }
 
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
