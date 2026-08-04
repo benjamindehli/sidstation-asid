@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "AsidProcessor.h"
+#include "SidLookAndFeel.h"
 
 class AsidEditor : public juce::AudioProcessorEditor, private juce::Timer {
 public:
@@ -29,8 +30,12 @@ private:
     // Enable/disable controls that only apply in some states (pulse-wave-only
     // pulse width, sync-vs-free rate). Driven from the timer.
     void updateEnablement();
-    void setupKnob(juce::Slider&, juce::Label&, const juce::String& name,
+    void setupKnob(juce::Component& parent, juce::Slider&, juce::Label&, const juce::String& name,
                    const juce::String& paramId, std::unique_ptr<SliderAtt>&);
+    void setTab(int t);                                // show one page, hide the others
+    void layoutOscPage(juce::Rectangle<int> area);
+    void layoutAmpModPage(juce::Rectangle<int> area);
+    void layoutSharedPage(juce::Rectangle<int> area);
 
     // One reusable block of controls for a single LFO target.
     struct LfoControls {
@@ -47,13 +52,21 @@ private:
         std::unique_ptr<ButtonAtt> syncAtt;
         std::unique_ptr<SliderAtt> rateAtt, depthAtt;
     };
-    void setupLfo(LfoControls&, const juce::String& prefix);
+    void setupLfo(juce::Component& parent, LfoControls&, const juce::String& prefix);
     void layoutLfo(LfoControls&, juce::Rectangle<int> area);
 
+    static constexpr int kBorder = 16;  // C64 screen border
+
+    SidLookAndFeel laf;  // declared first so it outlives every child that uses it
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
 
     juce::Label title{{}, "SidStation ASID"};
+    // Tab bar and the three pages the tabs switch between.
+    juce::TextButton oscTabBtn{"OSC"}, ampModTabBtn{"AMP+MOD"}, sharedTabBtn{"SHARED"};
+    juce::Component oscPage, ampModPage, sharedPage;
+    int currentTab = 0;
+
     juce::Label outLabel{{}, "MIDI Out:"};
     juce::ComboBox outputBox;
     juce::TextButton refreshButton{"Refresh"};
@@ -61,11 +74,10 @@ private:
     juce::ComboBox voiceBox;
     std::unique_ptr<ComboAtt> voiceAtt;
 
-    juce::Label settingsHeading{{}, "SETTINGS"};
-    juce::Label oscHeading{{}, "OSCILLATOR"};
-    juce::Label ampHeading{{}, "AMP"};
-    juce::Label sharedHeading{{}, "SHARED (all voices)"};
-    juce::Label pitchLfoHeading{{}, "PITCH MOD"}, pwLfoHeading{{}, "PW MOD"}, cutLfoHeading{{}, "CUTOFF MOD"};
+    // Section boxes drawn as titled group frames, spread across the three tab
+    // pages. Filter nests Cutoff Mod. Filter and Master are the shared controls.
+    juce::GroupComponent oscGroup, glideGroup, ampGroup;
+    juce::GroupComponent pitchModGroup, pwModGroup, filterGroup, cutModGroup, masterGroup;
     LfoControls pitchLfoUi, pwLfoUi, cutLfoUi;
 
     // Oscillator.

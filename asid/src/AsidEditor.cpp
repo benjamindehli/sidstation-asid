@@ -1,97 +1,135 @@
 #include "AsidEditor.h"
 
-void AsidEditor::setupKnob(juce::Slider& s, juce::Label& l, const juce::String& name,
+namespace {
+constexpr int kRowBox = 114;  // a full-width box holding one inline row (22 title + 84 + 8)
+
+void knobCell(juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
+    auto cell = row.removeFromLeft(74);
+    l.setBounds(cell.removeFromTop(14));
+    s.setBounds(cell);
+    row.removeFromLeft(6);
+}
+// The content area inside a titled box: sides in, and below the title.
+juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
+    return box.reduced(10, 0).withTrimmedTop(22).withTrimmedBottom(8);
+}
+// A label stacked above its control, within a cell. Label 14, control 24.
+void labeledOver(juce::Rectangle<int> cell, juce::Label& l, juce::Component& c) {
+    l.setBounds(cell.removeFromTop(14));
+    c.setBounds(cell.removeFromTop(24));
+}
+// A toggle placed inline, aligned with the control row of labels-over neighbours.
+void toggleInline(juce::Rectangle<int> cell, juce::ToggleButton& b) {
+    b.setBounds(cell.getX(), cell.getY() + 14, cell.getWidth(), 24);
+}
+}  // namespace
+
+void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
                            const juce::String& paramId, std::unique_ptr<SliderAtt>& att) {
     s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
     s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 16);
-    addAndMakeVisible(s);
+    parent.addAndMakeVisible(s);
     l.setText(name, juce::dontSendNotification);
     l.setJustificationType(juce::Justification::centred);
     l.setFont(juce::Font(juce::FontOptions().withHeight(12.0f)));
-    addAndMakeVisible(l);
+    parent.addAndMakeVisible(l);
     att = std::make_unique<SliderAtt>(state, paramId, s);
 }
 
-void AsidEditor::setupLfo(LfoControls& u, const juce::String& prefix) {
-    addAndMakeVisible(u.enableButton);
+void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::String& prefix) {
+    parent.addAndMakeVisible(u.enableButton);
     u.enableAtt = std::make_unique<ButtonAtt>(state, prefix + "On", u.enableButton);
 
-    addAndMakeVisible(u.shapeBox);
+    u.shapeLabel.setText("Shape", juce::dontSendNotification);
+    parent.addAndMakeVisible(u.shapeLabel);
+    parent.addAndMakeVisible(u.shapeBox);
     for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"})
         u.shapeBox.addItem(s, u.shapeBox.getNumItems() + 1);
     u.shapeAtt = std::make_unique<ComboAtt>(state, prefix + "Shape", u.shapeBox);
 
-    addAndMakeVisible(u.syncButton);
+    parent.addAndMakeVisible(u.syncButton);
     u.syncAtt = std::make_unique<ButtonAtt>(state, prefix + "Sync", u.syncButton);
 
-    addAndMakeVisible(u.divLabel);
-    addAndMakeVisible(u.divBox);
+    parent.addAndMakeVisible(u.divLabel);
+    parent.addAndMakeVisible(u.divBox);
     for (const char* d : {"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"})
         u.divBox.addItem(d, u.divBox.getNumItems() + 1);
     u.divAtt = std::make_unique<ComboAtt>(state, prefix + "Div", u.divBox);
 
-    addAndMakeVisible(u.updateLabel);
-    addAndMakeVisible(u.updateBox);
+    parent.addAndMakeVisible(u.updateLabel);
+    parent.addAndMakeVisible(u.updateBox);
     for (const char* up : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"})
         u.updateBox.addItem(up, u.updateBox.getNumItems() + 1);
     u.updateAtt = std::make_unique<ComboAtt>(state, prefix + "Update", u.updateBox);
 
-    setupKnob(u.rateKnob, u.rateLabel, "Rate Hz", prefix + "Rate", u.rateAtt);
-    setupKnob(u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
+    setupKnob(parent, u.rateKnob, u.rateLabel, "Rate Hz", prefix + "Rate", u.rateAtt);
+    setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
 }
 
 void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
-    auto row1 = area.removeFromTop(24);
-    u.enableButton.setBounds(row1.removeFromLeft(52));
-    u.shapeBox.setBounds(row1.removeFromLeft(140));
-    row1.removeFromLeft(8);
-    u.syncButton.setBounds(row1);
-
-    area.removeFromTop(6);
-    auto knobs = area.removeFromTop(78);
-    auto rateCell = knobs.removeFromLeft(74);
-    u.rateLabel.setBounds(rateCell.removeFromTop(14));
-    u.rateKnob.setBounds(rateCell);
-    knobs.removeFromLeft(4);
-    auto depthCell = knobs.removeFromLeft(74);
-    u.depthLabel.setBounds(depthCell.removeFromTop(14));
-    u.depthKnob.setBounds(depthCell);
-    knobs.removeFromLeft(10);
-    auto divRow = knobs.removeFromTop(24);
-    u.divLabel.setBounds(divRow.removeFromLeft(40));
-    u.divBox.setBounds(divRow);
-    knobs.removeFromTop(6);
-    auto updRow = knobs.removeFromTop(24);
-    u.updateLabel.setBounds(updRow.removeFromLeft(52));
-    u.updateBox.setBounds(updRow);
+    // One wide inline row: on, shape, sync, rate, depth, division, update rate.
+    auto next = [&area](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(8); return c; };
+    toggleInline(next(46), u.enableButton);
+    labeledOver(next(116), u.shapeLabel, u.shapeBox);
+    toggleInline(next(104), u.syncButton);
+    { auto k = next(74); u.rateLabel.setBounds(k.removeFromTop(14)); u.rateKnob.setBounds(k); }
+    { auto k = next(74); u.depthLabel.setBounds(k.removeFromTop(14)); u.depthKnob.setBounds(k); }
+    labeledOver(next(64), u.divLabel, u.divBox);
+    labeledOver(next(96), u.updateLabel, u.updateBox);
 }
 
 AsidEditor::AsidEditor(AsidProcessor& p)
     : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
-    title.setFont(juce::Font(juce::FontOptions().withHeight(20.0f).withStyle("Bold")));
+    setLookAndFeel(&laf);
+    title.setFont(SidLookAndFeel::mono(18.0f, true));
+    title.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
     addAndMakeVisible(title);
+
+    addAndMakeVisible(oscPage);
+    addChildComponent(ampModPage);  // hidden until its tab is chosen
+    addChildComponent(sharedPage);
+
+    // Tab bar: a radio row of buttons that switch which page shows.
+    auto tab = [this](juce::TextButton& b, int index) {
+        b.setClickingTogglesState(true);
+        b.setRadioGroupId(1);
+        b.setColour(juce::TextButton::buttonOnColourId, juce::Colour(SidLookAndFeel::kFg));
+        b.setColour(juce::TextButton::textColourOnId, juce::Colour(SidLookAndFeel::kBg));
+        b.onClick = [this, index] { setTab(index); };
+        addAndMakeVisible(b);
+    };
+    tab(oscTabBtn, 0);
+    tab(ampModTabBtn, 1);
+    tab(sharedTabBtn, 2);
+
+    // Group boxes go into their page first, so the frames sit behind the controls.
+    auto group = [](juce::Component& page, juce::GroupComponent& g, const juce::String& t) {
+        g.setText(t);
+        g.setInterceptsMouseClicks(false, false);  // decorative frame only
+        page.addAndMakeVisible(g);
+    };
+    group(oscPage, oscGroup, "OSCILLATOR");
+    group(oscPage, glideGroup, "GLIDE");
+    group(ampModPage, ampGroup, "AMP");
+    group(ampModPage, pitchModGroup, "PITCH MOD");
+    group(ampModPage, pwModGroup, "PW MOD");
+    group(sharedPage, filterGroup, "FILTER");
+    group(sharedPage, cutModGroup, "CUTOFF MOD");
+    group(sharedPage, masterGroup, "MASTER");
+
+    // Global header (above the tabs): MIDI out and SID voice apply to the whole
+    // instance, so they sit outside the tabbed pages.
     addAndMakeVisible(outLabel);
     addAndMakeVisible(outputBox);
     addAndMakeVisible(refreshButton);
     addAndMakeVisible(voiceLabel);
     addAndMakeVisible(voiceBox);
-    auto heading = [this](juce::Label& l) {
-        l.setFont(juce::Font(juce::FontOptions().withHeight(13.0f).withStyle("Bold")));
-        l.setColour(juce::Label::textColourId, juce::Colours::white.withAlpha(0.65f));
-        addAndMakeVisible(l);
-    };
-    heading(settingsHeading);
-    heading(oscHeading);
-    heading(ampHeading);
-    heading(sharedHeading);
-    heading(pitchLfoHeading);
-    heading(pwLfoHeading);
-    heading(cutLfoHeading);
 
-    addAndMakeVisible(waveLabel);
-    addAndMakeVisible(waveformBox);
-    addAndMakeVisible(syncButton);
-    addAndMakeVisible(ringButton);
+    // ---- OSC page: Oscillator, Glide ----
+    oscPage.addAndMakeVisible(waveLabel);
+    oscPage.addAndMakeVisible(waveformBox);
+    oscPage.addAndMakeVisible(syncButton);
+    oscPage.addAndMakeVisible(ringButton);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -113,63 +151,75 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     waveformBox.addItem("Noise", 4);
     waveformAtt = std::make_unique<ComboAtt>(state, "waveform", waveformBox);
 
-    setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
-    setupKnob(coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
-    setupKnob(fineKnob, fineLabel, "Fine", "fine", fineAtt);
-    setupKnob(portaKnob, portaLabel, "Glide ms", "portaTime", portaAtt);
-
-    addAndMakeVisible(portaTrigLabel);
-    addAndMakeVisible(portaTrigBox);
-    portaTrigBox.addItem("Legato", 1);
-    portaTrigBox.addItem("Always", 2);
-    portaTrigAtt = std::make_unique<ComboAtt>(state, "portaTrigger", portaTrigBox);
-    addAndMakeVisible(portaTypeLabel);
-    addAndMakeVisible(portaTypeBox);
-    portaTypeBox.addItem("Smooth", 1);
-    portaTypeBox.addItem("Stepped", 2);
-    portaTypeAtt = std::make_unique<ComboAtt>(state, "portaType", portaTypeBox);
-    setupKnob(attackKnob, attackLabel, "Attack", "attack", attackAtt);
-    setupKnob(decayKnob, decayLabel, "Decay", "decay", decayAtt);
-    setupKnob(sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
-    setupKnob(releaseKnob, releaseLabel, "Release", "release", releaseAtt);
-    setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
-    setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
-    setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
-    setupKnob(latencyKnob, latencyLabel, "Lat ms", "latency", latencyAtt);
-
+    setupKnob(oscPage, pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
+    setupKnob(oscPage, coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
+    setupKnob(oscPage, fineKnob, fineLabel, "Fine", "fine", fineAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
 
+    setupKnob(oscPage, portaKnob, portaLabel, "Glide ms", "portaTime", portaAtt);
+    oscPage.addAndMakeVisible(portaTrigLabel);
+    oscPage.addAndMakeVisible(portaTrigBox);
+    portaTrigBox.addItem("Legato", 1);
+    portaTrigBox.addItem("Always", 2);
+    portaTrigAtt = std::make_unique<ComboAtt>(state, "portaTrigger", portaTrigBox);
+    oscPage.addAndMakeVisible(portaTypeLabel);
+    oscPage.addAndMakeVisible(portaTypeBox);
+    portaTypeBox.addItem("Smooth", 1);
+    portaTypeBox.addItem("Stepped", 2);
+    portaTypeAtt = std::make_unique<ComboAtt>(state, "portaType", portaTypeBox);
+
+    // ---- AMP+MOD page: Amp envelope, Pitch Mod, PW Mod ----
+    setupKnob(ampModPage, attackKnob, attackLabel, "Attack", "attack", attackAtt);
+    setupKnob(ampModPage, decayKnob, decayLabel, "Decay", "decay", decayAtt);
+    setupKnob(ampModPage, sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
+    setupKnob(ampModPage, releaseKnob, releaseLabel, "Release", "release", releaseAtt);
+    setupLfo(ampModPage, pitchLfoUi, "pitchLfo");
+    setupLfo(ampModPage, pwLfoUi, "pwLfo");
+
+    // ---- SHARED page: Filter (with Cutoff Mod) and Master ----
     // Filter Active: one checkbox per voice, all shared, so any instance can
     // route any voice. Filter Mode: LP/BP/HP, combinable.
-    addAndMakeVisible(filterActiveLabel);
+    sharedPage.addAndMakeVisible(filterActiveLabel);
     const char* voiceNames[3] = {"1", "2", "3"};
     const char* filtIds[3] = {"filt1", "filt2", "filt3"};
     for (int i = 0; i < 3; ++i) {
         filtButtons[i].setButtonText(voiceNames[i]);
-        addAndMakeVisible(filtButtons[i]);
+        sharedPage.addAndMakeVisible(filtButtons[i]);
         filtAtts[i] = std::make_unique<ButtonAtt>(state, filtIds[i], filtButtons[i]);
     }
-    addAndMakeVisible(filterModeLabel);
+    sharedPage.addAndMakeVisible(filterModeLabel);
     const char* modeNames[3] = {"LP", "BP", "HP"};
     const char* modeIds[3] = {"modeLP", "modeBP", "modeHP"};
     for (int i = 0; i < 3; ++i) {
         modeButtons[i].setButtonText(modeNames[i]);
-        addAndMakeVisible(modeButtons[i]);
+        sharedPage.addAndMakeVisible(modeButtons[i]);
         modeAtts[i] = std::make_unique<ButtonAtt>(state, modeIds[i], modeButtons[i]);
     }
-
-    setupLfo(pitchLfoUi, "pitchLfo");
-    setupLfo(pwLfoUi, "pwLfo");
-    setupLfo(cutLfoUi, "cutLfo");
+    setupKnob(sharedPage, cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
+    setupKnob(sharedPage, resKnob, resLabel, "Reso", "resonance", resAtt);
+    setupLfo(sharedPage, cutLfoUi, "cutLfo");
+    setupKnob(sharedPage, volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
+    setupKnob(sharedPage, latencyKnob, latencyLabel, "Lat ms", "latency", latencyAtt);
 
     refreshDevices();
     updateEnablement();
-    setSize(720, 660);
+    setTab(0);
+    setSize(720, 540);  // 4:3, wide boxes stacked one per row
     startTimerHz(10);  // drives updateEnablement (waveform / sustain / LFO gating)
 }
 
-AsidEditor::~AsidEditor() { stopTimer(); }
+AsidEditor::~AsidEditor() { stopTimer(); setLookAndFeel(nullptr); }
+
+void AsidEditor::setTab(int t) {
+    currentTab = t;
+    oscPage.setVisible(t == 0);
+    ampModPage.setVisible(t == 1);
+    sharedPage.setVisible(t == 2);
+    oscTabBtn.setToggleState(t == 0, juce::dontSendNotification);
+    ampModTabBtn.setToggleState(t == 1, juce::dontSendNotification);
+    sharedTabBtn.setToggleState(t == 2, juce::dontSendNotification);
+}
 
 void AsidEditor::updateEnablement() {
     auto boolParam = [this](const char* id) {
@@ -198,9 +248,10 @@ void AsidEditor::updateEnablement() {
     const int myVoice = juce::jlimit(0, 2, intParam("asidVoice"));
     if (myVoice != highlightedVoice) {
         highlightedVoice = myVoice;
-        for (int i = 0; i < 3; ++i)
-            filtButtons[i].setColour(juce::ToggleButton::textColourId,
-                                     i == myVoice ? juce::Colours::orange : juce::Colours::white);
+        for (int i = 0; i < 3; ++i) {
+            filtButtons[i].getProperties().set("sidHighlight", i == myVoice);
+            filtButtons[i].repaint();
+        }
     }
 
     // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
@@ -246,99 +297,129 @@ void AsidEditor::refreshDevices() {
 }
 
 void AsidEditor::paint(juce::Graphics& g) {
-    g.fillAll(getLookAndFeel().findColour(juce::ResizableWindow::backgroundColourId));
-    // A faint rule under each section heading.
-    g.setColour(juce::Colours::white.withAlpha(0.15f));
-    for (const auto* l : {&settingsHeading, &oscHeading, &ampHeading, &sharedHeading,
-                          &pitchLfoHeading, &pwLfoHeading, &cutLfoHeading}) {
-        auto b = l->getBounds();
-        g.fillRect(b.getX(), b.getBottom() - 1, b.getWidth(), 1);
-    }
+    // C64 screen: a light-blue border framing the darker screen. The section
+    // boxes and the tab bar draw their own frames.
+    g.fillAll(juce::Colour(SidLookAndFeel::kFg));
+    g.setColour(juce::Colour(SidLookAndFeel::kBg));
+    g.fillRect(getLocalBounds().reduced(kBorder));
 }
 
 void AsidEditor::resized() {
-    auto knobCell = [](juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
-        auto cell = row.removeFromLeft(74);
-        l.setBounds(cell.removeFromTop(14));
-        s.setBounds(cell);
-        row.removeFromLeft(4);
-    };
-    auto sectionHeading = [](juce::Rectangle<int>& col, juce::Label& h) {
-        col.removeFromTop(12);
-        h.setBounds(col.removeFromTop(18));
-        col.removeFromTop(6);
-    };
+    auto area = getLocalBounds().reduced(kBorder + 6);  // inside the C64 border
+    title.setBounds(area.removeFromTop(26));
+    area.removeFromTop(6);
 
-    auto area = getLocalBounds().reduced(14);
-    title.setBounds(area.removeFromTop(30));
-    area.removeFromTop(4);
+    // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid
+    // horizontally with labels over the controls.
+    auto header = area.removeFromTop(38);
+    auto midi = header.removeFromLeft(216);
+    outLabel.setBounds(midi.removeFromTop(14));
+    refreshButton.setBounds(midi.removeFromRight(64));
+    midi.removeFromRight(6);
+    outputBox.setBounds(midi);
+    header.removeFromLeft(16);
+    voiceLabel.setBounds(header.removeFromTop(14));
+    voiceBox.setBounds(header.removeFromLeft(120));
+    area.removeFromTop(8);
 
-    auto left = area.removeFromLeft(area.getWidth() / 2 - 8);
-    area.removeFromLeft(16);
-    auto right = area;
+    auto tabs = area.removeFromTop(26);
+    const int tw = (tabs.getWidth() - 8) / 3;
+    oscTabBtn.setBounds(tabs.removeFromLeft(tw));    tabs.removeFromLeft(4);
+    ampModTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);
+    sharedTabBtn.setBounds(tabs.removeFromLeft(tw));
+    area.removeFromTop(8);
 
-    // Left column: Settings, Oscillator, Pitch Mod, PW Mod.
-    sectionHeading(left, settingsHeading);
-    auto midiRow = left.removeFromTop(26);
-    outLabel.setBounds(midiRow.removeFromLeft(64));
-    refreshButton.setBounds(midiRow.removeFromRight(70));
-    midiRow.removeFromRight(6);
-    outputBox.setBounds(midiRow);
-    left.removeFromTop(6);
-    auto voiceRow = left.removeFromTop(26);
-    voiceLabel.setBounds(voiceRow.removeFromLeft(64));
-    voiceBox.setBounds(voiceRow.removeFromLeft(120));
+    // All three pages fill the same area; each lays out in its own local coords.
+    oscPage.setBounds(area);
+    ampModPage.setBounds(area);
+    sharedPage.setBounds(area);
+    layoutOscPage(oscPage.getLocalBounds());
+    layoutAmpModPage(ampModPage.getLocalBounds());
+    layoutSharedPage(sharedPage.getLocalBounds());
+}
 
-    sectionHeading(left, oscHeading);
-    auto waveRow = left.removeFromTop(26);
-    waveLabel.setBounds(waveRow.removeFromLeft(70));
-    waveformBox.setBounds(waveRow.removeFromLeft(108));
-    waveRow.removeFromLeft(8);
-    syncButton.setBounds(waveRow.removeFromLeft(64));
-    ringButton.setBounds(waveRow.removeFromLeft(60));
-    left.removeFromTop(6);
-    auto oscKnobs = left.removeFromTop(84);
-    knobCell(oscKnobs, pwKnob, pwLabel);
-    knobCell(oscKnobs, coarseKnob, coarseLabel);
-    knobCell(oscKnobs, fineKnob, fineLabel);
-    knobCell(oscKnobs, portaKnob, portaLabel);
-    left.removeFromTop(4);
-    auto portaRow = left.removeFromTop(24);
-    portaTrigLabel.setBounds(portaRow.removeFromLeft(40));
-    portaTrigBox.setBounds(portaRow.removeFromLeft(96));
-    portaRow.removeFromLeft(12);
-    portaTypeLabel.setBounds(portaRow.removeFromLeft(38));
-    portaTypeBox.setBounds(portaRow.removeFromLeft(96));
+void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
+    {  // OSCILLATOR (one wide row)
+        auto box = area.removeFromTop(kRowBox);
+        oscGroup.setBounds(box);
+        auto c = innerBox(box);
+        labeledOver(c.removeFromLeft(150), waveLabel, waveformBox);
+        c.removeFromLeft(14);
+        toggleInline(c.removeFromLeft(64), syncButton);
+        c.removeFromLeft(6);
+        toggleInline(c.removeFromLeft(60), ringButton);
+        c.removeFromLeft(16);
+        knobCell(c, pwKnob, pwLabel);
+        knobCell(c, coarseKnob, coarseLabel);
+        knobCell(c, fineKnob, fineLabel);
+    }
+    area.removeFromTop(10);
+    {  // GLIDE (one wide row)
+        auto box = area.removeFromTop(kRowBox);
+        glideGroup.setBounds(box);
+        auto c = innerBox(box);
+        knobCell(c, portaKnob, portaLabel);
+        c.removeFromLeft(14);
+        labeledOver(c.removeFromLeft(120), portaTrigLabel, portaTrigBox);
+        c.removeFromLeft(14);
+        labeledOver(c.removeFromLeft(120), portaTypeLabel, portaTypeBox);
+    }
+}
 
-    sectionHeading(left, pitchLfoHeading);
-    layoutLfo(pitchLfoUi, left.removeFromTop(108));
+void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
+    {  // AMP (one wide row)
+        auto box = area.removeFromTop(kRowBox);
+        ampGroup.setBounds(box);
+        auto c = innerBox(box);
+        knobCell(c, attackKnob, attackLabel);
+        knobCell(c, decayKnob, decayLabel);
+        knobCell(c, sustainKnob, sustainLabel);
+        knobCell(c, releaseKnob, releaseLabel);
+    }
+    area.removeFromTop(10);
+    {  // PITCH MOD
+        auto pm = area.removeFromTop(kRowBox);
+        pitchModGroup.setBounds(pm);
+        layoutLfo(pitchLfoUi, innerBox(pm));
+    }
+    area.removeFromTop(10);
+    {  // PW MOD
+        auto pw = area.removeFromTop(kRowBox);
+        pwModGroup.setBounds(pw);
+        layoutLfo(pwLfoUi, innerBox(pw));
+    }
+}
 
-    sectionHeading(left, pwLfoHeading);
-    layoutLfo(pwLfoUi, left.removeFromTop(108));
-
-    // Right column: Amp, Shared, Cutoff Mod.
-    sectionHeading(right, ampHeading);
-    auto ampKnobs = right.removeFromTop(84);
-    knobCell(ampKnobs, attackKnob, attackLabel);
-    knobCell(ampKnobs, decayKnob, decayLabel);
-    knobCell(ampKnobs, sustainKnob, sustainLabel);
-    knobCell(ampKnobs, releaseKnob, releaseLabel);
-
-    sectionHeading(right, sharedHeading);
-    auto activeRow = right.removeFromTop(24);
-    filterActiveLabel.setBounds(activeRow.removeFromLeft(64));
-    for (auto& b : filtButtons) { b.setBounds(activeRow.removeFromLeft(42)); activeRow.removeFromLeft(6); }
-    right.removeFromTop(4);
-    auto modeRow = right.removeFromTop(24);
-    filterModeLabel.setBounds(modeRow.removeFromLeft(64));
-    for (auto& b : modeButtons) { b.setBounds(modeRow.removeFromLeft(56)); modeRow.removeFromLeft(6); }
-    right.removeFromTop(6);
-    auto sharedKnobs = right.removeFromTop(84);
-    knobCell(sharedKnobs, cutoffKnob, cutoffLabel);
-    knobCell(sharedKnobs, resKnob, resLabel);
-    knobCell(sharedKnobs, volumeKnob, volumeLabel);
-    knobCell(sharedKnobs, latencyKnob, latencyLabel);
-
-    sectionHeading(right, cutLfoHeading);
-    layoutLfo(cutLfoUi, right.removeFromTop(108));
+void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
+    {  // FILTER (one wide row): active, mode, cutoff, resonance
+        auto box = area.removeFromTop(kRowBox);
+        filterGroup.setBounds(box);
+        auto c = innerBox(box);
+        auto activeCell = c.removeFromLeft(150);
+        filterActiveLabel.setBounds(activeCell.removeFromTop(14));
+        auto activeRow = activeCell.removeFromTop(24);
+        for (auto& b : filtButtons) { b.setBounds(activeRow.removeFromLeft(42)); activeRow.removeFromLeft(6); }
+        c.removeFromLeft(10);
+        auto modeCell = c.removeFromLeft(196);
+        filterModeLabel.setBounds(modeCell.removeFromTop(14));
+        auto modeRow = modeCell.removeFromTop(24);
+        for (auto& b : modeButtons) { b.setBounds(modeRow.removeFromLeft(56)); modeRow.removeFromLeft(6); }
+        c.removeFromLeft(16);
+        knobCell(c, cutoffKnob, cutoffLabel);
+        knobCell(c, resKnob, resLabel);
+    }
+    area.removeFromTop(10);
+    {  // CUTOFF MOD (its own box now)
+        auto cm = area.removeFromTop(kRowBox);
+        cutModGroup.setBounds(cm);
+        layoutLfo(cutLfoUi, innerBox(cm));
+    }
+    area.removeFromTop(10);
+    {  // MASTER (one wide row): volume, latency
+        auto box = area.removeFromTop(kRowBox);
+        masterGroup.setBounds(box);
+        auto c = innerBox(box);
+        knobCell(c, volumeKnob, volumeLabel);
+        knobCell(c, latencyKnob, latencyLabel);
+    }
 }
