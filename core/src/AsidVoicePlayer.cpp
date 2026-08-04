@@ -64,12 +64,14 @@ Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
         w.push_back({static_cast<Byte>(base + 1), sidState.reg[base + 1]});
         w.push_back({static_cast<Byte>(base + 5), sidState.reg[base + 5]});
         w.push_back({static_cast<Byte>(base + 6), sidState.reg[base + 6]});
-        return encodeAsidGateRetrigger(a.oscillator, gateLow, gateHigh, w);
+        return encodeAsidDoubleControl(a.oscillator, gateLow, gateHigh, w);
     }
+    // Release through the same double-control path (gate low in both slots) so it
+    // is applied as reliably as the note-on, even under a heavy pitch stream.
     currentNote[a.oscillator] = -1;  // nothing sounding, no pitch mod
+    const Byte gateLow = static_cast<Byte>(sidState.control(a.oscillator) & ~sid::kGate);
     sidState.setGate(a.oscillator, false);
-    w.push_back({static_cast<Byte>(base + 4), sidState.reg[base + 4]});
-    return encodeAsidUpdate(w);
+    return encodeAsidDoubleControl(a.oscillator, gateLow, gateLow, {});
 }
 
 std::vector<Bytes> AsidVoicePlayer::frameSequence(const std::vector<VoiceAction>& actions) {

@@ -76,7 +76,7 @@ Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes) {
     return encodeFromSlots(value, present);
 }
 
-Bytes encodeAsidGateRetrigger(int voice, Byte controlGateLow, Byte controlGateHigh,
+Bytes encodeAsidDoubleControl(int voice, Byte controlFirst, Byte controlSecond,
                               const std::vector<SidWrite>& otherWrites) {
     if (voice < 0 || voice > 2) return {};
     Byte value[28] = {0};
@@ -88,13 +88,13 @@ Bytes encodeAsidGateRetrigger(int voice, Byte controlGateLow, Byte controlGateHi
         value[id] = w.value;
     }
     // Control register in its primary slot (22/23/24) then its secondary slot
-    // (25/26/27): gate low first, gate high second, all inside this one frame.
+    // (25/26/27), applied in that order inside this one frame.
     const int primary = 22 + voice;
     const int secondary = 25 + voice;
     present[primary] = true;
-    value[primary] = controlGateLow;
+    value[primary] = controlFirst;
     present[secondary] = true;
-    value[secondary] = controlGateHigh;
+    value[secondary] = controlSecond;
     return encodeFromSlots(value, present);
 }
 

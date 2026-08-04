@@ -98,12 +98,13 @@ Bytes encodeAsidStop();
 Bytes encodeAsidLcd(const std::string& text);
 Bytes encodeAsidUpdate(const std::vector<SidWrite>& writes);
 
-// Builds one update that also writes a voice's control register twice: gate low
-// in its primary slot, then gate high in its secondary slot (25/26/27). The SID
-// applies slots in order, so the gate goes low then high inside this single
-// frame, retriggering the envelope atomically without any send-timing trick.
-// `otherWrites` carries the frequency and envelope for the note.
-Bytes encodeAsidGateRetrigger(int voice, Byte controlGateLow, Byte controlGateHigh,
+// Builds one update that writes a voice's control register twice, through its
+// primary slot (22/23/24) then its secondary slot (25/26/27), which the unit
+// applies in order within the single frame. A note-on passes gate low then high
+// to retrigger the envelope atomically; a note-off passes gate low twice for a
+// robust release. This double-write path is applied reliably by the unit where a
+// plain single control write is not. `otherWrites` carries any other registers.
+Bytes encodeAsidDoubleControl(int voice, Byte controlFirst, Byte controlSecond,
                               const std::vector<SidWrite>& otherWrites);
 
 // MIDI note (may be fractional for pitch bend) to a 16-bit SID frequency value.

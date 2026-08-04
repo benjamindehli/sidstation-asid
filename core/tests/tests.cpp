@@ -422,7 +422,9 @@ static void testAsidPlayer() {
           "voice 0 frequency registers set from the note");
     CHECK((p.state().reg[4] & sid::kGate) != 0, "voice 0 gated on");
     auto offFrames = p.noteOff(0, 69);
-    CHECK(offFrames.size() == 2, "note off is the gate-off plus a flush");
+    CHECK(offFrames.size() == 2, "note off is the double-control release plus a flush");
+    CHECK((offFrames[0][6] & ((1 << 1) | (1 << 4))) == ((1 << 1) | (1 << 4)),
+          "note off double-writes the control register (both slots, gate low)");
     CHECK((p.state().reg[4] & sid::kGate) == 0, "voice 0 gated off");
 
     // Target-voice mode: every note goes to the chosen voice regardless of channel.
