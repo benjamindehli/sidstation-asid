@@ -91,6 +91,12 @@ std::vector<Bytes> AsidVoicePlayer::frameSequence(const std::vector<VoiceAction>
     return frames;
 }
 
+Bytes AsidVoicePlayer::settleFrame(int voice) const {
+    if (voice < 0 || voice > 2) return {};
+    const int base = SidState::voiceBase(voice);
+    return encodeAsidUpdate({{static_cast<Byte>(base + 6), sidState.reg[base + 6]}});
+}
+
 std::vector<Bytes> AsidVoicePlayer::hardRestartDrain(int voice) {
     if (voice < 0 || voice > 2) return {};
     const int base = SidState::voiceBase(voice);

@@ -362,6 +362,8 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
 
+    const bool pitchActive = paramInt("lfoTarget") == 2 && paramInt("lfoDepth") > 0;
+
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
         const bool on = m.isNoteOn();
@@ -391,6 +393,15 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
         for (const auto& f : frames) addFrame(out, f, posMs);
         voiceClockMs = target;
+
+        // When pitch modulation is running, its stream stops on release, leaving a
+        // note-off's gate-low with nothing behind it to flush it in. Send a benign
+        // settle frame just after, so the gate-off is always applied.
+        if (off && pitchActive) {
+            const double settleTarget = target + kSettleMs;
+            addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
+            voiceClockMs = settleTarget;
+        }
     }
 
     if (!out.isEmpty()) midiHub.sendScheduled(out, nowMs, 1000.0);

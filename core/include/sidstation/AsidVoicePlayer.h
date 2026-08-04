@@ -38,6 +38,12 @@ public:
     std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
     std::vector<Bytes> noteOff(int channel, int midiNote);
 
+    // A harmless register re-write (sustain/release, unchanged) whose only purpose
+    // is to be a following message: the unit applies a note-off's gate-low only
+    // when another message arrives behind it, and after a release the pitch stream
+    // has stopped, so nothing flushes it. Sent shortly after a note-off, this does.
+    Bytes settleFrame(int voice) const;
+
     // Hard-restart drain: gate the voice off with the release forced fast, so the
     // envelope falls to zero before the next attack. Sent just before a fresh
     // note-on, this avoids the SID ADSR bug that silences retriggers at high
