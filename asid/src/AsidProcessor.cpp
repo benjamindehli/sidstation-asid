@@ -470,7 +470,17 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     lastPlaying = playing ? 1 : 0;
     lastPlayheadMs = blockPlayheadMs;
 
-    if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
+    // Only an instance that is actually playing notes anchors the shared timing
+    // reference. A silent instance's offset (and its jitter) would otherwise pull
+    // the running minimum below the playing instance's true offset and scramble
+    // its note timing - the exact bug where a silent second voice glitched the
+    // one that was playing.
+    bool hasNotes = false;
+    for (const auto meta : midiMessages) {
+        const auto m = meta.getMessage();
+        if (m.isNoteOn() || m.isNoteOff()) { hasNotes = true; break; }
+    }
+    if (playing && hasNotes) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
     const double refOffset = AsidShared::get().playOffset();
 
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
