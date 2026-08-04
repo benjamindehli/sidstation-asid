@@ -1,10 +1,85 @@
 #include "MidiHub.h"
 
+#include <cstring>
+#include <queue>
+#include <vector>
+
 using namespace sidstation;
 
 MidiHub::~MidiHub() {
     closeInput();
     closeOutput();
+    stopSender();
+}
+
+void MidiHub::startSender() {
+    if (!sender) {
+        sender = std::make_unique<Sender>(*this);
+        sender->startThread();
+    }
+}
+
+void MidiHub::stopSender() {
+    if (sender) {
+        sender->signalThreadShouldExit();
+        sender->notify();
+        sender->stopThread(1000);
+        sender.reset();
+    }
+}
+
+// Producer side (audio/mod thread): copy the frame into the ring, no allocation.
+void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
+    if (len <= 0 || len > static_cast<int>(sizeof(Frame::data))) return;
+    int start1, size1, start2, size2;
+    frameFifo.prepareToWrite(1, start1, size1, start2, size2);
+    if (size1 > 0) {
+        Frame& f = frameStore[start1];
+        f.timeMs = timeMs;
+        f.len = len;
+        std::memcpy(f.data, data, static_cast<size_t>(len));
+        frameFifo.finishedWrite(1);
+    }
+    // FIFO full (should not happen at these rates): drop rather than block.
+}
+
+// Consumer side: drain the ring into a time-ordered heap and send each frame at
+// its due time. Runs on its own thread, so CoreMIDI never touches the audio thread.
+void MidiHub::Sender::run() {
+    struct Pending { double timeMs; juce::MidiMessage msg; };
+    struct Later { bool operator()(const Pending& a, const Pending& b) const { return a.timeMs > b.timeMs; } };
+    std::priority_queue<Pending, std::vector<Pending>, Later> pending;
+
+    while (!threadShouldExit()) {
+        if (const int ready = hub.frameFifo.getNumReady(); ready > 0) {
+            int s1, n1, s2, n2;
+            hub.frameFifo.prepareToRead(ready, s1, n1, s2, n2);
+            for (int i = 0; i < n1; ++i) {
+                const Frame& f = hub.frameStore[s1 + i];
+                pending.push({f.timeMs, juce::MidiMessage(f.data, f.len)});
+            }
+            for (int i = 0; i < n2; ++i) {
+                const Frame& f = hub.frameStore[s2 + i];
+                pending.push({f.timeMs, juce::MidiMessage(f.data, f.len)});
+            }
+            hub.frameFifo.finishedRead(n1 + n2);
+        }
+
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        while (!pending.empty() && pending.top().timeMs <= now) {
+            {
+                const juce::ScopedLock sl(hub.outputLock);
+                if (hub.output != nullptr) hub.output->sendMessageNow(pending.top().msg);
+            }
+            pending.pop();
+        }
+
+        // Sleep until the next frame is due (capped), woken early by a new push.
+        double waitMs = 25.0;
+        if (!pending.empty())
+            waitMs = juce::jlimit(1.0, 25.0, pending.top().timeMs - juce::Time::getMillisecondCounterHiRes());
+        wait(static_cast<int>(waitMs));
+    }
 }
 
 bool MidiHub::openOutputByIdentifier(const juce::String& identifier) {
@@ -12,9 +87,10 @@ bool MidiHub::openOutputByIdentifier(const juce::String& identifier) {
     if (dev == nullptr) return false;
     const juce::ScopedLock sl(outputLock);
     output = std::move(dev);
-    // Required for sendBlockOfMessages (the paced sends) to actually deliver.
+    // Required for sendBlockOfMessages (the paced patch dumps) to deliver.
     output->startBackgroundThread();
     outputInfo = output->getDeviceInfo();
+    startSender();  // real-time frames go through our own thread, not the audio thread
     return true;
 }
 
@@ -104,9 +180,15 @@ void MidiHub::sendPacedMessages(const std::vector<juce::MidiMessage>& messages, 
 }
 
 void MidiHub::sendScheduled(const juce::MidiBuffer& buffer, double startTimeMs, double sampleRate) {
-    const juce::ScopedLock sl(outputLock);
-    if (output != nullptr && !buffer.isEmpty())
-        output->sendBlockOfMessages(buffer, startTimeMs, juce::jmax(1.0, sampleRate));
+    if (buffer.isEmpty()) return;
+    // Push each event with its absolute send time; the sender thread delivers it.
+    // No CoreMIDI call and no lock here, so this is safe from the audio callback.
+    const double sr = juce::jmax(1.0, sampleRate);
+    for (const auto meta : buffer) {
+        const auto m = meta.getMessage();
+        pushFrame(m.getRawData(), m.getRawDataSize(), startTimeMs + meta.samplePosition * 1000.0 / sr);
+    }
+    if (sender) sender->notify();
 }
 
 void MidiHub::handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage& message) {

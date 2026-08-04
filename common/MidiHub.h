@@ -12,6 +12,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 
 #include <memory>
+#include <vector>
 
 #include "sidstation/Patch.h"
 #include "sidstation/SysEx.h"
@@ -72,6 +73,26 @@ public:
 
 private:
     void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage&) override;
+
+    // Off-audio-thread MIDI delivery. Producers (the audio callback and the mod
+    // streams) push frames with an absolute send time into a lock-free FIFO; a
+    // dedicated sender thread sends each at its time via sendMessageNow. This
+    // keeps CoreMIDI I/O off the audio callback, which Logic's audio/MIDI sync on
+    // built-in audio is sensitive to.
+    struct Frame { double timeMs = 0.0; int len = 0; juce::uint8 data[64] = {}; };
+    static constexpr int kFifoCapacity = 4096;
+    std::vector<Frame> frameStore{kFifoCapacity};
+    juce::AbstractFifo frameFifo{kFifoCapacity};
+    void pushFrame(const juce::uint8* data, int len, double timeMs);
+
+    struct Sender : juce::Thread {
+        MidiHub& hub;
+        explicit Sender(MidiHub& h) : juce::Thread("SidStation MIDI sender"), hub(h) {}
+        void run() override;  // drains the FIFO and sends frames at their times
+    };
+    std::unique_ptr<Sender> sender;
+    void startSender();
+    void stopSender();
 
     std::unique_ptr<juce::MidiOutput> output;
     std::unique_ptr<juce::MidiInput> input;
