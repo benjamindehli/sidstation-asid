@@ -77,9 +77,11 @@ private:
     void scheduleNotes(const juce::MidiBuffer& midiMessages, int voice);
     // Reads the voice/filter parameters and sends any that changed (flushed).
     void applyControlChanges(int voice, bool forceAll);
-    // Runs the plugin-side LFO and streams its target register (pulse width) at a
-    // modest rate while it is active. The SID has no LFOs of its own.
-    void updateModulation(int voice);
+    // Runs the plugin-side LFO and streams its target register at a modest rate
+    // while it is active. Pitch shares the frequency register with the notes, so
+    // it is held off on any block that also carries a note event, to keep a pitch
+    // write from colliding with a note-off. The SID has no LFOs of its own.
+    void updateModulation(int voice, bool blockHasNotes);
     int paramInt(const char* id) const;
     float paramFloat(const char* id) const;
 
@@ -95,7 +97,6 @@ private:
 
     // Note scheduling state (this instance's single voice).
     static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)
-    static constexpr double kHardRestartMs = 12.0;        // envelope drain before a fresh attack
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump

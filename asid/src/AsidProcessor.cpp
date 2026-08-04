@@ -183,7 +183,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
 }
 
-void AsidProcessor::updateModulation(int voice) {
+void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     const int target = paramInt("lfoTarget");  // 0 Off, 1 Pulse Width, 2 Pitch, 3 Cutoff
     const int depth = paramInt("lfoDepth");
 
@@ -244,6 +244,10 @@ void AsidProcessor::updateModulation(int voice) {
         frame = asidPlayer.setCutoff(co);
     }
 
+    // Keep pitch off the wire on a block that also carries a note event, so a
+    // pitch write never lands on top of a note-off (that collision is the stuck
+    // note). Pulse width and cutoff use their own registers and are safe.
+    if (target == 2 && blockHasNotes) return;
     // Skip empty (pitch with no note) and unchanged frames; the stream self-flushes.
     if (frame.empty() || frame == lastModFrame) return;
     lastModFrame = frame;
@@ -379,31 +383,14 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) eventMs = aligned;
         }
 
-        // A fresh attack (gate was off) gets a hard restart; a legato change (gate
-        // stays on) or a note-off does not. Drain is built before the note-on
-        // mutates the state, used only if this turns out to be a fresh attack.
-        const bool gateBefore = (asidPlayer.state().control(voice) & sid::kGate) != 0;
-        const auto drain = on ? asidPlayer.hardRestartDrain(voice) : std::vector<Bytes>{};
+        // The note-on retriggers inside its own frame (control double-write), so
+        // there is no gate-low window to guard: just keep frames in order.
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
                                : asidPlayer.noteOff(ch, m.getNoteNumber());
-        const bool gateAfter = (asidPlayer.state().control(voice) & sid::kGate) != 0;
-
-        if (on && gateAfter && !gateBefore) {
-            // Drain the envelope, then attack a short gap later. When the block is
-            // rendered ahead the attack still lands on time; live, it is delayed by
-            // the gap, which is the price of a clean retrigger.
-            const double drainTarget =
-                juce::jmax(nowMs, juce::jmax(eventMs - kHardRestartMs, voiceClockMs));
-            const double attackTarget = drainTarget + kHardRestartMs;
-            for (const auto& f : drain) addFrame(out, f, juce::jmax(0, juce::roundToInt(drainTarget - nowMs)));
-            for (const auto& f : frames) addFrame(out, f, juce::jmax(0, juce::roundToInt(attackTarget - nowMs)));
-            voiceClockMs = attackTarget;
-        } else {
-            const double target = juce::jmax(eventMs, voiceClockMs);
-            const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
-            for (const auto& f : frames) addFrame(out, f, posMs);
-            voiceClockMs = target;
-        }
+        const double target = juce::jmax(eventMs, voiceClockMs);
+        const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
+        for (const auto& f : frames) addFrame(out, f, posMs);
+        voiceClockMs = target;
     }
 
     if (!out.isEmpty()) midiHub.sendScheduled(out, nowMs, 1000.0);
@@ -428,7 +415,13 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // Controls go out immediately (not rhythmic, and this sets the filter before
     // any note that depends on it plays).
     applyControlChanges(voice, forceControls);
-    updateModulation(voice);
+
+    bool blockHasNotes = false;
+    for (const auto meta : midiMessages) {
+        const auto m = meta.getMessage();
+        if (m.isNoteOn() || m.isNoteOff()) { blockHasNotes = true; break; }
+    }
+    updateModulation(voice, blockHasNotes);
 
     scheduleNotes(midiMessages, voice);
 
