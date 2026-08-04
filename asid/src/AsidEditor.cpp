@@ -63,7 +63,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
     setupKnob(releaseKnob, releaseLabel, "Release", "release", releaseAtt);
     setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
-    setupKnob(restartKnob, restartLabel, "Restart", "hardRestart", restartAtt);
     setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
     setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
@@ -129,6 +128,16 @@ void AsidEditor::updateEnablement() {
         pulse = juce::roundToInt(p->load()) == 2;  // Pulse
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
+
+    // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
+    // disable it and pin it to 0 when sustain is 15.
+    bool sustainMax = false;
+    if (auto* p = state.getRawParameterValue("sustain"))
+        sustainMax = juce::roundToInt(p->load()) == 15;
+    decayKnob.setEnabled(!sustainMax);
+    decayLabel.setEnabled(!sustainMax);
+    if (sustainMax && decayKnob.getValue() != 0.0)
+        decayKnob.setValue(0.0, juce::sendNotificationSync);
 }
 
 void AsidEditor::timerCallback() {
@@ -202,7 +211,6 @@ void AsidEditor::resized() {
     knobCell(voiceKnobs, sustainKnob, sustainLabel);
     knobCell(voiceKnobs, releaseKnob, releaseLabel);
     knobCell(voiceKnobs, pwKnob, pwLabel);
-    knobCell(voiceKnobs, restartKnob, restartLabel);
 
     r.removeFromTop(4);
     routeButton.setBounds(r.removeFromTop(24).removeFromLeft(180));

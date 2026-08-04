@@ -97,18 +97,6 @@ Bytes AsidVoicePlayer::settleFrame(int voice) const {
     return encodeAsidUpdate({{static_cast<Byte>(base + 6), sidState.reg[base + 6]}});
 }
 
-std::vector<Bytes> AsidVoicePlayer::hardRestartDrain(int voice) {
-    if (voice < 0 || voice > 2) return {};
-    const int base = SidState::voiceBase(voice);
-    const Byte srDrain = static_cast<Byte>(sidState.reg[base + 6] & 0xF0);   // keep sustain, release -> 0
-    const Byte ctrlOff = static_cast<Byte>(sidState.control(voice) & ~sid::kGate);  // gate off
-    // Built without mutating state: the following note-on rewrites the real SR
-    // and gate. Frame plus a flush so the unit applies it.
-    return {encodeAsidUpdate({{static_cast<Byte>(base + 6), srDrain},
-                              {static_cast<Byte>(base + 4), ctrlOff}}),
-            encodeAsidUpdate({{static_cast<Byte>(base + 4), ctrlOff}})};
-}
-
 std::vector<Bytes> AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {
     const int ch = (targetVoice >= 0) ? targetVoice : channel;
     return frameSequence(alloc.noteOn(ch, midiNote, velocity));

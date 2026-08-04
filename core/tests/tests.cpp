@@ -445,11 +445,6 @@ static void testAsidPlayer() {
     CHECK(p.state().reg[5] == ((3 << 4) | 5), "attack/decay nibbles in reg 5");
     p.setSustainRelease(0, 12, 2);
     CHECK(p.state().reg[6] == ((12 << 4) | 2), "sustain/release nibbles in reg 6");
-    // Hard-restart drain: a frame plus a flush, and it leaves the stored envelope
-    // untouched (the note-on that follows rewrites the real release).
-    auto drainSeq = p.hardRestartDrain(0);
-    CHECK(drainSeq.size() == 2, "hard-restart drain is a frame plus a flush");
-    CHECK(p.state().reg[6] == ((12 << 4) | 2), "drain does not disturb the stored envelope");
     p.setPulseWidth(0, 0x0800);
     CHECK(p.state().reg[2] == 0x00 && p.state().reg[3] == 0x08, "pulse width split 12-bit");
     p.setFilterRouting(0, true);

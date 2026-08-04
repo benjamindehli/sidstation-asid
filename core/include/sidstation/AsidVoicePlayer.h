@@ -44,12 +44,6 @@ public:
     // has stopped, so nothing flushes it. Sent shortly after a note-off, this does.
     Bytes settleFrame(int voice) const;
 
-    // Hard-restart drain: gate the voice off with the release forced fast, so the
-    // envelope falls to zero before the next attack. Sent just before a fresh
-    // note-on, this avoids the SID ADSR bug that silences retriggers at high
-    // sustain. Does not disturb the stored envelope; the note-on rewrites it.
-    std::vector<Bytes> hardRestartDrain(int voice);
-
     // Live controls. Each returns the single ASID update for the change (the
     // caller sends it twice to flush it into effect, like note frames).
     Bytes setVolume(int vol0to15);
