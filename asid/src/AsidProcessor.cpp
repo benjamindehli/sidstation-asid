@@ -62,6 +62,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(
         juce::ParameterID{"filterRoute", 1}, "Route Through Filter", false));
+    // Hard-restart drain time in ms before a fresh attack, to dodge the SID ADSR
+    // bug at high sustain. 0 turns it off. Adds this much attack latency live;
+    // on playback the drain runs in the render lead so the attack stays on time.
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("hardRestart", "Restart", 0, 60, 30)));
 
     // Shared across all three voices (one physical SID filter and master volume).
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("cutoff", "Cutoff", 0, 2047, 2047)));
@@ -363,6 +367,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     juce::MidiBuffer out;
 
     const bool pitchActive = paramInt("lfoTarget") == 2 && paramInt("lfoDepth") > 0;
+    const int restartMs = paramInt("hardRestart");
 
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
@@ -385,22 +390,39 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) eventMs = aligned;
         }
 
-        // The note-on retriggers inside its own frame (control double-write), so
-        // there is no gate-low window to guard: just keep frames in order.
+        // Build the drain first (before the note-on mutates state), used only if
+        // this turns out to be a fresh attack. Watch the gate to tell a fresh
+        // attack (0->1) from a legato change (1->1) or a release.
+        const bool gateBefore = (asidPlayer.state().control(voice) & sid::kGate) != 0;
+        const auto drain = (on && restartMs > 0) ? asidPlayer.hardRestartDrain(voice)
+                                                 : std::vector<sidstation::Bytes>{};
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
                                : asidPlayer.noteOff(ch, m.getNoteNumber());
-        const double target = juce::jmax(eventMs, voiceClockMs);
-        const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
-        for (const auto& f : frames) addFrame(out, f, posMs);
-        voiceClockMs = target;
+        const bool gateAfter = (asidPlayer.state().control(voice) & sid::kGate) != 0;
 
-        // When pitch modulation is running, its stream stops on release, leaving a
-        // note-off's gate-low with nothing behind it to flush it in. Send a benign
-        // settle frame just after, so the gate-off is always applied.
-        if (off && pitchActive) {
-            const double settleTarget = target + kSettleMs;
-            addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
-            voiceClockMs = settleTarget;
+        if (on && restartMs > 0 && gateAfter && !gateBefore) {
+            // Hard restart: drain the envelope to zero, then attack a gap later, so
+            // a note at any high level (sustain 15, slow decay) retriggers cleanly.
+            // The drain runs in the render lead on playback so the attack lands on
+            // time; live it adds the gap.
+            const double drainTarget = juce::jmax(nowMs, juce::jmax(eventMs - restartMs, voiceClockMs));
+            const double attackTarget = drainTarget + restartMs;
+            for (const auto& f : drain) addFrame(out, f, juce::jmax(0, juce::roundToInt(drainTarget - nowMs)));
+            for (const auto& f : frames) addFrame(out, f, juce::jmax(0, juce::roundToInt(attackTarget - nowMs)));
+            voiceClockMs = attackTarget;
+        } else {
+            const double target = juce::jmax(eventMs, voiceClockMs);
+            const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
+            for (const auto& f : frames) addFrame(out, f, posMs);
+            voiceClockMs = target;
+
+            // A note-off's gate-low needs a message behind it; under pitch mod the
+            // stream has stopped, so add a benign settle frame just after.
+            if (off && pitchActive) {
+                const double settleTarget = target + kSettleMs;
+                addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
+                voiceClockMs = settleTarget;
+            }
         }
     }
 

@@ -63,6 +63,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
     setupKnob(releaseKnob, releaseLabel, "Release", "release", releaseAtt);
     setupKnob(pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
+    setupKnob(restartKnob, restartLabel, "Restart", "hardRestart", restartAtt);
     setupKnob(cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(resKnob, resLabel, "Reso", "resonance", resAtt);
     setupKnob(volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
@@ -201,6 +202,7 @@ void AsidEditor::resized() {
     knobCell(voiceKnobs, sustainKnob, sustainLabel);
     knobCell(voiceKnobs, releaseKnob, releaseLabel);
     knobCell(voiceKnobs, pwKnob, pwLabel);
+    knobCell(voiceKnobs, restartKnob, restartLabel);
 
     r.removeFromTop(4);
     routeButton.setBounds(r.removeFromTop(24).removeFromLeft(180));

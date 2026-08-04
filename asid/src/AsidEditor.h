@@ -52,9 +52,9 @@ private:
     std::unique_ptr<ComboAtt> waveformAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
     std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
-    juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob, pwKnob;
-    juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel, pwLabel;
-    std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt, pwAtt;
+    juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob, pwKnob, restartKnob;
+    juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel, pwLabel, restartLabel;
+    std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt, pwAtt, restartAtt;
     juce::ToggleButton routeButton{"Route Through Filter"};
     std::unique_ptr<ButtonAtt> routeAtt;
 
