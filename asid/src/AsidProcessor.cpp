@@ -312,9 +312,14 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     lfoOwnedPw = pwOn;
 
     const int cutDepth = paramInt("cutLfoDepth");
-    if (paramInt("cutLfoOn") && cutDepth > 0) AsidShared::get().claimCutoffMod(this);
+    // Only modulate the shared cutoff when at least one voice is actually routed
+    // through the filter. With no voice filtered the cutoff changes nothing, so the
+    // stream would be wasted MIDI bandwidth. Routing is shared, so any routed voice
+    // (not just this instance's) counts.
+    const bool filterInUse = routingMask() != 0;
+    if (paramInt("cutLfoOn") && cutDepth > 0 && filterInUse) AsidShared::get().claimCutoffMod(this);
     else AsidShared::get().releaseCutoffMod(this);
-    const bool cutOn = cutDepth > 0 && AsidShared::get().isCutoffModOwner(this);
+    const bool cutOn = cutDepth > 0 && filterInUse && AsidShared::get().isCutoffModOwner(this);
     if (!cutOn && lfoOwnedCutoff) sent.cutoff = -1;
     lfoOwnedCutoff = cutOn;
 
