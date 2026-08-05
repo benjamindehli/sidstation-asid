@@ -97,10 +97,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         b.onClick = [this, index] { setTab(index); };
         addAndMakeVisible(b);
     };
-    tab(oscTabBtn, 0);
-    tab(ampModTabBtn, 1);
-    tab(sharedTabBtn, 2);
-    tab(waveTabBtn, 3);
+    tab(oscTabBtn, 0);     // VOICE
+    tab(waveTabBtn, 1);    // WAVETABLE
+    tab(ampModTabBtn, 2);  // MODULATION
+    tab(sharedTabBtn, 3);  // GLOBAL
 
     // Group boxes go into their page first, so the frames sit behind the controls.
     auto group = [](juce::Component& page, juce::GroupComponent& g, const juce::String& t) {
@@ -109,12 +109,12 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         page.addAndMakeVisible(g);
     };
     group(oscPage, oscGroup, "OSCILLATOR");
-    group(oscPage, glideGroup, "GLIDE");
-    group(ampModPage, ampGroup, "AMP");
-    group(ampModPage, pitchModGroup, "PITCH MOD");
-    group(ampModPage, pwModGroup, "PW MOD");
+    group(oscPage, glideGroup, "TUNING");
+    group(oscPage, ampGroup, "AMP ENVELOPE");
+    group(ampModPage, pitchModGroup, "PITCH MODULATION");
+    group(ampModPage, pwModGroup, "PULSE WIDTH MODULATION");
     group(sharedPage, filterGroup, "FILTER");
-    group(sharedPage, cutModGroup, "CUTOFF MOD");
+    group(sharedPage, cutModGroup, "CUTOFF MODULATION");
     group(sharedPage, masterGroup, "MASTER");
     group(wtPage, wtConfigGroup, "WAVETABLE");
     group(wtPage, wtStepsGroup, "STEPS");
@@ -166,7 +166,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
 
-    setupKnob(oscPage, portaKnob, portaLabel, "Glide ms", "portaTime", portaAtt);
+    setupKnob(oscPage, portaKnob, portaLabel, "Glide time", "portaTime", portaAtt);
     oscPage.addAndMakeVisible(portaTrigLabel);
     oscPage.addAndMakeVisible(portaTrigBox);
     portaTrigBox.addItem("Legato", 1);
@@ -179,10 +179,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     portaTypeAtt = std::make_unique<ComboAtt>(state, "portaType", portaTypeBox);
 
     // ---- AMP+MOD page: Amp envelope, Pitch Mod, PW Mod ----
-    setupKnob(ampModPage, attackKnob, attackLabel, "Attack", "attack", attackAtt);
-    setupKnob(ampModPage, decayKnob, decayLabel, "Decay", "decay", decayAtt);
-    setupKnob(ampModPage, sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
-    setupKnob(ampModPage, releaseKnob, releaseLabel, "Release", "release", releaseAtt);
+    setupKnob(oscPage, attackKnob, attackLabel, "Attack", "attack", attackAtt);
+    setupKnob(oscPage, decayKnob, decayLabel, "Decay", "decay", decayAtt);
+    setupKnob(oscPage, sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
+    setupKnob(oscPage, releaseKnob, releaseLabel, "Release", "release", releaseAtt);
     setupLfo(ampModPage, pitchLfoUi, "pitchLfo");
     setupLfo(ampModPage, pwLfoUi, "pwLfo");
 
@@ -269,14 +269,14 @@ AsidEditor::~AsidEditor() { stopTimer(); setLookAndFeel(nullptr); }
 
 void AsidEditor::setTab(int t) {
     currentTab = t;
-    oscPage.setVisible(t == 0);
-    ampModPage.setVisible(t == 1);
-    sharedPage.setVisible(t == 2);
-    wtPage.setVisible(t == 3);
+    oscPage.setVisible(t == 0);     // VOICE
+    wtPage.setVisible(t == 1);      // WAVETABLE
+    ampModPage.setVisible(t == 2);  // MODULATION
+    sharedPage.setVisible(t == 3);  // GLOBAL
     oscTabBtn.setToggleState(t == 0, juce::dontSendNotification);
-    ampModTabBtn.setToggleState(t == 1, juce::dontSendNotification);
-    sharedTabBtn.setToggleState(t == 2, juce::dontSendNotification);
-    waveTabBtn.setToggleState(t == 3, juce::dontSendNotification);
+    waveTabBtn.setToggleState(t == 1, juce::dontSendNotification);
+    ampModTabBtn.setToggleState(t == 2, juce::dontSendNotification);
+    sharedTabBtn.setToggleState(t == 3, juce::dontSendNotification);
 }
 
 void AsidEditor::updateEnablement() {
@@ -300,6 +300,10 @@ void AsidEditor::updateEnablement() {
     const bool pulse = intParam("wavePulse") != 0 && !noise;
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
+
+    // Hard sync is meaningless on a noise-only voice; ring mod needs the triangle.
+    syncButton.setEnabled(!noise);
+    ringButton.setEnabled(intParam("waveTri") != 0 && !noise);
 
     // Glide trigger and type only matter when portamento time is up.
     const bool porta = intParam("portaTime") > 0;
@@ -452,10 +456,10 @@ void AsidEditor::resized() {
 
     auto tabs = area.removeFromTop(26);
     const int tw = (tabs.getWidth() - 12) / 4;
-    oscTabBtn.setBounds(tabs.removeFromLeft(tw));    tabs.removeFromLeft(4);
-    ampModTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);
-    sharedTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);
-    waveTabBtn.setBounds(tabs.removeFromLeft(tw));
+    oscTabBtn.setBounds(tabs.removeFromLeft(tw));    tabs.removeFromLeft(4);  // VOICE
+    waveTabBtn.setBounds(tabs.removeFromLeft(tw));   tabs.removeFromLeft(4);  // WAVETABLE
+    ampModTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);  // MODULATION
+    sharedTabBtn.setBounds(tabs.removeFromLeft(tw));                          // GLOBAL
     area.removeFromTop(8);
 
     // All pages fill the same area; each lays out in its own local coords.
@@ -491,24 +495,22 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
         toggleInline(c.removeFromLeft(60), ringButton);
         c.removeFromLeft(16);
         knobCell(c, pwKnob, pwLabel);
-        knobCell(c, coarseKnob, coarseLabel);
-        knobCell(c, fineKnob, fineLabel);
     }
     area.removeFromTop(10);
-    {  // GLIDE (one wide row)
+    {  // TUNING (one wide row): coarse, fine, glide time, glide trigger/type
         auto box = area.removeFromTop(kRowBox);
         glideGroup.setBounds(box);
         auto c = innerBox(box);
+        knobCell(c, coarseKnob, coarseLabel);
+        knobCell(c, fineKnob, fineLabel);
         knobCell(c, portaKnob, portaLabel);
         c.removeFromLeft(14);
         labeledOver(c.removeFromLeft(120), portaTrigLabel, portaTrigBox);
         c.removeFromLeft(14);
         labeledOver(c.removeFromLeft(120), portaTypeLabel, portaTypeBox);
     }
-}
-
-void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
-    {  // AMP (one wide row)
+    area.removeFromTop(10);
+    {  // AMP ENVELOPE (one wide row)
         auto box = area.removeFromTop(kRowBox);
         ampGroup.setBounds(box);
         auto c = innerBox(box);
@@ -517,14 +519,16 @@ void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
         knobCell(c, sustainKnob, sustainLabel);
         knobCell(c, releaseKnob, releaseLabel);
     }
-    area.removeFromTop(10);
-    {  // PITCH MOD
+}
+
+void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
+    {  // PITCH MODULATION
         auto pm = area.removeFromTop(kRowBox);
         pitchModGroup.setBounds(pm);
         layoutLfo(pitchLfoUi, innerBox(pm));
     }
     area.removeFromTop(10);
-    {  // PW MOD
+    {  // PULSE WIDTH MODULATION
         auto pw = area.removeFromTop(kRowBox);
         pwModGroup.setBounds(pw);
         layoutLfo(pwLfoUi, innerBox(pw));

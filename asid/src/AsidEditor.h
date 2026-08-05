@@ -64,7 +64,7 @@ private:
 
     juce::Label title{{}, "SidStation ASID"};
     // Tab bar and the three pages the tabs switch between.
-    juce::TextButton oscTabBtn{"OSC"}, ampModTabBtn{"AMP+MOD"}, sharedTabBtn{"SHARED"}, waveTabBtn{"WAVE"};
+    juce::TextButton oscTabBtn{"VOICE"}, ampModTabBtn{"MODULATION"}, sharedTabBtn{"GLOBAL"}, waveTabBtn{"WAVETABLE"};
     juce::Component oscPage, ampModPage, sharedPage, wtPage;
     int currentTab = 0;
 
@@ -122,7 +122,7 @@ private:
     juce::Slider pwKnob, coarseKnob, fineKnob, portaKnob;
     juce::Label pwLabel, coarseLabel, fineLabel, portaLabel;
     std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, portaAtt;
-    juce::Label portaTrigLabel{{}, "Glide"}, portaTypeLabel{{}, "Type"};
+    juce::Label portaTrigLabel{{}, "Glide trigger"}, portaTypeLabel{{}, "Glide type"};
     juce::ComboBox portaTrigBox, portaTypeBox;
     std::unique_ptr<ComboAtt> portaTrigAtt, portaTypeAtt;
 

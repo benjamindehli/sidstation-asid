@@ -87,6 +87,7 @@ public:
     // row of mixed controls lines up. They also share the panel fill and 2px
     // border (the same look as the buttons via drawButtonBackground).
     static constexpr float kFieldH = 24.0f;
+    static constexpr float kCaptionH = 13.0f;  // one size for all caption labels
 
     // Blocky checkbox drawn as a square field (panel fill, 2px border) with a hot
     // inset when on, matching the combo and number boxes. A component property
@@ -132,7 +133,10 @@ public:
             g.drawRect(bounds, 2);
         }
         if (!l.isBeingEdited()) {
-            const auto font = mono(l.getFont().getHeight());
+            // All caption labels share one size; only large headings (the title)
+            // keep their own font.
+            const float h = l.getFont().getHeight();
+            const auto font = mono(h >= 16.0f ? h : kCaptionH);
             g.setColour(l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
             g.setFont(font);
             auto textArea = bounds.reduced(field ? 3 : 0, 0);
