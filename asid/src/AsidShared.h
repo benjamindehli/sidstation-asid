@@ -83,16 +83,8 @@ public:
     // reset is the true song-to-wall mapping: it is captured at playback start,
     // before the host ramps its render lookahead, so it holds even when no track
     // is live to anchor it. Reset on transport start or a jump.
-    void resetPlayReference() {
-        refOffsetMs.store(1.0e18);
-        refCaptureUntilMs.store(juce::Time::getMillisecondCounterHiRes() + 250.0);
-    }
+    void resetPlayReference() { refOffsetMs.store(1.0e18); }
     void reportPlayOffset(double offsetMs) {
-        // Capture the minimum only briefly after a (re)lock, then freeze it.
-        // A perpetual running minimum keeps stepping down as instances report
-        // jittery offsets, which shifts the aligned send times and makes glides
-        // uneven, worst with several voices reporting into it.
-        if (juce::Time::getMillisecondCounterHiRes() > refCaptureUntilMs.load()) return;
         double cur = refOffsetMs.load();
         while (offsetMs < cur && !refOffsetMs.compare_exchange_weak(cur, offsetMs)) {}
     }
@@ -121,8 +113,7 @@ public:
     std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};
 
-    std::atomic<double> refOffsetMs{1.0e18};       // captured min of playheadMs - wallMs
-    std::atomic<double> refCaptureUntilMs{0.0};    // capture the min only until this wall time
+    std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
     std::atomic<Client*> cutoffModOwner{nullptr};  // sole instance modulating the shared cutoff
 
     // One MIDI output for every instance, so all voices' frames leave as a single
