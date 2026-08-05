@@ -251,13 +251,27 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     const int base = SidState::voiceBase(voice);
 
     bool playing = false;
-    double ppq = 0.0, bpm = 120.0;
+    double ppq = 0.0, bpm = 120.0, blockPlayheadMs = 0.0;
     if (auto* ph = getPlayHead()) {
         if (const auto pos = ph->getPosition()) {
             playing = pos->getIsPlaying();
             if (const auto q = pos->getPpqPosition()) ppq = *q;
             if (const auto b = pos->getBpm()) bpm = *b;
+            const double srr = juce::jmax(1.0, getSampleRate());
+            if (const auto s = pos->getTimeInSamples()) blockPlayheadMs = *s * 1000.0 / srr;
+            else if (const auto t = pos->getTimeInSeconds()) blockPlayheadMs = *t * 1000.0;
         }
+    }
+    // Modulation plays on the same aligned timeline as the notes, so on an
+    // ahead-rendered track the pitch/PW stream never runs ahead of the note it
+    // belongs to. Stopped: now. Playing: the block's playhead mapped to wall time.
+    const double nowMs = juce::Time::getMillisecondCounterHiRes();
+    double sendTimeMs = nowMs + static_cast<double>(paramInt("latency"));
+    if (playing) {
+        const double aligned = blockPlayheadMs - AsidShared::get().playOffset()
+                             + static_cast<double>(paramInt("latency"));
+        const double ahead = aligned - nowMs;
+        if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) sendTimeMs = aligned;
     }
 
     const int curNote = asidPlayer.currentNoteOf(voice);
@@ -296,7 +310,6 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // is the stuck note). Idle when nothing modulates, zeroing the clock so the
     // next active tick starts with a fresh dt (else a resumed glide leaps).
     const double interval = modIntervalForRate(paramInt("modRate"));
-    const double nowMs = juce::Time::getMillisecondCounterHiRes();
     if (blockHasNotes || !anyMod) { modTickMs = 0.0; return; }
     if (modTickMs > 0.0 && nowMs - modTickMs < interval) return;
     double dt = (modTickMs <= 0.0) ? interval : juce::jmin(nowMs - modTickMs, 4.0 * interval);
@@ -353,12 +366,12 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         addReg(22);
     }
 
-    if (!writes.empty()) sendAsid(sidstation::encodeAsidUpdate(writes));
+    if (!writes.empty()) sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
 
     // If a glide just reached the target and nothing else keeps the stream alive,
     // push one benign flush so the final frequency lands (the unit is one late).
     if (glideLanded && !vibratoOn && !pwOn && !cutOn && !wtActive)
-        sendAsid(asidPlayer.settleFrame(voice));
+        sendAsid(asidPlayer.settleFrame(voice), sendTimeMs);
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency",
@@ -422,8 +435,9 @@ bool AsidProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
 }
 
-void AsidProcessor::sendAsid(const Bytes& asidMessage) {
+void AsidProcessor::sendAsid(const Bytes& asidMessage, double sendTimeMs) {
     if (asidMessage.size() < 2) return;
+    const double t = (sendTimeMs < 0.0) ? juce::Time::getMillisecondCounterHiRes() : sendTimeMs;
     AsidShared::get().addBytes(static_cast<int>(asidMessage.size()));  // for the load meter
     // Route through the same timed background sender as the notes (at "now"), so
     // control and modulation frames stay ordered with the note frames on the one
@@ -434,7 +448,7 @@ void AsidProcessor::sendAsid(const Bytes& asidMessage) {
     buf.addEvent(juce::MidiMessage::createSysExMessage(
                      asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2),
                  0);
-    midiHub.sendScheduled(buf, juce::Time::getMillisecondCounterHiRes(), 1000.0);
+    midiHub.sendScheduled(buf, t, 1000.0);
 }
 
 void AsidProcessor::addFrame(juce::MidiBuffer& out, const Bytes& frame, int samplePos) {
@@ -470,17 +484,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     lastPlaying = playing ? 1 : 0;
     lastPlayheadMs = blockPlayheadMs;
 
-    // Only an instance that is actually playing notes anchors the shared timing
-    // reference. A silent instance's offset (and its jitter) would otherwise pull
-    // the running minimum below the playing instance's true offset and scramble
-    // its note timing - the exact bug where a silent second voice glitched the
-    // one that was playing.
-    bool hasNotes = false;
-    for (const auto meta : midiMessages) {
-        const auto m = meta.getMessage();
-        if (m.isNoteOn() || m.isNoteOff()) { hasNotes = true; break; }
-    }
-    if (playing && hasNotes) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
+    if (playing) AsidShared::get().reportPlayOffset(blockPlayheadMs - nowMs);
     const double refOffset = AsidShared::get().playOffset();
 
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so

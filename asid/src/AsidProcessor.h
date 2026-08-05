@@ -68,7 +68,10 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     // Sends one ASID frame to the device now (from processBlock). Used for the
     // start state and control edits, which are not note-timing critical.
-    void sendAsid(const sidstation::Bytes& asidMessage);
+    // sendTimeMs < 0 means "now"; the modulation passes the note-aligned time so
+    // its frames play on the same timeline as the notes (never desynced when a
+    // track is rendered ahead of the playhead).
+    void sendAsid(const sidstation::Bytes& asidMessage, double sendTimeMs = -1.0);
     // Adds one ASID frame to a buffer at a sample offset within the block.
     void addFrame(juce::MidiBuffer& out, const sidstation::Bytes& frame, int samplePos);
     // Turns the block's note events into timed ASID frames and sends them. Holds
