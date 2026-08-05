@@ -516,6 +516,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // reset (which would cause a brief scramble before it re-locks).
     if (playing && (!lastPlaying || blockPlayheadMs > lastPlayheadMs + 500.0))
         AsidShared::get().resetPlayReference();
+    const bool justStopped = !playing && lastPlaying;  // transport stopped or paused
     lastPlaying = playing ? 1 : 0;
     lastPlayheadMs = blockPlayheadMs;
 
@@ -525,6 +526,16 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
+
+    // The host does not send a note-off for a note still sounding when the
+    // transport stops or pauses, so release this voice now to avoid a stuck note.
+    // Like any note-off, the gate-off needs a message behind it to take effect on
+    // the one-message-late unit; the stream has stopped, so add a settle frame.
+    if (justStopped && asidPlayer.currentNoteOf(voice) >= 0) {
+        for (const auto& f : asidPlayer.allNotesOff()) addFrame(out, f, 0);
+        addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(kSettleMs)));
+        glidePitch = -1.0;
+    }
 
     // Every sounding voice streams its frequency, and that stream stops on
     // release, so every note-off's gate-low needs a settle frame behind it.

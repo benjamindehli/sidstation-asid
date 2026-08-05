@@ -135,6 +135,10 @@ std::vector<Bytes> AsidVoicePlayer::noteOff(int channel, int midiNote) {
     return frameSequence(alloc.noteOff(ch, midiNote));
 }
 
+std::vector<Bytes> AsidVoicePlayer::allNotesOff() {
+    return frameSequence(alloc.allNotesOff());
+}
+
 Bytes AsidVoicePlayer::setVolume(int vol0to15) {
     const Byte vol = static_cast<Byte>(vol0to15 < 0 ? 0 : (vol0to15 > 15 ? 15 : vol0to15));
     sidState.setModeVolume(sidState.reg[24] & 0xF0, vol);  // keep filter mode bits

@@ -38,6 +38,10 @@ public:
     std::vector<Bytes> noteOn(int channel, int midiNote, int velocity);
     std::vector<Bytes> noteOff(int channel, int midiNote);
 
+    // Releases every held note (gate-off frames), for when the host stops the
+    // transport mid-note and sends no note-off, which would otherwise hang.
+    std::vector<Bytes> allNotesOff();
+
     // A harmless register re-write (sustain/release, unchanged) whose only purpose
     // is to be a following message: the unit applies a note-off's gate-low only
     // when another message arrives behind it, and after a release the pitch stream
