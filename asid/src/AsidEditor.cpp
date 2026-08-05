@@ -1,5 +1,7 @@
 #include "AsidEditor.h"
 
+#include "BinaryData.h"
+
 namespace {
 constexpr int kRowBox = 114;  // a full-width box holding one inline row (22 title + 84 + 8)
 
@@ -101,9 +103,11 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
     setLookAndFeel(&laf);
     laf.setAccent(voiceColour(currentVoice()));  // colour-code this voice's window
-    title.setFont(SidLookAndFeel::mono(18.0f, true));
+    logo = juce::Drawable::createFromImageData(BinaryData::DehliMusikkLogoInverseHorizontal_svg,
+                                               BinaryData::DehliMusikkLogoInverseHorizontal_svgSize);
+    title.setFont(SidLookAndFeel::mono(26.0f, true));  // match the VOICE N size
     title.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
-    title.setJustificationType(juce::Justification::centredLeft);
+    title.setJustificationType(juce::Justification::centred);
     addAndMakeVisible(title);
 
     addAndMakeVisible(oscPage);
@@ -427,8 +431,13 @@ void AsidEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
     g.fillRect(getLocalBounds().reduced(kBorder));
 
-    // Big voice number, top-right, in the accent - the at-a-glance window label.
+    // Top row: Dehli Musikk logo left, product title centred (the Label), big
+    // voice number right in the accent.
     auto titleRow = getLocalBounds().reduced(kBorder + 6).removeFromTop(34);
+    if (logo != nullptr)
+        logo->drawWithin(g, titleRow.removeFromLeft(150).reduced(0, 3).toFloat(),
+                         juce::RectanglePlacement(juce::RectanglePlacement::xLeft
+                                                  | juce::RectanglePlacement::yMid), 1.0f);
     g.setColour(accent);
     g.setFont(SidLookAndFeel::mono(26.0f, true));
     g.drawText("VOICE " + juce::String(voice + 1), titleRow, juce::Justification::centredRight);

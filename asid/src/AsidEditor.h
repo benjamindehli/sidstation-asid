@@ -70,6 +70,7 @@ private:
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
 
+    std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
     juce::Label title{{}, "SidStation ASID"};
     // Tab bar and the three pages the tabs switch between.
     juce::TextButton oscTabBtn{"VOICE"}, ampModTabBtn{"MODULATION"}, sharedTabBtn{"GLOBAL"}, waveTabBtn{"WAVETABLE"};

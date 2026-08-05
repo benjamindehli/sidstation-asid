@@ -19,6 +19,10 @@ juce_add_plugin(SidStationAsid
     VST3_CATEGORIES           Instrument
     AU_MAIN_TYPE              kAudioUnitType_MusicDevice)
 
+# Embed assets (the Dehli Musikk logo) so they ship inside the plugin binary.
+juce_add_binary_data(SidStationAsidAssets
+    SOURCES assets/DehliMusikkLogoInverseHorizontal.svg)
+
 target_sources(SidStationAsid PRIVATE
     src/AsidProcessor.cpp
     src/AsidEditor.cpp
@@ -33,6 +37,7 @@ target_compile_definitions(SidStationAsid PUBLIC
 
 target_link_libraries(SidStationAsid PRIVATE
     sidstation_core
+    SidStationAsidAssets
     juce::juce_audio_utils
     PUBLIC
     juce::juce_recommended_config_flags
