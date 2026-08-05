@@ -7,6 +7,14 @@ constexpr int kRowBox = 114;  // a full-width box holding one inline row (22 tit
 juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
     return box.reduced(10, 0).withTrimmedTop(22).withTrimmedBottom(8);
 }
+// Distinct accent per SID voice, so the three plugin windows are colour-coded.
+juce::Colour voiceColour(int v) {
+    switch (v) {
+        case 1:  return juce::Colour(0xfff05cc0);  // Voice 2 - magenta
+        case 2:  return juce::Colour(0xffe8a03c);  // Voice 3 - amber
+        default: return juce::Colour(0xff35d6d0);  // Voice 1 - cyan
+    }
+}
 // The i-th of n equal columns spanning a row, for spreading controls to fill it.
 juce::Rectangle<int> colOf(juce::Rectangle<int> row, int i, int n) {
     const int w = row.getWidth() / n;
@@ -92,8 +100,10 @@ void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
 AsidEditor::AsidEditor(AsidProcessor& p)
     : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
     setLookAndFeel(&laf);
+    laf.setAccent(voiceColour(currentVoice()));  // colour-code this voice's window
     title.setFont(SidLookAndFeel::mono(18.0f, true));
     title.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
+    title.setJustificationType(juce::Justification::centredLeft);
     addAndMakeVisible(title);
 
     addAndMakeVisible(oscPage);
@@ -347,10 +357,10 @@ void AsidEditor::updateEnablement() {
     const int myVoice = juce::jlimit(0, 2, intParam("asidVoice"));
     if (myVoice != highlightedVoice) {
         highlightedVoice = myVoice;
-        for (int i = 0; i < 3; ++i) {
+        laf.setAccent(voiceColour(myVoice));  // recolour the whole window for the new voice
+        for (int i = 0; i < 3; ++i)
             filtButtons[i].getProperties().set("sidHighlight", i == myVoice);
-            filtButtons[i].repaint();
-        }
+        repaint();  // border, voice number, and every control pick up the new accent
     }
 
     // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
@@ -409,11 +419,19 @@ void AsidEditor::refreshDevices() {
 }
 
 void AsidEditor::paint(juce::Graphics& g) {
-    // C64 screen: a light-blue border framing the darker screen. The section
-    // boxes and the tab bar draw their own frames.
+    // C64 screen: the neutral light-blue border framing the darker screen. The
+    // per-voice colour lives in the accent (arcs, active buttons) and the number.
+    const int voice = currentVoice();
+    const auto accent = voiceColour(voice);
     g.fillAll(juce::Colour(SidLookAndFeel::kFg));
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
     g.fillRect(getLocalBounds().reduced(kBorder));
+
+    // Big voice number, top-right, in the accent - the at-a-glance window label.
+    auto titleRow = getLocalBounds().reduced(kBorder + 6).removeFromTop(34);
+    g.setColour(accent);
+    g.setFont(SidLookAndFeel::mono(26.0f, true));
+    g.drawText("VOICE " + juce::String(voice + 1), titleRow, juce::Justification::centredRight);
 
     // MIDI load meter: segmented blocks lit to the current fraction. The top
     // fifth turns white as a warning; over 100% every block is white (overload).
@@ -442,7 +460,7 @@ void AsidEditor::paint(juce::Graphics& g) {
 
 void AsidEditor::resized() {
     auto area = getLocalBounds().reduced(kBorder + 6);  // inside the C64 border
-    title.setBounds(area.removeFromTop(26));
+    title.setBounds(area.removeFromTop(34));  // taller row so the voice number reads big
     area.removeFromTop(6);
 
     // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid

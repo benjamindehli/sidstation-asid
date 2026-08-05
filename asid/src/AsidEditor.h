@@ -26,6 +26,11 @@ private:
     using ButtonAtt = juce::AudioProcessorValueTreeState::ButtonAttachment;
     using ComboAtt = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
+    // This instance's SID voice (0..2), read from the shared parameter tree.
+    int currentVoice() const {
+        auto* p = state.getRawParameterValue("asidVoice");
+        return p ? juce::jlimit(0, 2, juce::roundToInt(p->load())) : 0;
+    }
     void refreshDevices();
     // Enable/disable controls that only apply in some states (pulse-wave-only
     // pulse width, sync-vs-free rate). Driven from the timer.

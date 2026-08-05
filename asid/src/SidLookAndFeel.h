@@ -49,6 +49,11 @@ public:
 
     juce::Font getSliderPopupFont(juce::Slider&) override { return mono(15.0f, true); }
 
+    // The active/value colour, set per plugin instance from its SID voice so the
+    // three windows are colour-coded. Defaults to the base accent.
+    juce::Colour accent{juce::Colour(kAccent)};
+    void setAccent(juce::Colour c) { accent = c; }
+
     static juce::Font mono(float height, bool bold = false) {
         auto o = juce::FontOptions().withName(juce::Font::getDefaultMonospacedFontName()).withHeight(height);
         return juce::Font(bold ? o.withStyle("Bold") : o);
@@ -83,7 +88,7 @@ public:
         g.strokePath(track, stroke);
         if (angle > startAngle + 0.01f) {
             value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, angle, true);
-            g.setColour(juce::Colour(on ? kAccent : kDim));  // accent value arc
+            g.setColour(on ? accent : juce::Colour(kDim));  // accent value arc
             g.strokePath(value, stroke);
         }
 
@@ -115,7 +120,7 @@ public:
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
         auto r = b.getLocalBounds().toFloat();
-        if (on) g.setColour(juce::Colour(en ? kAccent : kDim));  // accent when active
+        if (on) g.setColour(en ? accent : juce::Colour(kDim));  // accent when active
         else    g.setColour(juce::Colour(kPanel).brighter(down ? 0.12f : (over ? 0.06f : 0.0f)));
         g.fillRect(r);
         g.setColour(juce::Colour(hi ? kHot : (en ? kFg : kDim)));
