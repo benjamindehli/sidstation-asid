@@ -112,11 +112,13 @@ public:
     // guessing from the background colour was not.
     void drawLabel(juce::Graphics& g, juce::Label& l) override {
         const auto bounds = l.getLocalBounds();
-        const bool field = dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr
+        const auto bg = l.findColour(juce::Label::backgroundColourId);
+        const bool field = !bg.isTransparent()
+                           || dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr
                            || static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
         const float alpha = l.isEnabled() ? 1.0f : 0.5f;
         if (field) {
-            g.setColour(juce::Colour(kPanel));
+            g.setColour(bg.isTransparent() ? juce::Colour(kPanel) : bg);
             g.fillRect(bounds);
             g.setColour(juce::Colour(l.isEnabled() ? kFg : kDim));
             g.drawRect(bounds, 2);

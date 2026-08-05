@@ -27,7 +27,7 @@ void toggleInline(juce::Rectangle<int> cell, juce::ToggleButton& b) {
 void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
                            const juce::String& paramId, std::unique_ptr<SliderAtt>& att) {
     s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 58, 16);
+    s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 24);  // 24 tall to match the other fields
     parent.addAndMakeVisible(s);
     l.setText(name, juce::dontSendNotification);
     l.setJustificationType(juce::Justification::centred);
@@ -57,7 +57,10 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
     u.divAtt = std::make_unique<ComboAtt>(state, prefix + "Div", u.divBox);
 
     setupKnob(parent, u.rateKnob, u.rateLabel, "Rate Hz", prefix + "Rate", u.rateAtt);
-    u.rateKnob.setNumDecimalPlacesToDisplay(3);  // Hz to 3 decimals, not the raw float tail
+    // The attachment sets the slider's text from the parameter, overriding
+    // setNumDecimalPlacesToDisplay, so format here (after the attachment) instead.
+    u.rateKnob.textFromValueFunction = [](double v) { return juce::String(v, 3); };
+    u.rateKnob.updateText();
     setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
 }
 
@@ -235,6 +238,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtArpValue[i].setJustificationType(juce::Justification::centred);
         wtArpValue[i].setFont(juce::Font(juce::FontOptions().withHeight(13.0f)));
         wtArpValue[i].getProperties().set("sidField", true);  // draw as a bordered field
+        wtArpValue[i].setColour(juce::Label::backgroundColourId, juce::Colour(SidLookAndFeel::kPanel));
+        wtArpValue[i].setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
         wtPage.addAndMakeVisible(wtArpValue[i]);
         wtArpSlider[i].onValueChange = [this, i] {
             wtArpValue[i].setText(juce::String((int) wtArpSlider[i].getValue()), juce::dontSendNotification);
@@ -577,7 +582,7 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         auto box = area.removeFromTop(22 + 18 + steps * 26 + 8);
         wtStepsGroup.setBounds(box);
         auto c = innerBox(box);
-        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 74;  // arp matches a knob's width
+        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 88;  // 24 + 40 value + 24
         // Left edge of waveform column w (0..3), or the arp column (w == 4), so the
         // headers and every step row share one set of x positions.
         auto colX = [&](juce::Rectangle<int> row, int w) {
