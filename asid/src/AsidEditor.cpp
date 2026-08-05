@@ -27,7 +27,8 @@ void toggleInline(juce::Rectangle<int> cell, juce::ToggleButton& b) {
 void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
                            const juce::String& paramId, std::unique_ptr<SliderAtt>& att) {
     s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-    s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 48, 24);  // 24 tall to match the other fields
+    s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);  // value shown in a popup bubble instead
+    s.setPopupDisplayEnabled(true, false, this);  // value bubble while turning
     parent.addAndMakeVisible(s);
     l.setText(name, juce::dontSendNotification);
     l.setJustificationType(juce::Justification::centred);

@@ -38,7 +38,15 @@ public:
         setColour(juce::ToggleButton::tickColourId, juce::Colour(kHot));
         setColour(juce::GroupComponent::outlineColourId, juce::Colour(kFg));
         setColour(juce::GroupComponent::textColourId, juce::Colour(kHot));
+        // The value bubble shown while turning a knob (setPopupDisplayEnabled).
+        setColour(juce::BubbleComponent::backgroundColourId, juce::Colour(kPanel));
+        setColour(juce::BubbleComponent::outlineColourId, juce::Colour(kFg));
+        setColour(juce::TooltipWindow::backgroundColourId, juce::Colour(kPanel));
+        setColour(juce::TooltipWindow::outlineColourId, juce::Colour(kFg));
+        setColour(juce::TooltipWindow::textColourId, juce::Colour(kHot));
     }
+
+    juce::Font getSliderPopupFont(juce::Slider&) override { return mono(15.0f, true); }
 
     static juce::Font mono(float height, bool bold = false) {
         auto o = juce::FontOptions().withName(juce::Font::getDefaultMonospacedFontName()).withHeight(height);
@@ -57,7 +65,7 @@ public:
         const auto fg = juce::Colour(on ? kFg : kDim);
         const auto hot = juce::Colour(on ? kHot : kDim);
 
-        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(5.0f);
+        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(2.0f);
         const float size = juce::jmin(area.getWidth(), area.getHeight());
         auto sq = juce::Rectangle<float>(size, size).withCentre(area.getCentre());
 
