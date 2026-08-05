@@ -75,7 +75,13 @@ public:
         g.fillRect(juce::Rectangle<float>(6.0f, 6.0f).withCentre(tip));  // pixel cap
     }
 
-    // Blocky checkbox: an outlined square, filled when on. A component property
+    // Shared height for checkboxes, combo boxes, number boxes and buttons, so a
+    // row of mixed controls lines up. They also share the panel fill and 2px
+    // border (the same look as the buttons via drawButtonBackground).
+    static constexpr float kFieldH = 24.0f;
+
+    // Blocky checkbox drawn as a square field (panel fill, 2px border) with a hot
+    // inset when on, matching the combo and number boxes. A component property
     // "sidHighlight" marks a toggle (the instance's own filter voice) in white.
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool, bool) override {
         const bool on = b.getToggleState();
@@ -84,18 +90,52 @@ public:
         const auto edge = juce::Colour(hi ? kHot : (en ? kFg : kDim));
 
         auto bounds = b.getLocalBounds().toFloat();
-        const float boxSize = juce::jmin(15.0f, bounds.getHeight());
+        const float boxSize = juce::jmin(kFieldH, bounds.getHeight());
         auto box = juce::Rectangle<float>(boxSize, boxSize).withY((bounds.getHeight() - boxSize) * 0.5f);
+        g.setColour(juce::Colour(kPanel));
+        g.fillRect(box);
         g.setColour(edge);
         g.drawRect(box, 2.0f);
         if (on) {
             g.setColour(juce::Colour(en ? kHot : kDim));
-            g.fillRect(box.reduced(4.0f));
+            g.fillRect(box.reduced(5.0f));
         }
         g.setColour(hi ? juce::Colour(kHot) : juce::Colour(en ? kFg : kDim));
         g.setFont(mono(14.0f, hi));
         g.drawText(b.getButtonText(), bounds.withTrimmedLeft(boxSize + 6.0f).getSmallestIntegerContainer(),
                    juce::Justification::centredLeft, false);
+    }
+
+    // Labels come in two kinds: a slider's number text box (its parent is the
+    // Slider) draws as a field, matching the combo, checkbox and button look; a
+    // plain caption draws as text only. Detecting the parent is reliable, where
+    // guessing from the background colour was not.
+    void drawLabel(juce::Graphics& g, juce::Label& l) override {
+        const auto bounds = l.getLocalBounds();
+        const bool field = dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr;
+        const float alpha = l.isEnabled() ? 1.0f : 0.5f;
+        if (field) {
+            g.setColour(juce::Colour(kPanel));
+            g.fillRect(bounds);
+            g.setColour(juce::Colour(l.isEnabled() ? kFg : kDim));
+            g.drawRect(bounds, 2);
+        }
+        if (!l.isBeingEdited()) {
+            const auto font = mono(l.getFont().getHeight());
+            g.setColour(l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
+            g.setFont(font);
+            auto textArea = bounds.reduced(field ? 6 : 0, 0);
+            g.drawFittedText(l.getText(), textArea, l.getJustificationType(),
+                             juce::jmax(1, (int) ((float) textArea.getHeight() / font.getHeight())),
+                             l.getMinimumHorizontalScale());
+        }
+    }
+
+    // Give the combo's selected text a little left padding so it is not jammed
+    // against the border, and leave room on the right for the arrow.
+    void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override {
+        label.setBounds(7, 1, box.getWidth() - 7 - 18, box.getHeight() - 2);
+        label.setFont(getComboBoxFont(box));
     }
 
     void drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) override {

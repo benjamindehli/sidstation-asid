@@ -42,11 +42,11 @@ private:
     struct LfoControls {
         juce::ToggleButton enableButton{"On"};
         std::unique_ptr<ButtonAtt> enableAtt;
-        juce::Label shapeLabel{{}, "Shape:"};
+        juce::Label shapeLabel{{}, "Shape"};
         juce::ComboBox shapeBox;
         juce::ToggleButton syncButton{"Tempo Sync"};
         juce::ComboBox divBox;
-        juce::Label divLabel{{}, "Sync:"};
+        juce::Label divLabel{{}, "Sync"};
         juce::Slider rateKnob, depthKnob;
         juce::Label rateLabel, depthLabel;
         std::unique_ptr<ComboAtt> shapeAtt, divAtt;
@@ -79,10 +79,10 @@ private:
     juce::ComboBox modRateBox;
     std::unique_ptr<ComboAtt> modRateAtt;
 
-    juce::Label outLabel{{}, "MIDI Out:"};
+    juce::Label outLabel{{}, "MIDI Out"};
     juce::ComboBox outputBox;
     juce::TextButton refreshButton{"Refresh"};
-    juce::Label voiceLabel{{}, "SID Voice:"};
+    juce::Label voiceLabel{{}, "SID Voice"};
     juce::ComboBox voiceBox;
     std::unique_ptr<ComboAtt> voiceAtt;
 
@@ -109,7 +109,7 @@ private:
 
     // Oscillator. The four SID waveforms combine, so they are checkboxes rather
     // than a single choice (noise stays exclusive, handled in updateEnablement).
-    juce::Label waveLabel{{}, "Waveform:"};
+    juce::Label waveLabel{{}, "Waveform"};
     juce::ToggleButton waveTriButton{"Tri"}, waveSawButton{"Saw"},
                        wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
     std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
@@ -118,7 +118,7 @@ private:
     juce::Slider pwKnob, coarseKnob, fineKnob, portaKnob;
     juce::Label pwLabel, coarseLabel, fineLabel, portaLabel;
     std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, portaAtt;
-    juce::Label portaTrigLabel{{}, "Glide:"}, portaTypeLabel{{}, "Type:"};
+    juce::Label portaTrigLabel{{}, "Glide"}, portaTypeLabel{{}, "Type"};
     juce::ComboBox portaTrigBox, portaTypeBox;
     std::unique_ptr<ComboAtt> portaTrigAtt, portaTypeAtt;
 
@@ -129,10 +129,10 @@ private:
 
     // Shared across all three voices. Filter Active is one checkbox per voice
     // (the instance's own voice is highlighted); filter Mode bits combine.
-    juce::Label filterActiveLabel{{}, "Filter:"};
+    juce::Label filterActiveLabel{{}, "Filter"};
     juce::ToggleButton filtButtons[3];
     std::unique_ptr<ButtonAtt> filtAtts[3];
-    juce::Label filterModeLabel{{}, "Mode:"};
+    juce::Label filterModeLabel{{}, "Mode"};
     juce::ToggleButton modeButtons[3];  // LP, BP, HP
     std::unique_ptr<ButtonAtt> modeAtts[3];
     int highlightedVoice = -1;  // which filter checkbox is currently marked as ours

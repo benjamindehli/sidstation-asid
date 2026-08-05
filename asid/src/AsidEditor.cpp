@@ -57,6 +57,7 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
     u.divAtt = std::make_unique<ComboAtt>(state, prefix + "Div", u.divBox);
 
     setupKnob(parent, u.rateKnob, u.rateLabel, "Rate Hz", prefix + "Rate", u.rateAtt);
+    u.rateKnob.setNumDecimalPlacesToDisplay(3);  // Hz to 3 decimals, not the raw float tail
     setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
 }
 
@@ -288,8 +289,12 @@ void AsidEditor::updateEnablement() {
     const bool wtOn = boolParam("wtOn");
     for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
         s->setEnabled(wtOn);
+    for (auto& h : wtWaveHead) h.setEnabled(wtOn);
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
-        wtWaveBox[i].setEnabled(wtOn);
+        // Noise is exclusive per step, same as the oscillator: grey the other three.
+        const bool stepNoise = intParam((juce::String("wtNoise") + juce::String(i)).toRawUTF8()) != 0;
+        for (int w = 0; w < 4; ++w)
+            wtWaveTog[i][w].setEnabled(wtOn && (w == 3 || !stepNoise));
         wtArpSlider[i].setEnabled(wtOn);
         wtStepNum[i].setEnabled(wtOn);
     }
@@ -372,13 +377,15 @@ void AsidEditor::paint(juce::Graphics& g) {
     // MIDI load meter: segmented blocks lit to the current fraction. The top
     // fifth turns white as a warning; over 100% every block is white (overload).
     if (!meterArea.isEmpty()) {
+        // Segments sit inside the 2px border, so the frame matches the other fields.
+        auto inner = meterArea.reduced(2);
         const int segs = 20;
         const int gap = 2;
-        const int segW = (meterArea.getWidth() - (segs - 1) * gap) / segs;
+        const int segW = (inner.getWidth() - (segs - 1) * gap) / segs;
         const bool over = midiLoad >= 1.0f;
         for (int i = 0; i < segs; ++i) {
-            juce::Rectangle<int> seg(meterArea.getX() + i * (segW + gap), meterArea.getY(),
-                                     segW, meterArea.getHeight());
+            juce::Rectangle<int> seg(inner.getX() + i * (segW + gap), inner.getY(),
+                                     segW, inner.getHeight());
             const bool lit = midiLoad > static_cast<float>(i) / segs;
             juce::Colour col;
             if (!lit) col = juce::Colour(SidLookAndFeel::kPanel);
@@ -388,7 +395,7 @@ void AsidEditor::paint(juce::Graphics& g) {
             g.fillRect(seg);
         }
         g.setColour(juce::Colour(SidLookAndFeel::kFg));
-        g.drawRect(meterArea, 1);
+        g.drawRect(meterArea, 2);
     }
 }
 
@@ -415,7 +422,7 @@ void AsidEditor::resized() {
     modRateBox.setBounds(mod.removeFromTop(24));
     header.removeFromLeft(12);
     midiLoadLabel.setBounds(header.removeFromTop(14));
-    meterArea = header.removeFromTop(20);
+    meterArea = header.removeFromTop(24);
     area.removeFromTop(8);
 
     auto tabs = area.removeFromTop(26);
@@ -448,6 +455,7 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
             auto r1 = cell.removeFromTop(24);
             waveTriButton.setBounds(r1.removeFromLeft(75));
             waveSawButton.setBounds(r1.removeFromLeft(75));
+            cell.removeFromTop(6);  // gap so the full-height boxes don't touch
             auto r2 = cell.removeFromTop(24);
             wavePulseButton.setBounds(r2.removeFromLeft(75));
             waveNoiseButton.setBounds(r2.removeFromLeft(75));
@@ -550,7 +558,7 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         auto box = area.removeFromTop(22 + 18 + steps * 26 + 8);
         wtStepsGroup.setBounds(box);
         auto c = innerBox(box);
-        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 110;
+        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 74;  // arp matches a knob's width
         // Left edge of waveform column w (0..3), or the arp column (w == 4), so the
         // headers and every step row share one set of x positions.
         auto colX = [&](juce::Rectangle<int> row, int w) {

@@ -362,7 +362,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
     if (wtActive) {
         if (const int step = wtPlayer.currentStep(); step >= 0) {
-            asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave" + juce::String(step)))]);
+            asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(step)));
             wtArp = paramInt("wtArp" + juce::String(step));
         }
         wtPlayer.advanceFrame();
@@ -584,7 +584,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             // clock's first tick swaps the waveform in (that gap, and so the
             // burst, grows as the Mod Rate falls).
             if (paramInt("wtOn"))
-                asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave0"))]);
+                asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(0)));
         }
 
         double target = juce::jmax(eventMs, voiceClockMs);
