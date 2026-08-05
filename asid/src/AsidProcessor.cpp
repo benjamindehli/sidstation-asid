@@ -303,7 +303,12 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         if (glidePitch < 0.0) glidePitch = curNote;
         gliding = portaTimeMs > 0 && std::abs(glidePitch - curNote) > 0.01;
     }
-    const bool pitchOn = curNote >= 0 && (gliding || vibratoOn || wtActive);
+    // Stream this voice's frequency every tick whenever a note is sounding, even
+    // with no modulation. Otherwise a voice that only modulates floods the port
+    // while a quiet voice's sparse frames get flushed unpredictably by it (the
+    // unit is one message late), which mangled the quiet voice. An even frame
+    // flow on every sounding voice keeps them all flushing cleanly.
+    const bool pitchOn = curNote >= 0;
     const bool anyMod = pitchOn || pwOn || cutOn || wtActive;
 
     // A frequency/pulse write must not land on a note-event block (that collision
@@ -492,10 +497,9 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
 
-    // The pitch/waveform streams run under vibrato, a glide, or a wavetable; each
-    // stops on release, so the note-off gate-low needs a settle frame behind it.
-    const bool pitchActive = (paramInt("pitchLfoOn") && paramInt("pitchLfoDepth") > 0)
-                             || paramInt("portaTime") > 0 || paramInt("wtOn") != 0;
+    // Every sounding voice now streams its frequency, and that stream stops on
+    // release, so every note-off's gate-low needs a settle frame behind it.
+    const bool pitchActive = true;
 
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
