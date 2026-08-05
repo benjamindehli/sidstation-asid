@@ -25,8 +25,13 @@ public:
     };
 
     static AsidShared& get() {
-        static AsidShared instance;
-        return instance;
+        // Heap-allocated and intentionally never destroyed. The shared MidiHub's
+        // MidiOutput must not be torn down at process exit: JUCE's CoreMIDI cleanup
+        // then messages already-finalized Objective-C state and crashes the host on
+        // quit. A static-lifetime instance would run that teardown via __cxa_finalize;
+        // leaking it lets the OS reclaim everything at exit with no teardown.
+        static AsidShared* instance = new AsidShared();
+        return *instance;
     }
 
     static bool isShared(const juce::String& id) {
