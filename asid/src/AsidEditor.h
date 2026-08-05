@@ -45,16 +45,19 @@ private:
         juce::Label shapeLabel{{}, "Shape"};
         juce::ComboBox shapeBox;
         juce::ToggleButton syncButton{"Tempo Sync"};
-        juce::ComboBox divBox;
-        juce::Label divLabel{{}, "Sync"};
         juce::Slider rateKnob, depthKnob;
         juce::Label rateLabel, depthLabel;
-        std::unique_ptr<ComboAtt> shapeAtt, divAtt;
+        std::unique_ptr<ComboAtt> shapeAtt;
         std::unique_ptr<ButtonAtt> syncAtt;
         std::unique_ptr<SliderAtt> rateAtt, depthAtt;
+        juce::String prefix;  // parameter prefix, for re-binding the rate knob
+        int rateMode = -1;    // -1 uninit, 0 free (Hz), 1 tempo-synced (division)
     };
     void setupLfo(juce::Component& parent, LfoControls&, const juce::String& prefix);
     void layoutLfo(LfoControls&, juce::Rectangle<int> area);
+    // The rate knob drives the free Hz rate, or the stepped tempo division when
+    // Tempo Sync is on. Re-binds it to the matching parameter.
+    void configureRateKnob(LfoControls&, bool synced);
 
     static constexpr int kBorder = 16;  // C64 screen border
 
@@ -114,7 +117,7 @@ private:
     // Oscillator. The four SID waveforms combine, so they are checkboxes rather
     // than a single choice (noise stays exclusive, handled in updateEnablement).
     juce::Label waveLabel{{}, "Waveform"};
-    juce::ToggleButton waveTriButton{"Tri"}, waveSawButton{"Saw"},
+    juce::ToggleButton waveTriButton{"Triangle"}, waveSawButton{"Sawtooth"},
                        wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
     std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
