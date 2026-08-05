@@ -372,31 +372,12 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // This voice's control register goes last (highest slot), so on the
     // one-message-late unit it is the deferred write and everything before it
     // (this voice's freq/pw) flushes inside the frame. It also carries the
-    // wavetable waveform when active.
+    // wavetable waveform when active. One frame per voice, each stamped with that
+    // voice's own aligned time, so a voice rendered ahead is not desynced (a
+    // single combined frame can only carry one time, which brings the double
+    // trigger back when Logic runs voices at different times).
     addReg(base + 4);
-
-    // Merge into the shared per-tick frame; whichever instance crosses the tick
-    // emits one combined frame carrying every voice's changes, so the total stays
-    // at one frame per tick no matter how many voices are sounding. In that frame
-    // the per-voice control registers all sit at the end and flush the freqs.
-    auto& sh = AsidShared::get();
-    std::vector<sidstation::SidWrite> combined;
-    {
-        const juce::ScopedLock sl(sh.modLock);
-        for (const auto& w : writes) {
-            sh.modReg[w.reg & 31] = w.value;
-            sh.modPresent[w.reg & 31] = true;
-        }
-        if (sh.modEmitMs <= 0.0 || nowMs - sh.modEmitMs >= interval) {
-            sh.modEmitMs = nowMs;
-            for (int r = 0; r < 32; ++r)
-                if (sh.modPresent[r]) {
-                    combined.push_back({static_cast<sidstation::Byte>(r), sh.modReg[r]});
-                    sh.modPresent[r] = false;
-                }
-        }
-    }
-    if (!combined.empty()) sendAsid(sidstation::encodeAsidUpdate(combined), sendTimeMs);
+    sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency", "modRate",

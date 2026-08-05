@@ -131,15 +131,6 @@ public:
     // otherwise stay silent).
     std::atomic<int> outGeneration{0};
 
-    // One combined modulation frame per tick: every instance merges its voice's
-    // register changes into this shared buffer, and whichever instance crosses the
-    // tick emits them all in a single ASID frame. Keeps the total at one frame per
-    // tick regardless of how many voices modulate, instead of one stream per voice.
-    juce::CriticalSection modLock;
-    juce::uint8 modReg[32] = {};
-    bool modPresent[32] = {};
-    double modEmitMs = 0.0;
-
     // Total bytes ever sent to the device across all instances. Monotonic, so an
     // editor derives the current rate from the delta over its own poll interval.
     // The SidStation's MIDI is 31250 baud, ~3125 bytes/sec, shared by every voice.
