@@ -337,13 +337,11 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     }
 
     // Pitch: portamento glide + vibrato + wavetable arpeggio, one frequency value.
-    bool glideLanded = false;
     if (pitchOn) {
         if (gliding) {
             const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;  // ms per octave
             if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
             else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
-            glideLanded = std::abs(glidePitch - curNote) < 1.0e-9;
         }
         const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
         const double vibrato = vibratoOn
@@ -370,20 +368,35 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         addReg(22);
     }
 
-    // End every frame with the control register (highest slot, so it is applied
-    // last / one message late). That flushes the freq/pw/cutoff bytes before it
-    // WITHIN this frame, so they land immediately instead of the high byte hanging
-    // until the next frame arrives (a wrong in-between pitch, uneven under two
-    // voices). It also carries the wavetable waveform when that is active.
-    if (!writes.empty()) {
-        addReg(base + 4);
-        sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
-    }
+    if (writes.empty()) return;
+    // This voice's control register goes last (highest slot), so on the
+    // one-message-late unit it is the deferred write and everything before it
+    // (this voice's freq/pw) flushes inside the frame. It also carries the
+    // wavetable waveform when active.
+    addReg(base + 4);
 
-    // If a glide just reached the target and nothing else keeps the stream alive,
-    // push one benign flush so the final frequency lands (the unit is one late).
-    if (glideLanded && !vibratoOn && !pwOn && !cutOn && !wtActive)
-        sendAsid(asidPlayer.settleFrame(voice), sendTimeMs);
+    // Merge into the shared per-tick frame; whichever instance crosses the tick
+    // emits one combined frame carrying every voice's changes, so the total stays
+    // at one frame per tick no matter how many voices are sounding. In that frame
+    // the per-voice control registers all sit at the end and flush the freqs.
+    auto& sh = AsidShared::get();
+    std::vector<sidstation::SidWrite> combined;
+    {
+        const juce::ScopedLock sl(sh.modLock);
+        for (const auto& w : writes) {
+            sh.modReg[w.reg & 31] = w.value;
+            sh.modPresent[w.reg & 31] = true;
+        }
+        if (sh.modEmitMs <= 0.0 || nowMs - sh.modEmitMs >= interval) {
+            sh.modEmitMs = nowMs;
+            for (int r = 0; r < 32; ++r)
+                if (sh.modPresent[r]) {
+                    combined.push_back({static_cast<sidstation::Byte>(r), sh.modReg[r]});
+                    sh.modPresent[r] = false;
+                }
+        }
+    }
+    if (!combined.empty()) sendAsid(sidstation::encodeAsidUpdate(combined), sendTimeMs);
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency", "modRate",
