@@ -481,11 +481,12 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             else if (const auto t = pos->getTimeInSeconds()) blockPlayheadMs = *t * 1000.0;
         }
     }
-    // Reset the shared reference on transport start or a big forward jump. A
-    // loop jumps the playhead backward, which lowers the offset, and the running
-    // minimum follows that down on its own, so looping stays smooth without a
-    // reset (which would cause a brief scramble before it re-locks).
-    if (playing && (!lastPlaying || blockPlayheadMs > lastPlayheadMs + 500.0))
+    // Re-capture the shared reference on transport start or any jump. The
+    // reference is now frozen after a short capture window, so a loop (playhead
+    // jumps backward) must re-lock rather than being followed by a running min.
+    if (playing && (!lastPlaying
+                    || blockPlayheadMs > lastPlayheadMs + 500.0
+                    || blockPlayheadMs < lastPlayheadMs - 50.0))
         AsidShared::get().resetPlayReference();
     lastPlaying = playing ? 1 : 0;
     lastPlayheadMs = blockPlayheadMs;
