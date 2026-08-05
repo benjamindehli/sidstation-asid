@@ -58,29 +58,44 @@ public:
     juce::Font getPopupMenuFont() override { return mono(14.0f); }
     juce::Font getTextButtonFont(juce::TextButton&, int) override { return mono(14.0f); }
 
-    // Blocky square knob: a filled inset with a chunky pointer and a pixel tip.
+    // Round knob: a filled body with a bright value arc sweeping around it and a
+    // pointer line. The arc reads the value at a glance; the body gives it weight.
     void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
                           float pos, float startAngle, float endAngle, juce::Slider& s) override {
         const bool on = s.isEnabled();
         const auto fg = juce::Colour(on ? kFg : kDim);
         const auto hot = juce::Colour(on ? kHot : kDim);
 
-        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(2.0f);
+        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(4.0f);
         const float size = juce::jmin(area.getWidth(), area.getHeight());
-        auto sq = juce::Rectangle<float>(size, size).withCentre(area.getCentre());
-
-        g.setColour(juce::Colour(kPanel));
-        g.fillRect(sq);
-        g.setColour(fg);
-        g.drawRect(sq, 2.0f);
-
+        const auto c = area.getCentre();
+        const float radius = size * 0.5f;
+        const float arcR = radius - 2.0f;
+        const float knobR = radius - 9.0f;
         const float angle = startAngle + pos * (endAngle - startAngle);
-        const auto c = sq.getCentre();
-        const float r = size * 0.5f - 3.0f;
-        const juce::Point<float> tip(c.x + std::sin(angle) * r, c.y - std::cos(angle) * r);
+
+        // Value arc: a dim full-sweep track with a bright fill up to the value.
+        const juce::PathStrokeType stroke(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
+        juce::Path track, value;
+        track.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
+        g.setColour(juce::Colour(kBg).darker(0.35f));
+        g.strokePath(track, stroke);
+        if (angle > startAngle + 0.01f) {
+            value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, angle, true);
+            g.setColour(hot);
+            g.strokePath(value, stroke);
+        }
+
+        // Knob body, then a pointer from the centre to its rim.
+        auto body = juce::Rectangle<float>(knobR * 2, knobR * 2).withCentre(c);
+        g.setColour(juce::Colour(kPanel));
+        g.fillEllipse(body);
+        g.setColour(fg);
+        g.drawEllipse(body, 2.0f);
+        const juce::Point<float> tip(c.x + std::sin(angle) * (knobR - 2.0f),
+                                     c.y - std::cos(angle) * (knobR - 2.0f));
         g.setColour(hot);
-        g.drawLine({c, tip}, 3.0f);
-        g.fillRect(juce::Rectangle<float>(6.0f, 6.0f).withCentre(tip));  // pixel cap
+        g.drawLine({c, tip}, 2.5f);
     }
 
     // Shared height for checkboxes, combo boxes, number boxes and buttons, so a
@@ -89,30 +104,26 @@ public:
     static constexpr float kFieldH = 24.0f;
     static constexpr float kCaptionH = 13.0f;  // one size for all caption labels
 
-    // Blocky checkbox drawn as a square field (panel fill, 2px border) with a hot
-    // inset when on, matching the combo and number boxes. A component property
-    // "sidHighlight" marks a toggle (the instance's own filter voice) in white.
-    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool, bool) override {
+    // Toggle drawn as a labelled button: it fills with the accent colour when on
+    // (inverting its text), like the tab buttons, so on/off controls have the same
+    // weight as everything else. "sidHighlight" marks the instance's own filter
+    // voice with a white border. An empty label gives a plain on/off cell (the
+    // wavetable step matrix).
+    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down) override {
         const bool on = b.getToggleState();
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
-        const auto edge = juce::Colour(hi ? kHot : (en ? kFg : kDim));
-
-        auto bounds = b.getLocalBounds().toFloat();
-        const float boxSize = juce::jmin(kFieldH, bounds.getHeight());
-        auto box = juce::Rectangle<float>(boxSize, boxSize).withY((bounds.getHeight() - boxSize) * 0.5f);
-        g.setColour(juce::Colour(kPanel));
-        g.fillRect(box);
-        g.setColour(edge);
-        g.drawRect(box, 2.0f);
-        if (on) {
-            g.setColour(juce::Colour(en ? kHot : kDim));
-            g.fillRect(box.reduced(5.0f));
+        auto r = b.getLocalBounds().toFloat();
+        if (on) g.setColour(juce::Colour(en ? kFg : kDim));
+        else    g.setColour(juce::Colour(kPanel).brighter(down ? 0.12f : (over ? 0.06f : 0.0f)));
+        g.fillRect(r);
+        g.setColour(juce::Colour(hi ? kHot : (en ? kFg : kDim)));
+        g.drawRect(r, 2.0f);
+        if (b.getButtonText().isNotEmpty()) {
+            g.setColour(juce::Colour(on ? kBg : (hi ? kHot : (en ? kFg : kDim))));
+            g.setFont(mono(14.0f, hi || on));
+            g.drawText(b.getButtonText(), r.getSmallestIntegerContainer(), juce::Justification::centred, false);
         }
-        g.setColour(hi ? juce::Colour(kHot) : juce::Colour(en ? kFg : kDim));
-        g.setFont(mono(14.0f, hi));
-        g.drawText(b.getButtonText(), bounds.withTrimmedLeft(boxSize + 6.0f).getSmallestIntegerContainer(),
-                   juce::Justification::centredLeft, false);
     }
 
     // Labels come in two kinds: a slider's number text box (its parent is the
@@ -186,6 +197,8 @@ public:
                                    const juce::Justification&, juce::GroupComponent&) override {
         const float titleH = 16.0f;
         auto box = juce::Rectangle<float>(1.0f, titleH * 0.5f, w - 2.0f, h - titleH * 0.5f - 1.0f);
+        g.setColour(juce::Colour(kBg).darker(0.12f));  // subtle inset panel for depth
+        g.fillRect(box);
         g.setColour(juce::Colour(kFg));
         g.drawRect(box, 2.0f);
 

@@ -3,12 +3,6 @@
 namespace {
 constexpr int kRowBox = 114;  // a full-width box holding one inline row (22 title + 84 + 8)
 
-void knobCell(juce::Rectangle<int>& row, juce::Slider& s, juce::Label& l) {
-    auto cell = row.removeFromLeft(74);
-    l.setBounds(cell.removeFromTop(14));
-    s.setBounds(cell);
-    row.removeFromLeft(6);
-}
 // The content area inside a titled box: sides in, and below the title.
 juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
     return box.reduced(10, 0).withTrimmedTop(22).withTrimmedBottom(8);
@@ -21,6 +15,29 @@ void labeledOver(juce::Rectangle<int> cell, juce::Label& l, juce::Component& c) 
 // A toggle placed inline, aligned with the control row of labels-over neighbours.
 void toggleInline(juce::Rectangle<int> cell, juce::ToggleButton& b) {
     b.setBounds(cell.getX(), cell.getY() + 14, cell.getWidth(), 24);
+}
+// The i-th of n equal columns spanning a row, for spreading controls to fill it.
+juce::Rectangle<int> colOf(juce::Rectangle<int> row, int i, int n) {
+    const int w = row.getWidth() / n;
+    return {row.getX() + i * w, row.getY(), w, row.getHeight()};
+}
+// A knob with its caption, centred in a column (spreads knobs across a row). The
+// knob is capped so a wide column does not make it huge.
+void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
+    l.setBounds(col.removeFromTop(14));
+    const int side = juce::jmin(col.getWidth() - 8, 100);
+    s.setBounds(col.withSizeKeepingCentre(side, col.getHeight()));
+}
+// A combo with its caption, centred in a column.
+void comboInCol(juce::Rectangle<int> col, juce::Label& l, juce::Component& c) {
+    l.setBounds(col.removeFromTop(14));
+    auto r = col.removeFromTop(24);
+    c.setBounds(r.withSizeKeepingCentre(juce::jmin(r.getWidth() - 8, 150), 24));
+}
+// A toggle centred in a column, aligned with the control row.
+void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
+    auto s = col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, 96), col.getHeight());
+    b.setBounds(s.getX(), s.getY() + 14, s.getWidth(), 24);
 }
 }  // namespace
 
@@ -66,14 +83,23 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
 }
 
 void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
-    // One wide inline row: on, shape, sync, rate, depth, division.
-    auto next = [&area](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(8); return c; };
-    toggleInline(next(46), u.enableButton);
-    labeledOver(next(116), u.shapeLabel, u.shapeBox);
-    toggleInline(next(104), u.syncButton);
-    { auto k = next(74); u.rateLabel.setBounds(k.removeFromTop(14)); u.rateKnob.setBounds(k); }
-    { auto k = next(74); u.depthLabel.setBounds(k.removeFromTop(14)); u.depthKnob.setBounds(k); }
-    labeledOver(next(64), u.divLabel, u.divBox);
+    // Centre the control band vertically in a tall section, then spread the six
+    // items (on, shape, sync, rate, depth, division) across the full width.
+    area = area.withSizeKeepingCentre(area.getWidth(), juce::jmin(area.getHeight(), 100));
+    const int ws[] = {60, 130, 116, 90, 90, 74};
+    int total = 0; for (int w : ws) total += w;
+    const int gap = juce::jmax(8, (area.getWidth() - total) / 5);
+    auto next = [&](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(gap); return c; };
+    auto knob = [](juce::Rectangle<int> k, juce::Slider& s, juce::Label& l) {
+        l.setBounds(k.removeFromTop(14));
+        s.setBounds(k.withSizeKeepingCentre(juce::jmin(k.getWidth() - 8, 100), k.getHeight()));
+    };
+    toggleInline(next(ws[0]), u.enableButton);
+    labeledOver(next(ws[1]), u.shapeLabel, u.shapeBox);
+    toggleInline(next(ws[2]), u.syncButton);
+    knob(next(ws[3]), u.rateKnob, u.rateLabel);
+    knob(next(ws[4]), u.depthKnob, u.depthLabel);
+    labeledOver(next(ws[5]), u.divLabel, u.divBox);
 }
 
 AsidEditor::AsidEditor(AsidProcessor& p)
@@ -133,8 +159,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         modRateBox.addItem(r, modRateBox.getNumItems() + 1);
     modRateAtt = std::make_unique<ComboAtt>(state, "modRate", modRateBox);
 
-    // ---- OSC page: Oscillator, Glide ----
-    oscPage.addAndMakeVisible(waveLabel);
+    // ---- OSC page: Oscillator, Glide ---- (waveform toggles are self-labelled
+    // buttons now, so no "Waveform" caption).
     for (auto* b : {&waveTriButton, &waveSawButton, &wavePulseButton, &waveNoiseButton})
         oscPage.addAndMakeVisible(*b);
     oscPage.addAndMakeVisible(syncButton);
@@ -189,15 +215,13 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     // ---- SHARED page: Filter (with Cutoff Mod) and Master ----
     // Filter Active: one checkbox per voice, all shared, so any instance can
     // route any voice. Filter Mode: LP/BP/HP, combinable.
-    sharedPage.addAndMakeVisible(filterActiveLabel);
-    const char* voiceNames[3] = {"1", "2", "3"};
+    const char* voiceNames[3] = {"V1", "V2", "V3"};  // self-labelled, no caption
     const char* filtIds[3] = {"filt1", "filt2", "filt3"};
     for (int i = 0; i < 3; ++i) {
         filtButtons[i].setButtonText(voiceNames[i]);
         sharedPage.addAndMakeVisible(filtButtons[i]);
         filtAtts[i] = std::make_unique<ButtonAtt>(state, filtIds[i], filtButtons[i]);
     }
-    sharedPage.addAndMakeVisible(filterModeLabel);
     const char* modeNames[3] = {"LP", "BP", "HP"};
     const char* modeIds[3] = {"modeLP", "modeBP", "modeHP"};
     for (int i = 0; i < 3; ++i) {
@@ -221,7 +245,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     const char* wtIds[4] = {"wtTri", "wtSaw", "wtPulse", "wtNoise"};
     for (int w = 0; w < 4; ++w) {
         wtWaveHead[w].setText(wtHeads[w], juce::dontSendNotification);
-        wtWaveHead[w].setFont(juce::Font(juce::FontOptions().withHeight(12.0f)));
+        wtWaveHead[w].setJustificationType(juce::Justification::centred);
         wtPage.addAndMakeVisible(wtWaveHead[w]);
     }
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
@@ -474,141 +498,135 @@ void AsidEditor::resized() {
 }
 
 void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
-    {  // OSCILLATOR (one wide row)
-        auto box = area.removeFromTop(kRowBox);
+    const int gap = 10;
+    const int rowH = (area.getHeight() - 2 * gap) / 3;
+    {  // OSCILLATOR: 2x2 waveform buttons + Sync/Ring, then Pulse W knob.
+        auto box = area.removeFromTop(rowH);
         oscGroup.setBounds(box);
         auto c = innerBox(box);
-        {  // Waveform: label over a 2x2 grid of combinable toggles.
-            auto cell = c.removeFromLeft(150);
-            waveLabel.setBounds(cell.removeFromTop(14));
-            auto r1 = cell.removeFromTop(24);
-            waveTriButton.setBounds(r1.removeFromLeft(75));
-            waveSawButton.setBounds(r1.removeFromLeft(75));
-            cell.removeFromTop(6);  // gap so the full-height boxes don't touch
-            auto r2 = cell.removeFromTop(24);
-            wavePulseButton.setBounds(r2.removeFromLeft(75));
-            waveNoiseButton.setBounds(r2.removeFromLeft(75));
+        {  // self-labelled waveform buttons, vertically centred
+            auto cell = c.removeFromLeft(190).withSizeKeepingCentre(190, 2 * 30 + 8);
+            auto r1 = cell.removeFromTop(30);
+            waveTriButton.setBounds(r1.removeFromLeft(88)); r1.removeFromLeft(10);
+            waveSawButton.setBounds(r1.removeFromLeft(88));
+            cell.removeFromTop(8);
+            auto r2 = cell.removeFromTop(30);
+            wavePulseButton.setBounds(r2.removeFromLeft(88)); r2.removeFromLeft(10);
+            waveNoiseButton.setBounds(r2.removeFromLeft(88));
         }
-        c.removeFromLeft(14);
-        toggleInline(c.removeFromLeft(64), syncButton);
-        c.removeFromLeft(6);
-        toggleInline(c.removeFromLeft(60), ringButton);
-        c.removeFromLeft(16);
-        knobCell(c, pwKnob, pwLabel);
+        auto togCol = colOf(c, 0, 2);
+        auto t = togCol.withSizeKeepingCentre(juce::jmin(togCol.getWidth() - 8, 200), 30);
+        syncButton.setBounds(t.removeFromLeft(94)); t.removeFromLeft(12);
+        ringButton.setBounds(t.removeFromLeft(94));
+        knobInCol(colOf(c, 1, 2), pwKnob, pwLabel);
     }
-    area.removeFromTop(10);
-    {  // TUNING (one wide row): coarse, fine, glide time, glide trigger/type
-        auto box = area.removeFromTop(kRowBox);
+    area.removeFromTop(gap);
+    {  // TUNING: coarse, fine, glide time, glide trigger, glide type
+        auto box = area.removeFromTop(rowH);
         glideGroup.setBounds(box);
         auto c = innerBox(box);
-        knobCell(c, coarseKnob, coarseLabel);
-        knobCell(c, fineKnob, fineLabel);
-        knobCell(c, portaKnob, portaLabel);
-        c.removeFromLeft(14);
-        labeledOver(c.removeFromLeft(120), portaTrigLabel, portaTrigBox);
-        c.removeFromLeft(14);
-        labeledOver(c.removeFromLeft(120), portaTypeLabel, portaTypeBox);
+        knobInCol(colOf(c, 0, 5), coarseKnob, coarseLabel);
+        knobInCol(colOf(c, 1, 5), fineKnob, fineLabel);
+        knobInCol(colOf(c, 2, 5), portaKnob, portaLabel);
+        comboInCol(colOf(c, 3, 5), portaTrigLabel, portaTrigBox);
+        comboInCol(colOf(c, 4, 5), portaTypeLabel, portaTypeBox);
     }
-    area.removeFromTop(10);
-    {  // AMP ENVELOPE (one wide row)
-        auto box = area.removeFromTop(kRowBox);
+    area.removeFromTop(gap);
+    {  // AMP ENVELOPE
+        auto box = area.removeFromTop(rowH);
         ampGroup.setBounds(box);
         auto c = innerBox(box);
-        knobCell(c, attackKnob, attackLabel);
-        knobCell(c, decayKnob, decayLabel);
-        knobCell(c, sustainKnob, sustainLabel);
-        knobCell(c, releaseKnob, releaseLabel);
+        knobInCol(colOf(c, 0, 4), attackKnob, attackLabel);
+        knobInCol(colOf(c, 1, 4), decayKnob, decayLabel);
+        knobInCol(colOf(c, 2, 4), sustainKnob, sustainLabel);
+        knobInCol(colOf(c, 3, 4), releaseKnob, releaseLabel);
     }
 }
 
 void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
+    const int gap = 10;
+    const int rowH = (area.getHeight() - gap) / 2;  // two sections fill the height
     {  // PITCH MODULATION
-        auto pm = area.removeFromTop(kRowBox);
+        auto pm = area.removeFromTop(rowH);
         pitchModGroup.setBounds(pm);
         layoutLfo(pitchLfoUi, innerBox(pm));
     }
-    area.removeFromTop(10);
+    area.removeFromTop(gap);
     {  // PULSE WIDTH MODULATION
-        auto pw = area.removeFromTop(kRowBox);
+        auto pw = area.removeFromTop(rowH);
         pwModGroup.setBounds(pw);
         layoutLfo(pwLfoUi, innerBox(pw));
     }
 }
 
 void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
-    {  // FILTER (one wide row): active, mode, cutoff, resonance
-        auto box = area.removeFromTop(kRowBox);
+    const int gap = 10;
+    const int rowH = (area.getHeight() - 2 * gap) / 3;
+    {  // FILTER: voice buttons (V1/V2/V3) + mode buttons (LP/BP/HP), then knobs.
+        auto box = area.removeFromTop(rowH);
         filterGroup.setBounds(box);
         auto c = innerBox(box);
-        auto activeCell = c.removeFromLeft(150);
-        filterActiveLabel.setBounds(activeCell.removeFromTop(14));
-        auto activeRow = activeCell.removeFromTop(24);
-        for (auto& b : filtButtons) { b.setBounds(activeRow.removeFromLeft(42)); activeRow.removeFromLeft(6); }
-        c.removeFromLeft(10);
-        auto modeCell = c.removeFromLeft(196);
-        filterModeLabel.setBounds(modeCell.removeFromTop(14));
-        auto modeRow = modeCell.removeFromTop(24);
-        for (auto& b : modeButtons) { b.setBounds(modeRow.removeFromLeft(56)); modeRow.removeFromLeft(6); }
-        c.removeFromLeft(16);
-        knobCell(c, cutoffKnob, cutoffLabel);
-        knobCell(c, resKnob, resLabel);
+        auto fcell = c.removeFromLeft(340).withSizeKeepingCentre(340, 30);
+        for (auto& b : filtButtons) { b.setBounds(fcell.removeFromLeft(46)); fcell.removeFromLeft(8); }
+        fcell.removeFromLeft(20);  // gap between the voice group and the mode group
+        for (auto& b : modeButtons) { b.setBounds(fcell.removeFromLeft(46)); fcell.removeFromLeft(8); }
+        knobInCol(colOf(c, 0, 2), cutoffKnob, cutoffLabel);
+        knobInCol(colOf(c, 1, 2), resKnob, resLabel);
     }
-    area.removeFromTop(10);
-    {  // CUTOFF MOD (its own box now)
-        auto cm = area.removeFromTop(kRowBox);
+    area.removeFromTop(gap);
+    {  // CUTOFF MODULATION
+        auto cm = area.removeFromTop(rowH);
         cutModGroup.setBounds(cm);
         layoutLfo(cutLfoUi, innerBox(cm));
     }
-    area.removeFromTop(10);
-    {  // MASTER (one wide row): volume, latency
-        auto box = area.removeFromTop(kRowBox);
+    area.removeFromTop(gap);
+    {  // MASTER: volume, latency
+        auto box = area.removeFromTop(rowH);
         masterGroup.setBounds(box);
         auto c = innerBox(box);
-        knobCell(c, volumeKnob, volumeLabel);
-        knobCell(c, latencyKnob, latencyLabel);
+        knobInCol(colOf(c, 0, 2), volumeKnob, volumeLabel);
+        knobInCol(colOf(c, 1, 2), latencyKnob, latencyLabel);
     }
 }
 
 void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
-    {  // WAVETABLE config: On, Speed, Length, Loop
+    {  // WAVETABLE config: On, Speed, Length, Loop spread across the width
         auto box = area.removeFromTop(kRowBox);
         wtConfigGroup.setBounds(box);
         auto c = innerBox(box);
-        toggleInline(c.removeFromLeft(56), wtOnButton);
-        c.removeFromLeft(12);
-        knobCell(c, wtSpeedKnob, wtSpeedLabel);
-        knobCell(c, wtLengthKnob, wtLengthLabel);
-        knobCell(c, wtLoopKnob, wtLoopLabel);
+        toggleInCol(colOf(c, 0, 4), wtOnButton);
+        knobInCol(colOf(c, 1, 4), wtSpeedKnob, wtSpeedLabel);
+        knobInCol(colOf(c, 2, 4), wtLengthKnob, wtLengthLabel);
+        knobInCol(colOf(c, 3, 4), wtLoopKnob, wtLoopLabel);
     }
     area.removeFromTop(10);
-    {  // STEPS: a column-header row, then one row per step (number, four waveform
-       // toggles under the headers, arpeggio).
+    {  // STEPS: header + 8 rows, the grid centred and the rows filling the height.
         const int steps = AsidProcessor::kWtSteps;
-        auto box = area.removeFromTop(22 + 18 + steps * 26 + 8);
-        wtStepsGroup.setBounds(box);
-        auto c = innerBox(box);
-        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 88;  // 24 + 40 value + 24
-        // Left edge of waveform column w (0..3), or the arp column (w == 4), so the
-        // headers and every step row share one set of x positions.
+        wtStepsGroup.setBounds(area);  // fill the rest of the page
+        auto c = innerBox(area);
+        const int numW = 22, cgap = 8, colW = 54, arpGap = 14, arpW = 88;
+        const int gridW = numW + cgap + 4 * colW + arpGap + arpW;
+        c.removeFromLeft(juce::jmax(0, (c.getWidth() - gridW) / 2));  // centre the grid
         auto colX = [&](juce::Rectangle<int> row, int w) {
-            return row.getX() + numW + gap + w * colW + (w == 4 ? arpGap : 0);
+            return row.getX() + numW + cgap + w * colW + (w == 4 ? arpGap : 0);
         };
         auto head = c.removeFromTop(16);
         for (int w = 0; w < 4; ++w)
             wtWaveHead[w].setBounds(colX(head, w), head.getY(), colW, head.getHeight());
         c.removeFromTop(2);
+        const int rowH = juce::jmax(26, c.getHeight() / steps);  // spread rows over the height
         for (int i = 0; i < steps; ++i) {
-            auto row = c.removeFromTop(24);
-            wtStepNum[i].setBounds(row.getX(), row.getY(), numW, row.getHeight());
-            for (int w = 0; w < 4; ++w)
-                wtWaveTog[i][w].setBounds(colX(row, w), row.getY(), colW, row.getHeight());
-            // Arp stepper: [-] value [+], square buttons matching the field height.
-            auto arp = juce::Rectangle<int>(colX(row, 4), row.getY(), arpW, row.getHeight());
-            const int bw = row.getHeight();  // square buttons
-            wtArpDec[i].setBounds(arp.removeFromLeft(bw));
-            wtArpInc[i].setBounds(arp.removeFromRight(bw));
+            auto full = c.removeFromTop(rowH);
+            auto line = full.withSizeKeepingCentre(full.getWidth(), 24);  // 24 band, centred vertically
+            wtStepNum[i].setBounds(line.getX(), line.getY(), numW, 24);
+            for (int w = 0; w < 4; ++w) {  // centred matrix cell under each header
+                juce::Rectangle<int> cellR(colX(line, w), line.getY(), colW, 24);
+                wtWaveTog[i][w].setBounds(cellR.withSizeKeepingCentre(28, 24));
+            }
+            auto arp = juce::Rectangle<int>(colX(line, 4), line.getY(), arpW, 24);
+            wtArpDec[i].setBounds(arp.removeFromLeft(24));   // square buttons
+            wtArpInc[i].setBounds(arp.removeFromRight(24));
             wtArpValue[i].setBounds(arp);
-            c.removeFromTop(2);
         }
     }
 }
