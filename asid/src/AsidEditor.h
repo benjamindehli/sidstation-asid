@@ -100,8 +100,10 @@ private:
     juce::Label wtSpeedLabel, wtLengthLabel, wtLoopLabel;
     std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
     juce::Label wtStepNum[AsidProcessor::kWtSteps];
-    juce::ComboBox wtWaveBox[AsidProcessor::kWtSteps];
-    std::unique_ptr<ComboAtt> wtWaveAtt[AsidProcessor::kWtSteps];
+    // Per step, four combinable waveform toggles under shared column headers.
+    juce::Label wtWaveHead[4];
+    juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
+    std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
     juce::Slider wtArpSlider[AsidProcessor::kWtSteps];
     std::unique_ptr<SliderAtt> wtArpAtt[AsidProcessor::kWtSteps];
 

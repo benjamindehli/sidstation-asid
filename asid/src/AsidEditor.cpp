@@ -212,17 +212,24 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(wtPage, wtSpeedKnob, wtSpeedLabel, "Speed", "wtSpeed", wtSpeedAtt);
     setupKnob(wtPage, wtLengthKnob, wtLengthLabel, "Length", "wtLength", wtLengthAtt);
     setupKnob(wtPage, wtLoopKnob, wtLoopLabel, "Loop", "wtLoop", wtLoopAtt);
-    const juce::StringArray wtWaves{"Triangle", "Sawtooth", "Pulse", "Noise",
-                                    "Tri+Saw", "Pulse+Tri", "Pulse+Saw", "Silence"};
+    const char* wtHeads[4] = {"Tri", "Saw", "Pulse", "Noise"};
+    const char* wtIds[4] = {"wtTri", "wtSaw", "wtPulse", "wtNoise"};
+    for (int w = 0; w < 4; ++w) {
+        wtWaveHead[w].setText(wtHeads[w], juce::dontSendNotification);
+        wtWaveHead[w].setFont(juce::Font(juce::FontOptions().withHeight(12.0f)));
+        wtPage.addAndMakeVisible(wtWaveHead[w]);
+    }
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
         wtStepNum[i].setText(juce::String(i + 1), juce::dontSendNotification);
         wtStepNum[i].setJustificationType(juce::Justification::centredRight);
         wtPage.addAndMakeVisible(wtStepNum[i]);
-        wtPage.addAndMakeVisible(wtWaveBox[i]);
-        for (int w = 0; w < wtWaves.size(); ++w) wtWaveBox[i].addItem(wtWaves[w], w + 1);
-        wtWaveAtt[i] = std::make_unique<ComboAtt>(state, "wtWave" + juce::String(i), wtWaveBox[i]);
+        for (int w = 0; w < 4; ++w) {
+            wtPage.addAndMakeVisible(wtWaveTog[i][w]);
+            wtWaveTogAtt[i][w] = std::make_unique<ButtonAtt>(
+                state, juce::String(wtIds[w]) + juce::String(i), wtWaveTog[i][w]);
+        }
         wtArpSlider[i].setSliderStyle(juce::Slider::IncDecButtons);
-        wtArpSlider[i].setTextBoxStyle(juce::Slider::TextBoxLeft, false, 42, 20);
+        wtArpSlider[i].setTextBoxStyle(juce::Slider::TextBoxLeft, false, 42, 24);
         wtPage.addAndMakeVisible(wtArpSlider[i]);
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
     }
@@ -537,18 +544,28 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         knobCell(c, wtLoopKnob, wtLoopLabel);
     }
     area.removeFromTop(10);
-    {  // STEPS: one row per step (number, waveform, arpeggio)
+    {  // STEPS: a column-header row, then one row per step (number, four waveform
+       // toggles under the headers, arpeggio).
         const int steps = AsidProcessor::kWtSteps;
-        auto box = area.removeFromTop(22 + steps * 26 + 8);
+        auto box = area.removeFromTop(22 + 18 + steps * 26 + 8);
         wtStepsGroup.setBounds(box);
         auto c = innerBox(box);
+        const int numW = 22, gap = 8, colW = 46, arpGap = 12, arpW = 110;
+        // Left edge of waveform column w (0..3), or the arp column (w == 4), so the
+        // headers and every step row share one set of x positions.
+        auto colX = [&](juce::Rectangle<int> row, int w) {
+            return row.getX() + numW + gap + w * colW + (w == 4 ? arpGap : 0);
+        };
+        auto head = c.removeFromTop(16);
+        for (int w = 0; w < 4; ++w)
+            wtWaveHead[w].setBounds(colX(head, w), head.getY(), colW, head.getHeight());
+        c.removeFromTop(2);
         for (int i = 0; i < steps; ++i) {
             auto row = c.removeFromTop(24);
-            wtStepNum[i].setBounds(row.removeFromLeft(22));
-            row.removeFromLeft(8);
-            wtWaveBox[i].setBounds(row.removeFromLeft(140));
-            row.removeFromLeft(16);
-            wtArpSlider[i].setBounds(row.removeFromLeft(110));
+            wtStepNum[i].setBounds(row.getX(), row.getY(), numW, row.getHeight());
+            for (int w = 0; w < 4; ++w)
+                wtWaveTog[i][w].setBounds(colX(row, w), row.getY(), colW, row.getHeight());
+            wtArpSlider[i].setBounds(colX(row, 4), row.getY(), arpW, row.getHeight());
             c.removeFromTop(2);
         }
     }

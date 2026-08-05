@@ -32,12 +32,6 @@ double sidReleaseMs(int r) {
     return t[r < 0 ? 0 : (r > 15 ? 15 : r)];
 }
 
-// SID control-register waveform bits for each wavetable step choice:
-// Triangle, Sawtooth, Pulse, Noise, then the combinations Tri+Saw, Pulse+Tri,
-// Pulse+Saw, and finally Silence (no waveform). Used by both the wavetable step
-// playback and the note-on that gates in on the table's first step.
-const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
-
 // Note division to beats, for tempo-synced LFO phase.
 double beatsForDivision(int idx) {
     switch (idx) {
@@ -140,13 +134,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("wtSpeed", "WT Speed", 1, 16, 2)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("wtLength", "WT Length", 1, kWtSteps, 1)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("wtLoop", "WT Loop", 0, kWtSteps - 1, 0)));
-    const juce::StringArray wtWaves{"Triangle", "Sawtooth", "Pulse", "Noise",
-                                    "Tri+Saw", "Pulse+Tri", "Pulse+Saw", "Silence"};
+    // Each step's waveform is combinable toggles, like the oscillator (noise is
+    // exclusive in wtStepWaveBits). Triangle on by default matches the old default.
     for (int i = 0; i < kWtSteps; ++i) {
-        layout.add(std::make_unique<Choice>(juce::ParameterID{"wtWave" + juce::String(i), 1},
-                                            "WT Wave " + juce::String(i + 1), wtWaves, 0));
+        const juce::String s(i), n(i + 1);
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtTri" + s, 1}, "WT Tri " + n, true));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtSaw" + s, 1}, "WT Saw " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtPulse" + s, 1}, "WT Pulse " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtNoise" + s, 1}, "WT Noise " + n, false));
         layout.add(std::make_unique<juce::AudioParameterInt>(
-            juce::ParameterID{"wtArp" + juce::String(i), 1}, "WT Arp " + juce::String(i + 1), -24, 24, 0));
+            juce::ParameterID{"wtArp" + s, 1}, "WT Arp " + n, -24, 24, 0));
     }
     return layout;
 }
