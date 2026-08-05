@@ -98,6 +98,14 @@ private:
     int modeMask() const {
         return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0);
     }
+    // SID control-register waveform bits from the four toggles. The waveforms
+    // combine (bits OR together), but noise locks the others on the 6581, so when
+    // noise is on it wins alone. 0 = no waveform (a silent voice).
+    int waveBits() const {
+        if (paramInt("waveNoise")) return 0x80;  // noise, exclusive
+        return (paramInt("waveTri") ? 0x10 : 0) | (paramInt("waveSaw") ? 0x20 : 0)
+             | (paramInt("wavePulse") ? 0x40 : 0);
+    }
     float paramFloat(const char* id) const;
     float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }
 

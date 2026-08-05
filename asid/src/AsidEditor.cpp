@@ -130,7 +130,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
 
     // ---- OSC page: Oscillator, Glide ----
     oscPage.addAndMakeVisible(waveLabel);
-    oscPage.addAndMakeVisible(waveformBox);
+    for (auto* b : {&waveTriButton, &waveSawButton, &wavePulseButton, &waveNoiseButton})
+        oscPage.addAndMakeVisible(*b);
     oscPage.addAndMakeVisible(syncButton);
     oscPage.addAndMakeVisible(ringButton);
 
@@ -149,11 +150,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     voiceBox.addItem("Voice 3", 3);
     voiceAtt = std::make_unique<ComboAtt>(state, "asidVoice", voiceBox);
 
-    waveformBox.addItem("Triangle", 1);
-    waveformBox.addItem("Sawtooth", 2);
-    waveformBox.addItem("Pulse", 3);
-    waveformBox.addItem("Noise", 4);
-    waveformAtt = std::make_unique<ComboAtt>(state, "waveform", waveformBox);
+    waveTriAtt = std::make_unique<ButtonAtt>(state, "waveTri", waveTriButton);
+    waveSawAtt = std::make_unique<ButtonAtt>(state, "waveSaw", waveSawButton);
+    wavePulseAtt = std::make_unique<ButtonAtt>(state, "wavePulse", wavePulseButton);
+    waveNoiseAtt = std::make_unique<ButtonAtt>(state, "waveNoise", waveNoiseButton);
 
     setupKnob(oscPage, pwKnob, pwLabel, "Pulse W", "pulseWidth", pwAtt);
     setupKnob(oscPage, coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
@@ -258,8 +258,15 @@ void AsidEditor::updateEnablement() {
         return p ? juce::roundToInt(p->load()) : 0;
     };
 
-    // Pulse width only matters on a pulse wave.
-    const bool pulse = intParam("waveform") == 2;
+    // Noise locks the other waveforms on the 6581, so it is exclusive: when it is
+    // on, grey out the other three (they keep their state but are ignored).
+    const bool noise = intParam("waveNoise") != 0;
+    waveTriButton.setEnabled(!noise);
+    waveSawButton.setEnabled(!noise);
+    wavePulseButton.setEnabled(!noise);
+
+    // Pulse width only matters when the pulse wave actually sounds.
+    const bool pulse = intParam("wavePulse") != 0 && !noise;
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
 
@@ -428,7 +435,16 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
         auto box = area.removeFromTop(kRowBox);
         oscGroup.setBounds(box);
         auto c = innerBox(box);
-        labeledOver(c.removeFromLeft(150), waveLabel, waveformBox);
+        {  // Waveform: label over a 2x2 grid of combinable toggles.
+            auto cell = c.removeFromLeft(150);
+            waveLabel.setBounds(cell.removeFromTop(14));
+            auto r1 = cell.removeFromTop(24);
+            waveTriButton.setBounds(r1.removeFromLeft(75));
+            waveSawButton.setBounds(r1.removeFromLeft(75));
+            auto r2 = cell.removeFromTop(24);
+            wavePulseButton.setBounds(r2.removeFromLeft(75));
+            waveNoiseButton.setBounds(r2.removeFromLeft(75));
+        }
         c.removeFromLeft(14);
         toggleInline(c.removeFromLeft(64), syncButton);
         c.removeFromLeft(6);

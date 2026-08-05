@@ -105,10 +105,12 @@ private:
     juce::Slider wtArpSlider[AsidProcessor::kWtSteps];
     std::unique_ptr<SliderAtt> wtArpAtt[AsidProcessor::kWtSteps];
 
-    // Oscillator.
+    // Oscillator. The four SID waveforms combine, so they are checkboxes rather
+    // than a single choice (noise stays exclusive, handled in updateEnablement).
     juce::Label waveLabel{{}, "Waveform:"};
-    juce::ComboBox waveformBox;
-    std::unique_ptr<ComboAtt> waveformAtt;
+    juce::ToggleButton waveTriButton{"Tri"}, waveSawButton{"Saw"},
+                       wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
+    std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
     std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
     juce::Slider pwKnob, coarseKnob, fineKnob, portaKnob;

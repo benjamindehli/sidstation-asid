@@ -62,9 +62,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::make_unique<Choice>(juce::ParameterID{"asidVoice", 1}, "SID Voice",
                                         juce::StringArray{"Voice 1", "Voice 2", "Voice 3"}, 0));
 
-    // Per-voice sound. Defaults match the player's default sawtooth voice.
-    layout.add(std::make_unique<Choice>(juce::ParameterID{"waveform", 1}, "Waveform",
-                                        juce::StringArray{"Triangle", "Sawtooth", "Pulse", "Noise"}, 1));
+    // Per-voice waveform: the SID's four waveforms combine (their outputs are
+    // logically ANDed), so these are independent toggles rather than one choice.
+    // Sawtooth on by default matches the player's default voice. Noise cannot be
+    // mixed on the 6581 (it locks the other waveforms), so it is treated as
+    // exclusive in waveBits().
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"waveTri", 1}, "Triangle", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"waveSaw", 1}, "Sawtooth", true));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wavePulse", 1}, "Pulse", false));
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"waveNoise", 1}, "Noise", false));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("attack", "Attack", 0, 15, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("decay", "Decay", 0, 15, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("sustain", "Sustain", 0, 15, 15)));
@@ -166,13 +172,11 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         if (!f.empty()) { sendAsid(f); sendAsid(f); }  // send twice to apply
     };
 
-    static const Byte kWave[4] = {sid::kTriangle, sid::kSaw, sid::kPulse, sid::kNoise};
-
     // The wavetable owns the waveform register while it runs; leave it alone then.
-    const int wave = paramInt("waveform");
+    const int wave = waveBits();
     if (!wtOwnsWave && (forceAll || wave != sent.wave)) {
         sent.wave = wave;
-        flush(asidPlayer.setWaveform(voice, kWave[juce::jlimit(0, 3, wave)]));
+        flush(asidPlayer.setWaveform(voice, static_cast<Byte>(wave)));
     }
     const int s = paramInt("sustain"), rel = paramInt("release");
     const int a = paramInt("attack");
@@ -307,7 +311,10 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     wtOwnsWave = wtActive;
 
     const int pwDepth = paramInt("pwLfoDepth");
-    const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0 && paramInt("waveform") == 2;  // 2 == Pulse
+    // PW mod only matters when the pulse waveform actually sounds (noise would
+    // suppress it).
+    const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0
+                      && paramInt("wavePulse") && !paramInt("waveNoise");
     if (!pwOn && lfoOwnedPw) sent.pw = -1;
     lfoOwnedPw = pwOn;
 
