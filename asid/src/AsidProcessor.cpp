@@ -304,10 +304,10 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         gliding = portaTimeMs > 0 && std::abs(glidePitch - curNote) > 0.01;
     }
     // Stream this voice's frequency every tick whenever a note is sounding, even
-    // with no modulation. Otherwise a voice that only modulates floods the port
-    // while a quiet voice's sparse frames get flushed unpredictably by it (the
-    // unit is one message late), which mangled the quiet voice. An even frame
-    // flow on every sounding voice keeps them all flushing cleanly.
+    // with no modulation. A quiet voice needs the steady flow both so a busy voice
+    // can't starve it and, as testing showed, so a glide plays correctly (it
+    // depends on the continuous stream through its held portions, not just the
+    // sliding part). Dropping this to modulating-only broke glide playback.
     const bool pitchOn = curNote >= 0;
     const bool anyMod = pitchOn || pwOn || cutOn || wtActive;
 
@@ -498,7 +498,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
 
-    // Every sounding voice now streams its frequency, and that stream stops on
+    // Every sounding voice streams its frequency, and that stream stops on
     // release, so every note-off's gate-low needs a settle frame behind it.
     const bool pitchActive = true;
 
