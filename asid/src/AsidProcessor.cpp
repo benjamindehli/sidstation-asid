@@ -374,7 +374,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         sendAsid(asidPlayer.settleFrame(voice), sendTimeMs);
 }
 
-static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency",
+static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency", "modRate",
                                    "filt1", "filt2", "filt3", "modeLP", "modeBP", "modeHP"};
 
 AsidProcessor::AsidProcessor()
@@ -402,7 +402,7 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
     if (static_cast<int>(std::lround(value)) == sh.valueFor(id)) return;
     // The user changed a shared control here: publish it to the other instances.
     sh.publish(paramInt("cutoff"), paramInt("resonance"), modeMask(), routingMask(),
-               paramInt("volume"), paramInt("latency"), this);
+               paramInt("volume"), paramInt("latency"), paramInt("modRate"), this);
 }
 
 void AsidProcessor::sharedUpdated() {
@@ -413,6 +413,7 @@ void AsidProcessor::sharedUpdated() {
     setParamValue("resonance", sh.resonance.load()); echoResonance.store(sh.resonance.load());
     setParamValue("volume", sh.volume.load());       echoVolume.store(sh.volume.load());
     setParamValue("latency", sh.latency.load());
+    setParamValue("modRate", sh.modRate.load());  // shared modulation clock, no hardware echo
     const int r = sh.routing.load();
     setParamValue("filt1", (r >> 0) & 1);
     setParamValue("filt2", (r >> 1) & 1);
@@ -448,7 +449,7 @@ void AsidProcessor::sendAsid(const Bytes& asidMessage, double sendTimeMs) {
     buf.addEvent(juce::MidiMessage::createSysExMessage(
                      asidMessage.data() + 1, static_cast<int>(asidMessage.size()) - 2),
                  0);
-    midiHub.sendScheduled(buf, t, 1000.0);
+    midi().sendScheduled(buf, t, 1000.0);
 }
 
 void AsidProcessor::addFrame(juce::MidiBuffer& out, const Bytes& frame, int samplePos) {
@@ -546,7 +547,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         }
     }
 
-    if (!out.isEmpty()) midiHub.sendScheduled(out, nowMs, 1000.0);
+    if (!out.isEmpty()) midi().sendScheduled(out, nowMs, 1000.0);
 }
 
 void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -556,6 +557,12 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // This instance drives one SID voice. Set it before any note handling.
     const int voice = paramInt("asidVoice");
     asidPlayer.setTargetVoice(voice);
+
+    // Any instance opening the shared device bumps the generation; re-push then.
+    if (const int gen = AsidShared::get().outGeneration.load(); gen != lastOutGeneration) {
+        lastOutGeneration = gen;
+        initRequest.store(true);
+    }
 
     // On first block or after a device (re)open, push the full state.
     bool forceControls = false;

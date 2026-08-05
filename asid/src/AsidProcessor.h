@@ -49,7 +49,7 @@ public:
     void setStateInformation(const void*, int sizeInBytes) override;
 
     juce::AudioProcessorValueTreeState& state() { return apvts; }
-    MidiHub& midi() { return midiHub; }
+    MidiHub& midi() { return AsidShared::get().out; }  // one output shared by all instances
 
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.
@@ -107,9 +107,9 @@ private:
     void setParamValue(const char* id, int value);
 
     juce::AudioProcessorValueTreeState apvts;
-    MidiHub midiHub;
     sidstation::AsidVoicePlayer asidPlayer;
     std::atomic<bool> initRequest{true};  // send full state on first block / device open
+    int lastOutGeneration = 0;            // shared-device generation this instance has pushed for
 
     // Note scheduling state (this instance's single voice).
     static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)

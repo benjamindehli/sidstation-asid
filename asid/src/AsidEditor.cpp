@@ -138,7 +138,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         const int id = outputBox.getSelectedId();
         if (id >= 1 && id <= outDevices.size()) {
             proc.midi().openOutputByIdentifier(outDevices[id - 1].identifier);
-            proc.requestReinit();  // push the current state to the newly opened device
+            // Shared output: make every instance re-push its voice to the new device.
+            AsidShared::get().outGeneration.fetch_add(1);
         }
     };
     refreshButton.onClick = [this] { refreshDevices(); };

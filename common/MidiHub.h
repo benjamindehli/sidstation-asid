@@ -85,7 +85,8 @@ private:
     static constexpr int kFifoCapacity = 4096;
     std::vector<Frame> frameStore{kFifoCapacity};
     juce::AbstractFifo frameFifo{kFifoCapacity};
-    long long frameSeq = 0;  // written only by the producer (audio thread)
+    long long frameSeq = 0;                 // insertion counter (guarded by pushLock)
+    juce::CriticalSection pushLock;         // several instances push into one shared out
     void pushFrame(const juce::uint8* data, int len, double timeMs);
 
     struct Sender : juce::Thread {

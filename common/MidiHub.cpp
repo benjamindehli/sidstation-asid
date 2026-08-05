@@ -29,8 +29,11 @@ void MidiHub::stopSender() {
 }
 
 // Producer side (audio/mod thread): copy the frame into the ring, no allocation.
+// One shared output takes pushes from every instance, so guard the write side and
+// the sequence counter; the single sender thread stays the only reader.
 void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
     if (len <= 0 || len > static_cast<int>(sizeof(Frame::data))) return;
+    const juce::ScopedLock sl(pushLock);
     int start1, size1, start2, size2;
     frameFifo.prepareToWrite(1, start1, size1, start2, size2);
     if (size1 > 0) {

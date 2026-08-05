@@ -14,6 +14,8 @@
 
 #include <atomic>
 
+#include "MidiHub.h"
+
 class AsidShared {
 public:
     struct Client {
@@ -30,7 +32,7 @@ public:
     static bool isShared(const juce::String& id) {
         return id == "cutoff" || id == "resonance" || id == "volume" || id == "latency"
             || id == "filt1" || id == "filt2" || id == "filt3"
-            || id == "modeLP" || id == "modeBP" || id == "modeHP";
+            || id == "modeLP" || id == "modeBP" || id == "modeHP" || id == "modRate";
     }
 
     void addClient(Client* c) {
@@ -44,13 +46,15 @@ public:
 
     // Stores new shared values and tells every client except the source. routing
     // and mode are 3-bit masks (voice 1/2/3, and LP/BP/HP which combine).
-    void publish(int cutoff_, int resonance_, int mode_, int routing_, int volume_, int latency_, Client* source) {
+    void publish(int cutoff_, int resonance_, int mode_, int routing_, int volume_, int latency_,
+                 int modRate_, Client* source) {
         cutoff.store(cutoff_);
         resonance.store(resonance_);
         mode.store(mode_);
         routing.store(routing_);
         volume.store(volume_);
         latency.store(latency_);
+        modRate.store(modRate_);
         hasData.store(true);
 
         juce::Array<Client*> copy;
@@ -64,6 +68,7 @@ public:
         if (id == "resonance") return resonance.load();
         if (id == "volume") return volume.load();
         if (id == "latency") return latency.load();
+        if (id == "modRate") return modRate.load();
         if (id == "filt1") return (routing.load() >> 0) & 1;
         if (id == "filt2") return (routing.load() >> 1) & 1;
         if (id == "filt3") return (routing.load() >> 2) & 1;
@@ -104,11 +109,22 @@ public:
     // so they are published as whole masks like cutoff and resonance.
     std::atomic<int> cutoff{2047}, resonance{0}, mode{1}, volume{15};  // mode bit0 = LP
     std::atomic<int> routing{0};
+    std::atomic<int> modRate{1};  // shared modulation clock (0 Eco .. 3 Smooth), default PAL
     std::atomic<int> latency{0};  // ms added to each note's scheduled play time
     std::atomic<bool> hasData{false};
 
     std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
     std::atomic<Client*> cutoffModOwner{nullptr};  // sole instance modulating the shared cutoff
+
+    // One MIDI output for every instance, so all voices' frames leave as a single
+    // time-ordered stream. Two independent senders to the SidStation interleave
+    // and confuse its one-message-late handling, which mangled notes when two
+    // voices played at once.
+    MidiHub out;
+    // Bumped when any instance (re)opens the shared device, so every instance
+    // re-pushes its voice setup (voices that initialised before it was open would
+    // otherwise stay silent).
+    std::atomic<int> outGeneration{0};
 
     // Total bytes ever sent to the device across all instances. Monotonic, so an
     // editor derives the current rate from the delta over its own poll interval.
