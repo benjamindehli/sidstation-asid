@@ -190,6 +190,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(oscPage, pwKnob, pwLabel, "Pulse Width", "pulseWidth", pwAtt);
     setupKnob(oscPage, coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
     setupKnob(oscPage, fineKnob, fineLabel, "Fine", "fine", fineAtt);
+    setupKnob(oscPage, bendKnob, bendLabel, "Bend Range", "pitchBendRange", bendAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
 
@@ -536,15 +537,16 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
         knobInCol(colOf(c, 1, 2), pwKnob, pwLabel);
     }
     area.removeFromTop(gap);
-    {  // TUNING: coarse, fine, glide time, glide trigger, glide type
+    {  // TUNING: coarse, fine, bend range, glide time, glide trigger, glide type
         auto box = area.removeFromTop(rowH);
         glideGroup.setBounds(box);
         auto c = innerBox(box);
-        knobInCol(colOf(c, 0, 5), coarseKnob, coarseLabel);
-        knobInCol(colOf(c, 1, 5), fineKnob, fineLabel);
-        knobInCol(colOf(c, 2, 5), portaKnob, portaLabel);
-        comboInCol(colOf(c, 3, 5), portaTrigBox);
-        comboInCol(colOf(c, 4, 5), portaTypeBox);
+        knobInCol(colOf(c, 0, 6), coarseKnob, coarseLabel);
+        knobInCol(colOf(c, 1, 6), fineKnob, fineLabel);
+        knobInCol(colOf(c, 2, 6), bendKnob, bendLabel);
+        knobInCol(colOf(c, 3, 6), portaKnob, portaLabel);
+        comboInCol(colOf(c, 4, 6), portaTrigBox);
+        comboInCol(colOf(c, 5, 6), portaTypeBox);
     }
     area.removeFromTop(gap);
     {  // AMP ENVELOPE

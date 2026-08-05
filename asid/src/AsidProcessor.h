@@ -120,6 +120,10 @@ private:
     void parameterChanged(const juce::String& parameterID, float newValue) override;
     void sharedUpdated() override;
     void setParamValue(const char* id, int value);
+    // Recompute the player's pitch offset from coarse + fine + the pitch wheel
+    // (scaled by the bend range). Cheap: sets a value the frequency stream reads.
+    void updatePitchOffset();
+    int pitchWheelValue = 8192;  // last MIDI pitch wheel value (14-bit, centre 8192)
 
     juce::AudioProcessorValueTreeState apvts;
     sidstation::AsidVoicePlayer asidPlayer;
@@ -159,7 +163,7 @@ private:
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
         int pw = -1, sync = -1, ring = -1, routing = -1, coarse = -100, fine = -100;
-        int cutoff = -1, resonance = -1, mode = -1, volume = -1;
+        int cutoff = -1, resonance = -1, mode = -1, volume = -1, bendRange = -1;
     } sent;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AsidProcessor)

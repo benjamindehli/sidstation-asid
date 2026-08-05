@@ -72,6 +72,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("pulseWidth", "Pulse Width", 0, 4095, 2048)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("coarse", "Coarse Tune", -24, 24, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("fine", "Fine Tune", -50, 50, 0)));
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("pitchBendRange", "Pitch Bend Range", 0, 24, 2)));
     // Portamento: glide time in ms (0 = off), trigger, and stepped/smooth type.
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("portaTime", "Portamento", 0, 2000, 0)));
     layout.add(std::make_unique<juce::AudioParameterChoice>(
@@ -158,6 +159,12 @@ float AsidProcessor::paramFloat(const char* id) const {
     return 0.0f;
 }
 
+void AsidProcessor::updatePitchOffset() {
+    // Pitch wheel: 14-bit, centre 8192, mapped to +-pitchBendRange semitones.
+    const double bend = (pitchWheelValue - 8192) / 8192.0 * paramInt("pitchBendRange");
+    asidPlayer.setPitchOffset(paramInt("coarse") + paramInt("fine") / 100.0 + bend);
+}
+
 void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (voice != sent.voice) { forceAll = true; sent.voice = voice; }
     if (!forceAll) {
@@ -192,10 +199,10 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     const int pw = paramInt("pulseWidth");
     // Skip the static pulse width while the LFO is driving it, or they fight.
     if (!lfoOwnedPw && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
-    const int coarse = paramInt("coarse"), fine = paramInt("fine");
-    if (forceAll || coarse != sent.coarse || fine != sent.fine) {
-        sent.coarse = coarse; sent.fine = fine;
-        asidPlayer.setPitchOffset(coarse + fine / 100.0);
+    const int coarse = paramInt("coarse"), fine = paramInt("fine"), bendRange = paramInt("pitchBendRange");
+    if (forceAll || coarse != sent.coarse || fine != sent.fine || bendRange != sent.bendRange) {
+        sent.coarse = coarse; sent.fine = fine; sent.bendRange = bendRange;
+        updatePitchOffset();  // coarse + fine + current pitch-wheel bend
         flush(asidPlayer.setPitchMod(voice, 0.0));  // retune a held note (empty if none)
     }
     const int sync = paramInt("sync");
@@ -671,7 +678,8 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     bool blockHasNotes = false;
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
-        if (m.isNoteOn() || m.isNoteOff()) { blockHasNotes = true; break; }
+        if (m.isNoteOn() || m.isNoteOff()) blockHasNotes = true;
+        else if (m.isPitchWheel()) { pitchWheelValue = m.getPitchWheelValue(); updatePitchOffset(); }
     }
     updateModulation(voice, blockHasNotes);
 

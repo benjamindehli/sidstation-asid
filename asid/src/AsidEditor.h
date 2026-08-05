@@ -128,9 +128,9 @@ private:
     std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
     std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
-    juce::Slider pwKnob, coarseKnob, fineKnob, portaKnob;
-    juce::Label pwLabel, coarseLabel, fineLabel, portaLabel;
-    std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, portaAtt;
+    juce::Slider pwKnob, coarseKnob, fineKnob, bendKnob, portaKnob;
+    juce::Label pwLabel, coarseLabel, fineLabel, bendLabel, portaLabel;
+    std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, bendAtt, portaAtt;
     juce::Label portaTrigLabel{{}, "Glide trigger"}, portaTypeLabel{{}, "Glide type"};
     juce::ComboBox portaTrigBox, portaTypeBox;
     std::unique_ptr<ComboAtt> portaTrigAtt, portaTypeAtt;
