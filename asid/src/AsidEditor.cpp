@@ -20,12 +20,9 @@ void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
     l.setBounds(grp.removeFromTop(14));
     s.setBounds(grp.withSizeKeepingCentre(side, side));
 }
-// A combo with its caption, the label+combo group centred vertically in a column.
-void comboInCol(juce::Rectangle<int> col, juce::Label& l, juce::Component& c) {
-    auto grp = col.withSizeKeepingCentre(col.getWidth(), 14 + 24);
-    l.setBounds(grp.removeFromTop(14));
-    auto r = grp.removeFromTop(24);
-    c.setBounds(r.withSizeKeepingCentre(juce::jmin(r.getWidth() - 8, 150), 24));
+// A combo centred in a column, at button height (its value is its own label).
+void comboInCol(juce::Rectangle<int> col, juce::Component& c) {
+    c.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, 160), 30));
 }
 // A toggle button centred in a column both ways.
 void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
@@ -51,9 +48,7 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
     parent.addAndMakeVisible(u.enableButton);
     u.enableAtt = std::make_unique<ButtonAtt>(state, prefix + "On", u.enableButton);
 
-    u.shapeLabel.setText("Shape", juce::dontSendNotification);
-    parent.addAndMakeVisible(u.shapeLabel);
-    parent.addAndMakeVisible(u.shapeBox);
+    parent.addAndMakeVisible(u.shapeBox);  // no caption; the value names the shape
     for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"})
         u.shapeBox.addItem(s, u.shapeBox.getNumItems() + 1);
     u.shapeAtt = std::make_unique<ComboAtt>(state, prefix + "Shape", u.shapeBox);
@@ -88,7 +83,7 @@ void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
     const int gap = juce::jmax(10, (area.getWidth() - total) / 4);
     auto next = [&](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(gap); return c; };
     toggleInCol(next(ws[0]), u.enableButton);
-    comboInCol(next(ws[1]), u.shapeLabel, u.shapeBox);
+    comboInCol(next(ws[1]), u.shapeBox);
     toggleInCol(next(ws[2]), u.syncButton);
     knobInCol(next(ws[3]), u.rateKnob, u.rateLabel);
     knobInCol(next(ws[4]), u.depthKnob, u.depthLabel);
@@ -185,12 +180,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
 
     setupKnob(oscPage, portaKnob, portaLabel, "Glide time", "portaTime", portaAtt);
-    oscPage.addAndMakeVisible(portaTrigLabel);
-    oscPage.addAndMakeVisible(portaTrigBox);
+    oscPage.addAndMakeVisible(portaTrigBox);  // no captions; values are self-describing
     portaTrigBox.addItem("Legato", 1);
     portaTrigBox.addItem("Always", 2);
     portaTrigAtt = std::make_unique<ComboAtt>(state, "portaTrigger", portaTrigBox);
-    oscPage.addAndMakeVisible(portaTypeLabel);
     oscPage.addAndMakeVisible(portaTypeBox);
     portaTypeBox.addItem("Smooth", 1);
     portaTypeBox.addItem("Stepped", 2);
@@ -324,9 +317,7 @@ void AsidEditor::updateEnablement() {
     // Glide trigger and type only matter when portamento time is up.
     const bool porta = intParam("portaTime") > 0;
     portaTrigBox.setEnabled(porta);
-    portaTrigLabel.setEnabled(porta);
     portaTypeBox.setEnabled(porta);
-    portaTypeLabel.setEnabled(porta);
 
     // The wavetable's config and steps are live only when it is on.
     const bool wtOn = boolParam("wtOn");
@@ -525,8 +516,8 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
         knobInCol(colOf(c, 0, 5), coarseKnob, coarseLabel);
         knobInCol(colOf(c, 1, 5), fineKnob, fineLabel);
         knobInCol(colOf(c, 2, 5), portaKnob, portaLabel);
-        comboInCol(colOf(c, 3, 5), portaTrigLabel, portaTrigBox);
-        comboInCol(colOf(c, 4, 5), portaTypeLabel, portaTypeBox);
+        comboInCol(colOf(c, 3, 5), portaTrigBox);
+        comboInCol(colOf(c, 4, 5), portaTypeBox);
     }
     area.removeFromTop(gap);
     {  // AMP ENVELOPE
