@@ -229,10 +229,27 @@ AsidEditor::AsidEditor(AsidProcessor& p)
             wtWaveTogAtt[i][w] = std::make_unique<ButtonAtt>(
                 state, juce::String(wtIds[w]) + juce::String(i), wtWaveTog[i][w]);
         }
-        wtArpSlider[i].setSliderStyle(juce::Slider::IncDecButtons);
-        wtArpSlider[i].setTextBoxStyle(juce::Slider::TextBoxLeft, false, 42, 24);
-        wtPage.addAndMakeVisible(wtArpSlider[i]);
+        // Hidden slider: the value model / APVTS binding. UI is the field + buttons.
+        wtPage.addChildComponent(wtArpSlider[i]);
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
+        wtArpValue[i].setJustificationType(juce::Justification::centred);
+        wtArpValue[i].setFont(juce::Font(juce::FontOptions().withHeight(13.0f)));
+        wtArpValue[i].getProperties().set("sidField", true);  // draw as a bordered field
+        wtPage.addAndMakeVisible(wtArpValue[i]);
+        wtArpSlider[i].onValueChange = [this, i] {
+            wtArpValue[i].setText(juce::String((int) wtArpSlider[i].getValue()), juce::dontSendNotification);
+        };
+        wtArpValue[i].setText(juce::String((int) wtArpSlider[i].getValue()), juce::dontSendNotification);
+        wtArpDec[i].setButtonText("-");
+        wtArpInc[i].setButtonText("+");
+        wtPage.addAndMakeVisible(wtArpDec[i]);
+        wtPage.addAndMakeVisible(wtArpInc[i]);
+        wtArpDec[i].onClick = [this, i] {
+            wtArpSlider[i].setValue(wtArpSlider[i].getValue() - 1, juce::sendNotificationSync);
+        };
+        wtArpInc[i].onClick = [this, i] {
+            wtArpSlider[i].setValue(wtArpSlider[i].getValue() + 1, juce::sendNotificationSync);
+        };
     }
 
     refreshDevices();
@@ -295,7 +312,9 @@ void AsidEditor::updateEnablement() {
         const bool stepNoise = intParam((juce::String("wtNoise") + juce::String(i)).toRawUTF8()) != 0;
         for (int w = 0; w < 4; ++w)
             wtWaveTog[i][w].setEnabled(wtOn && (w == 3 || !stepNoise));
-        wtArpSlider[i].setEnabled(wtOn);
+        wtArpValue[i].setEnabled(wtOn);
+        wtArpDec[i].setEnabled(wtOn);
+        wtArpInc[i].setEnabled(wtOn);
         wtStepNum[i].setEnabled(wtOn);
     }
 
@@ -573,7 +592,12 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
             wtStepNum[i].setBounds(row.getX(), row.getY(), numW, row.getHeight());
             for (int w = 0; w < 4; ++w)
                 wtWaveTog[i][w].setBounds(colX(row, w), row.getY(), colW, row.getHeight());
-            wtArpSlider[i].setBounds(colX(row, 4), row.getY(), arpW, row.getHeight());
+            // Arp stepper: [-] value [+], square buttons matching the field height.
+            auto arp = juce::Rectangle<int>(colX(row, 4), row.getY(), arpW, row.getHeight());
+            const int bw = row.getHeight();  // square buttons
+            wtArpDec[i].setBounds(arp.removeFromLeft(bw));
+            wtArpInc[i].setBounds(arp.removeFromRight(bw));
+            wtArpValue[i].setBounds(arp);
             c.removeFromTop(2);
         }
     }

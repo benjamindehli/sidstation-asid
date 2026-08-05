@@ -104,8 +104,12 @@ private:
     juce::Label wtWaveHead[4];
     juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
     std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
+    // Arp stepper per step: a hidden slider holds the value (APVTS binding),
+    // shown as a bordered number field flanked by square - / + buttons.
     juce::Slider wtArpSlider[AsidProcessor::kWtSteps];
     std::unique_ptr<SliderAtt> wtArpAtt[AsidProcessor::kWtSteps];
+    juce::Label wtArpValue[AsidProcessor::kWtSteps];
+    juce::TextButton wtArpDec[AsidProcessor::kWtSteps], wtArpInc[AsidProcessor::kWtSteps];
 
     // Oscillator. The four SID waveforms combine, so they are checkboxes rather
     // than a single choice (noise stays exclusive, handled in updateEnablement).

@@ -112,7 +112,8 @@ public:
     // guessing from the background colour was not.
     void drawLabel(juce::Graphics& g, juce::Label& l) override {
         const auto bounds = l.getLocalBounds();
-        const bool field = dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr;
+        const bool field = dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr
+                           || static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
         const float alpha = l.isEnabled() ? 1.0f : 0.5f;
         if (field) {
             g.setColour(juce::Colour(kPanel));
@@ -124,7 +125,7 @@ public:
             const auto font = mono(l.getFont().getHeight());
             g.setColour(l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
             g.setFont(font);
-            auto textArea = bounds.reduced(field ? 6 : 0, 0);
+            auto textArea = bounds.reduced(field ? 3 : 0, 0);
             g.drawFittedText(l.getText(), textArea, l.getJustificationType(),
                              juce::jmax(1, (int) ((float) textArea.getHeight() / font.getHeight())),
                              l.getMinimumHorizontalScale());
