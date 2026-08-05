@@ -597,10 +597,21 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         voiceClockMs = target;
 
         if (off) {
-            lastGateOffMs = target;  // release starts here; times the next attack's hard restart
+            // Releasing the top note may fall back to a still-held lower note (a
+            // hammer-off). The engine retunes the voice, but the pitch stream still
+            // drives the frequency from glidePitch, so it must follow. With glide
+            // off, jump glidePitch to the held note, else the stream keeps sounding
+            // the released note's pitch. With glide on, leave glidePitch where it is
+            // so the stream slides back down to the held note on its own.
+            const int fellBackTo = asidPlayer.currentNoteOf(voice);
+            if (fellBackTo >= 0) {
+                if (paramInt("portaTime") == 0) glidePitch = fellBackTo;
+            } else {
+                lastGateOffMs = target;  // fully released; times the next attack's hard restart
+            }
             // A note-off's gate-low needs a message behind it; under pitch mod the
             // stream has stopped, so add a benign settle frame just after.
-            if (pitchActive) {
+            if (fellBackTo < 0 && pitchActive) {
                 const double settleTarget = target + kSettleMs;
                 addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
                 voiceClockMs = settleTarget;
