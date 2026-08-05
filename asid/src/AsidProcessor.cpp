@@ -332,7 +332,6 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
             static const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
             asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave" + juce::String(step)))]);
             wtArp = paramInt("wtArp" + juce::String(step));
-            addReg(base + 4);  // control register (waveform + gate)
         }
         wtPlayer.advanceFrame();
     }
@@ -371,7 +370,15 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         addReg(22);
     }
 
-    if (!writes.empty()) sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
+    // End every frame with the control register (highest slot, so it is applied
+    // last / one message late). That flushes the freq/pw/cutoff bytes before it
+    // WITHIN this frame, so they land immediately instead of the high byte hanging
+    // until the next frame arrives (a wrong in-between pitch, uneven under two
+    // voices). It also carries the wavetable waveform when that is active.
+    if (!writes.empty()) {
+        addReg(base + 4);
+        sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
+    }
 
     // If a glide just reached the target and nothing else keeps the stream alive,
     // push one benign flush so the final frequency lands (the unit is one late).
