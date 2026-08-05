@@ -15,7 +15,8 @@ public:
     static constexpr juce::uint32 kPanel = 0xff3a2f88;  // slightly darker inset
     static constexpr juce::uint32 kFg    = 0xff867ade;  // light blue (text, outlines, border)
     static constexpr juce::uint32 kDim   = 0xff635ab8;  // dimmed light blue (disabled)
-    static constexpr juce::uint32 kHot   = 0xffffffff;  // white highlight (values, active)
+    static constexpr juce::uint32 kHot   = 0xffffffff;  // white highlight (pointers, text)
+    static constexpr juce::uint32 kAccent = 0xff35d6d0; // cyan for active states / values
 
     SidLookAndFeel() {
         setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(kBg));
@@ -82,7 +83,7 @@ public:
         g.strokePath(track, stroke);
         if (angle > startAngle + 0.01f) {
             value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, angle, true);
-            g.setColour(hot);
+            g.setColour(juce::Colour(on ? kAccent : kDim));  // accent value arc
             g.strokePath(value, stroke);
         }
 
@@ -114,7 +115,7 @@ public:
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
         auto r = b.getLocalBounds().toFloat();
-        if (on) g.setColour(juce::Colour(en ? kFg : kDim));
+        if (on) g.setColour(juce::Colour(en ? kAccent : kDim));  // accent when active
         else    g.setColour(juce::Colour(kPanel).brighter(down ? 0.12f : (over ? 0.06f : 0.0f)));
         g.fillRect(r);
         g.setColour(juce::Colour(hi ? kHot : (en ? kFg : kDim)));

@@ -577,12 +577,12 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
         layoutLfo(cutLfoUi, innerBox(cm));
     }
     area.removeFromTop(gap);
-    {  // MASTER: volume, latency
+    {  // MASTER: only two knobs, so group them centred rather than spread wide.
         auto box = area.removeFromTop(rowH);
         masterGroup.setBounds(box);
-        auto c = innerBox(box);
-        knobInCol(colOf(c, 0, 2), volumeKnob, volumeLabel);
-        knobInCol(colOf(c, 1, 2), latencyKnob, latencyLabel);
+        auto pair = innerBox(box).withSizeKeepingCentre(300, innerBox(box).getHeight());
+        knobInCol(colOf(pair, 0, 2), volumeKnob, volumeLabel);
+        knobInCol(colOf(pair, 1, 2), latencyKnob, latencyLabel);
     }
 }
 
