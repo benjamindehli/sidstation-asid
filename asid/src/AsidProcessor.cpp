@@ -23,6 +23,12 @@ double modIntervalForRate(int idx) {
     return 20.0;
 }
 
+// SID control-register waveform bits for each wavetable step choice:
+// Triangle, Sawtooth, Pulse, Noise, then the combinations Tri+Saw, Pulse+Tri,
+// Pulse+Saw, and finally Silence (no waveform). Used by both the wavetable step
+// playback and the note-on that gates in on the table's first step.
+const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
+
 // Note division to beats, for tempo-synced LFO phase.
 double beatsForDivision(int idx) {
     switch (idx) {
@@ -277,9 +283,18 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     const int curNote = asidPlayer.currentNoteOf(voice);
 
     // Ownership and active-state bookkeeping (every block, so hand-offs are prompt).
-    const bool wtActive = paramInt("wtOn") != 0 && curNote >= 0;
+    const bool wtOn = paramInt("wtOn") != 0;
+    const bool wtActive = wtOn && curNote >= 0;
     if (wtActive) wtPlayer.configure(paramInt("wtLength"), paramInt("wtLoop"), paramInt("wtSpeed"));
-    else { if (wtOwnsWave) sent.wave = -1; wtPlayer.stop(); wtArp = 0; }
+    else {
+        wtPlayer.stop();
+        wtArp = 0;
+        // Hand the waveform register back to the static control ONLY when the
+        // wavetable is switched off, not merely because the note released. On
+        // release the envelope is still sounding, so keep the table's last
+        // waveform playing through it instead of snapping back to the static one.
+        if (wtOwnsWave && !wtOn) sent.wave = -1;
+    }
     wtOwnsWave = wtActive;
 
     const int pwDepth = paramInt("pwLfoDepth");
@@ -329,7 +344,6 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
     if (wtActive) {
         if (const int step = wtPlayer.currentStep(); step >= 0) {
-            static const juce::uint8 kWtWave[8] = {0x10, 0x20, 0x40, 0x80, 0x30, 0x50, 0x60, 0x00};
             asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave" + juce::String(step)))]);
             wtArp = paramInt("wtArp" + juce::String(step));
         }
@@ -534,6 +548,12 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             else glidePitch = m.getNoteNumber();                  // jump straight to the note
 
             wtPlayer.trigger();  // restart the wavetable from step 0 on a fresh attack
+            // Gate in on the table's first-step waveform, not the static one, so
+            // there is no burst of the plain oscillator before the modulation
+            // clock's first tick swaps the waveform in (that gap, and so the
+            // burst, grows as the Mod Rate falls).
+            if (paramInt("wtOn"))
+                asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave0"))]);
         }
 
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
