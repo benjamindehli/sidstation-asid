@@ -44,6 +44,16 @@ public:
     // has stopped, so nothing flushes it. Sent shortly after a note-off, this does.
     Bytes settleFrame(int voice) const;
 
+    // Hard restart, to dodge the 6581 ADSR bug on a fast re-attack: a slow release
+    // leaves the envelope's shared rate counter high, and the next attack then has
+    // to wrap it all the way around, which can stall the note into silence. These
+    // two frames force a fast release with the gate held low so the envelope drains
+    // to zero; the caller schedules them a few ms before the note-on (the second
+    // frame flushes the first into effect on the one-message-late unit), and the
+    // note-on itself restores the real sustain/release. Does not touch the stored
+    // state, so the note-on rewrites the true envelope registers.
+    std::vector<Bytes> hardRestartFrames(int voice) const;
+
     // Live controls. Each returns the single ASID update for the change (the
     // caller sends it twice to flush it into effect, like note frames).
     Bytes setVolume(int vol0to15);

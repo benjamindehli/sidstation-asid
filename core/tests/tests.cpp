@@ -326,6 +326,7 @@ static void testVoiceEngine() {
     CHECK(a1.size() == 1 && a1[0].oscillator == 0 && a1[0].gateOn &&
               a1[0].sidNote == 48,
           "ch0 note -> osc0 gate on");
+    CHECK(a1[0].retrigger, "a fresh note re-attacks the envelope");
     auto a2 = e.noteOn(1, 64, 100);
     CHECK(a2.size() == 1 && a2[0].oscillator == 1, "ch1 note -> osc1");
     auto a3 = e.noteOn(2, 67, 100);
@@ -338,10 +339,13 @@ static void testVoiceEngine() {
     auto stealing = e.noteOn(0, 62, 100);
     CHECK(stealing.size() == 1 && stealing[0].sidNote == sidNoteFromMidi(62),
           "newest note takes the voice");
+    CHECK(stealing[0].gateOn && !stealing[0].retrigger,
+          "a legato overlap retunes without re-attacking");
     auto backTo60 = e.noteOff(0, 62);
     CHECK(backTo60.size() == 1 && backTo60[0].gateOn &&
               backTo60[0].midiNote == 60,
           "releasing top note falls back to held note");
+    CHECK(!backTo60[0].retrigger, "legato fall-back retunes without re-attacking");
     auto gateOff = e.noteOff(0, 60);
     CHECK(gateOff.size() == 1 && !gateOff[0].gateOn, "last release gates off");
 

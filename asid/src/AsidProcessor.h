@@ -114,7 +114,9 @@ private:
     // Note scheduling state (this instance's single voice).
     static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)
     static constexpr double kSettleMs = 15.0;             // trailing flush after a note-off under pitch mod
+    static constexpr double kHardRestartMs = 16.0;        // envelope drain window before a re-attack
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
+    double lastGateOffMs = -1.0e18;  // when this voice last released, to time hard restarts
     int lastPlaying = 0;          // transport state last block, to spot a start
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
 

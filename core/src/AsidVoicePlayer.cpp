@@ -58,6 +58,13 @@ Bytes AsidVoicePlayer::frameForAction(const VoiceAction& a) {
         const double startNote = (nextGlideStart >= 0.0) ? nextGlideStart : a.midiNote;
         nextGlideStart = -1.0;
         sidState.setFrequency(a.oscillator, sidFrequency(startNote + pitchOffset, clockHz));
+        if (!a.retrigger) {
+            // True legato: leave the gate high and the envelope running, just move
+            // the pitch. No control double-write, so the ADSR rate counter is never
+            // reloaded and a legato note can never stall into silence.
+            return encodeAsidUpdate({{static_cast<Byte>(base + 0), sidState.reg[base + 0]},
+                                     {static_cast<Byte>(base + 1), sidState.reg[base + 1]}});
+        }
         sidState.setGate(a.oscillator, true);
         const Byte ctrl = sidState.control(a.oscillator);
         const Byte gateHigh = static_cast<Byte>(ctrl | sid::kGate);
@@ -99,6 +106,23 @@ Bytes AsidVoicePlayer::settleFrame(int voice) const {
     if (voice < 0 || voice > 2) return {};
     const int base = SidState::voiceBase(voice);
     return encodeAsidUpdate({{static_cast<Byte>(base + 6), sidState.reg[base + 6]}});
+}
+
+std::vector<Bytes> AsidVoicePlayer::hardRestartFrames(int voice) const {
+    if (voice < 0 || voice > 2) return {};
+    const int base = SidState::voiceBase(voice);
+    // Sustain/release with the release nibble forced to 0 (fastest release), and
+    // the control register with the gate held low. Built from the live bytes but
+    // NOT written back to sidState, so the following note-on restores the real
+    // release. Frame one sets the fast release; frame two re-writes the control
+    // (still gate low, no retrigger edge) and, by being the message behind it,
+    // makes the unit apply the fast release so the envelope drains before the note.
+    const Byte fastRelease = static_cast<Byte>(sidState.reg[base + 6] & 0xF0);  // keep sustain
+    const Byte gateLow = static_cast<Byte>(sidState.control(voice) & ~sid::kGate);
+    std::vector<Bytes> out;
+    out.push_back(encodeAsidUpdate({{static_cast<Byte>(base + 6), fastRelease}}));
+    out.push_back(encodeAsidUpdate({{static_cast<Byte>(base + 4), gateLow}}));
+    return out;
 }
 
 std::vector<Bytes> AsidVoicePlayer::noteOn(int channel, int midiNote, int velocity) {

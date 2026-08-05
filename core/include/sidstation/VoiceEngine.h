@@ -31,6 +31,8 @@ enum class VoiceMode {
 struct VoiceAction {
     int  oscillator = 0;     // 0..2
     bool gateOn = false;     // true to sound the note, false to release it
+    bool retrigger = true;   // gate-on only: false = true legato (retune, keep the
+                             // envelope running); true = re-attack the envelope
     int  sidNote = 0;        // OSC_TRACK fixed note value, valid when gateOn
     int  midiNote = -1;      // the source MIDI note
     int  velocity = 0;       // the source velocity, when gateOn

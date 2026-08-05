@@ -24,12 +24,18 @@ std::vector<VoiceAction> VoiceEngine::noteOn(int channel, int midiNote, int velo
     if (osc < 0) return {};
 
     auto& stack = held[static_cast<size_t>(osc)];
+    const bool wasSounding = !stack.empty();  // a note already down = a legato overlap
     stack.erase(std::remove(stack.begin(), stack.end(), midiNote), stack.end());
     stack.push_back(midiNote);
 
     VoiceAction a;
     a.oscillator = osc;
     a.gateOn = true;
+    // Play the overlap as true legato: keep the envelope running and just move the
+    // pitch. A re-attack here would reload the SID's shared ADSR rate counter,
+    // which on the 6581 can stall a fast retrigger into silence (worse the longer
+    // the release). A fresh note (nothing sounding) still attacks normally.
+    a.retrigger = !wasSounding;
     a.sidNote = sidNoteFromMidi(midiNote, offset);
     a.midiNote = midiNote;
     a.velocity = velocity;
@@ -56,9 +62,11 @@ std::vector<VoiceAction> VoiceEngine::noteOff(int channel, int midiNote) {
         a.gateOn = false;  // nothing left on this oscillator, release it
         return {a};
     }
-    // Fall back to the most recently held note that is still down (legato).
+    // Fall back to the most recently held note that is still down. This is a
+    // legato transition (a note is still sounding), so retune without re-attacking.
     const int nt = stack.back();
     a.gateOn = true;
+    a.retrigger = false;
     a.sidNote = sidNoteFromMidi(nt, offset);
     a.midiNote = nt;
     return {a};

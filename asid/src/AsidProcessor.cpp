@@ -23,6 +23,15 @@ double modIntervalForRate(int idx) {
     return 20.0;
 }
 
+// Approximate 6581 envelope release time in ms (full-level to zero) per release
+// nibble 0..15. Used to tell whether a just-released note is still ringing when a
+// new note attacks, which is when the ADSR bug bites and a hard restart is worth it.
+double sidReleaseMs(int r) {
+    static const double t[16] = {6, 24, 48, 72, 114, 168, 204, 240,
+                                 300, 750, 1500, 2400, 3000, 9000, 15000, 24000};
+    return t[r < 0 ? 0 : (r > 15 ? 15 : r)];
+}
+
 // SID control-register waveform bits for each wavetable step choice:
 // Triangle, Sawtooth, Pulse, Noise, then the combinations Tri+Saw, Pulse+Tri,
 // Pulse+Saw, and finally Silence (no waveform). Used by both the wavetable step
@@ -540,8 +549,10 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         // Portamento decision, made BEFORE the note-on so the note-on frame itself
         // gates on at the glide start pitch. wasHeld (a note already sounding =
         // overlap) is the legato test and must be read before noteOn retargets.
+        bool freshAttack = false;
         if (on) {
             const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
+            freshAttack = !wasHeld;  // nothing sounding = a real attack, not a legato overlap
             const bool always = paramInt("portaTrigger") == 1;  // 0 Legato, 1 Always
             const bool glide = paramInt("portaTime") > 0 && glidePitch >= 0.0 && (always || wasHeld);
             if (glide) asidPlayer.setNextGlideStart(glidePitch);  // start at the held pitch
@@ -556,19 +567,44 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
                 asidPlayer.setWaveform(voice, kWtWave[juce::jlimit(0, 7, paramInt("wtWave0"))]);
         }
 
+        double target = juce::jmax(eventMs, voiceClockMs);
+
+        // Hard restart: a fresh attack landing while the previous note is still
+        // releasing hits the 6581 ADSR bug (a high release rate counter stalls the
+        // attack into silence). Drain the envelope with two frames just ahead of
+        // the note (frame two flushes frame one into effect on the one-message-late
+        // unit); the note-on then restores the real release. This pushes the attack
+        // back by the drain window, and only kicks in when a recent release is
+        // still ringing, so ordinary notes are untouched.
+        if (freshAttack) {
+            const int rel = paramInt("release");
+            if (rel > 0 && (target - lastGateOffMs) < sidReleaseMs(rel)) {
+                const auto hr = asidPlayer.hardRestartFrames(voice);
+                if (hr.size() == 2) {
+                    const double flushAt = target + kHardRestartMs * 0.5;
+                    addFrame(out, hr[0], juce::jmax(0, juce::roundToInt(target - nowMs)));
+                    addFrame(out, hr[1], juce::jmax(0, juce::roundToInt(flushAt - nowMs)));
+                    target = flushAt + kHardRestartMs * 0.5;  // attack once the envelope has drained
+                    voiceClockMs = target;
+                }
+            }
+        }
+
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
                                : asidPlayer.noteOff(ch, m.getNoteNumber());
-        const double target = juce::jmax(eventMs, voiceClockMs);
         const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
         for (const auto& f : frames) addFrame(out, f, posMs);
         voiceClockMs = target;
 
-        // A note-off's gate-low needs a message behind it; under pitch mod the
-        // stream has stopped, so add a benign settle frame just after.
-        if (off && pitchActive) {
-            const double settleTarget = target + kSettleMs;
-            addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
-            voiceClockMs = settleTarget;
+        if (off) {
+            lastGateOffMs = target;  // release starts here; times the next attack's hard restart
+            // A note-off's gate-low needs a message behind it; under pitch mod the
+            // stream has stopped, so add a benign settle frame just after.
+            if (pitchActive) {
+                const double settleTarget = target + kSettleMs;
+                addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
+                voiceClockMs = settleTarget;
+            }
         }
     }
 
