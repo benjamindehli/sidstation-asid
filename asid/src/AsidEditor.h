@@ -18,6 +18,7 @@ public:
     ~AsidEditor() override;
     void paint(juce::Graphics&) override;
     void paintOverChildren(juce::Graphics&) override;  // decorative overlay, on top of everything
+    void parentHierarchyChanged() override;            // brand the standalone window's title bar
     void resized() override;
 
 private:

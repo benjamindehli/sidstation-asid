@@ -37,6 +37,52 @@ void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
 void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
     b.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, 96), 30));
 }
+
+// Standalone window chrome: paint the JUCE title bar dark (#191a1b) and draw the
+// minimise/close glyphs in a neutral grey instead of the default yellow/red. Only
+// the title bar and its buttons are overridden; everything else keeps the V4 look.
+// Applied to the standalone DocumentWindow only (a DAW owns its own title bar).
+struct WindowChromeLnF : juce::LookAndFeel_V4 {
+    void drawDocumentWindowTitleBar(juce::DocumentWindow& window, juce::Graphics& g, int w, int h,
+                                    int titleSpaceX, int titleSpaceW, const juce::Image* icon,
+                                    bool drawTitleTextOnLeft) override {
+        juce::ignoreUnused(w, icon);
+        g.fillAll(juce::Colour(0xff191a1b));
+        g.setColour(juce::Colour(0xffd8d9da));
+        g.setFont(juce::Font(juce::FontOptions().withHeight(h * 0.5f)));
+        g.drawText(window.getName(), titleSpaceX, 0, titleSpaceW, h,
+                   drawTitleTextOnLeft ? juce::Justification::centredLeft : juce::Justification::centred, true);
+    }
+    juce::Button* createDocumentWindowButton(int buttonType) override {
+        juce::Path shape;
+        const float t = 0.09f;              // stroke thickness (fraction of the button)
+        const float a = 0.32f, b = 0.68f;   // glyph inset, so it stays small and centred
+        juce::String name;
+        if (buttonType == juce::DocumentWindow::closeButton) {
+            name = "close";
+            shape.addLineSegment({a, a, b, b}, t);
+            shape.addLineSegment({b, a, a, b}, t);
+        } else if (buttonType == juce::DocumentWindow::minimiseButton) {
+            name = "minimise";
+            shape.addLineSegment({a, 0.5f, b, 0.5f}, t);
+        } else {
+            name = "maximise";
+            shape.addLineSegment({a, a, b, a}, t);
+            shape.addLineSegment({b, a, b, b}, t);
+            shape.addLineSegment({b, b, a, b}, t);
+            shape.addLineSegment({a, b, a, a}, t);
+        }
+        // Pin the path bounds to the whole button so the glyph is not scaled up to
+        // fill it (these two points draw nothing, they just set the bounding box).
+        shape.startNewSubPath(0.0f, 0.0f);
+        shape.startNewSubPath(1.0f, 1.0f);
+        const juce::Colour col(0xffbfc1c4);  // neutral grey, no traffic-light hues
+        auto* btn = new juce::ShapeButton(name, col, col.brighter(0.4f), col.brighter(0.8f));
+        btn->setShape(shape, false, true, false);
+        return btn;
+    }
+};
+WindowChromeLnF& windowChromeLnF() { static WindowChromeLnF lnf; return lnf; }
 }  // namespace
 
 void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
@@ -246,10 +292,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     for (int i = 0; i < 3; ++i) voiceSwitch.colours[i] = voiceColour(i);
     voiceSwitch.selected = currentVoice();
     voiceSwitch.onSelect = [this](int v) {
-        if (auto* p = state.getParameter("asidVoice")) {
-            p->beginChangeGesture();
-            p->setValueNotifyingHost(p->convertTo0to1((float) v));
-            p->endChangeGesture();
+        if (auto* vp = state.getParameter("asidVoice")) {
+            vp->beginChangeGesture();
+            vp->setValueNotifyingHost(vp->convertTo0to1((float) v));
+            vp->endChangeGesture();
         }
         voiceSwitch.selected = v;  // light the cell now; updateEnablement recolours the rest
         voiceSwitch.repaint();
@@ -405,7 +451,15 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     startTimerHz(10);  // drives updateEnablement (waveform / sustain / LFO gating)
 }
 
-AsidEditor::~AsidEditor() { stopTimer(); setLookAndFeel(nullptr); }
+AsidEditor::~AsidEditor() {
+    stopTimer();
+    // Detach our chrome look-and-feel from the standalone window before it (or we)
+    // go away, so the window is not left pointing at a destroyed editor's context.
+    if (auto* dw = findParentComponentOfClass<juce::DocumentWindow>())
+        if (&dw->getLookAndFeel() == &windowChromeLnF())
+            dw->setLookAndFeel(nullptr);
+    setLookAndFeel(nullptr);
+}
 
 void AsidEditor::setTab(int t) {
     currentTab = t;
@@ -641,6 +695,24 @@ void AsidEditor::paintOverChildren(juce::Graphics& g) {
         g.drawImageWithin(img, b.getX(), b.getY(), b.getWidth(), b.getHeight(),
                           juce::RectanglePlacement::stretchToFit);
     }
+}
+
+void AsidEditor::parentHierarchyChanged() {
+    // Standalone only: recolour the host window's title bar and drop the yellow/red
+    // from its buttons. In a DAW the host owns the title bar, so leave it untouched.
+    if (proc.wrapperType != juce::AudioProcessor::wrapperType_Standalone) return;
+    // Do it asynchronously and preserve the window bounds: swapping a
+    // DocumentWindow's look-and-feel while it is still mid-setup (editor not yet
+    // sized) makes it fit to a zero-size content and collapse to a tiny square.
+    juce::Component::SafePointer<AsidEditor> self(this);
+    juce::MessageManager::callAsync([self] {
+        if (self == nullptr) return;
+        auto* dw = self->findParentComponentOfClass<juce::DocumentWindow>();
+        if (dw == nullptr || &dw->getLookAndFeel() == &windowChromeLnF()) return;
+        const auto keep = dw->getBounds();
+        dw->setLookAndFeel(&windowChromeLnF());
+        if (dw->getBounds() != keep) dw->setBounds(keep);  // undo any collapse
+    });
 }
 
 void AsidEditor::resized() {
