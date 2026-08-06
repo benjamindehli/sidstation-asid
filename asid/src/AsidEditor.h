@@ -58,6 +58,11 @@ private:
         juce::String prefix;  // parameter prefix, for re-binding the rate knob
         int rateMode = -1;    // -1 uninit, 0 free (Hz), 1 tempo-synced (division)
     };
+    // A 2-segment switch bound to a 2-value choice parameter: the selected segment
+    // lights up, clicking a segment sets the parameter.
+    void setupSwitch(juce::ToggleButton& segA, juce::ToggleButton& segB,
+                     const juce::String& labelA, const juce::String& labelB,
+                     const juce::String& paramId);
     void setupLfo(juce::Component& parent, LfoControls&, const juce::String& prefix);
     void layoutLfo(LfoControls&, juce::Rectangle<int> area);
     // The rate knob drives the free Hz rate, or the stepped tempo division when
@@ -131,9 +136,21 @@ private:
     juce::Slider pwKnob, coarseKnob, fineKnob, bendKnob, portaKnob;
     juce::Label pwLabel, coarseLabel, fineLabel, bendLabel, portaLabel;
     std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, bendAtt, portaAtt;
-    juce::Label portaTrigLabel{{}, "Glide trigger"}, portaTypeLabel{{}, "Glide type"};
-    juce::ComboBox portaTrigBox, portaTypeBox;
-    std::unique_ptr<ComboAtt> portaTrigAtt, portaTypeAtt;
+    // Glide trigger (Legato/Always) and type (Smooth/Stepped) as 2-segment
+    // switches (a pair of toggle buttons each), stacked and grouped with glide time.
+    juce::ToggleButton portaTrigBtns[2], portaTypeBtns[2];
+
+    // Faint vertical dividers between control groups (Tuning, Oscillator, Filter).
+    struct VDivider : juce::Component {
+        void paint(juce::Graphics& g) override {
+            g.setColour(juce::Colour(SidLookAndFeel::kFg).withAlpha(0.4f));
+            g.fillAll();
+        }
+    };
+    VDivider tuningDiv1, tuningDiv2, oscDiv1, oscDiv2, filtDiv1, filtDiv2;
+    void placeDivider(VDivider& d, juce::Rectangle<int> gap) {
+        d.setBounds(gap.withSizeKeepingCentre(2, gap.getHeight()));
+    }
 
     // Amp envelope.
     juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob;

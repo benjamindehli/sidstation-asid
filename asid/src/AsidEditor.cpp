@@ -53,6 +53,34 @@ void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label
     att = std::make_unique<SliderAtt>(state, paramId, s);
 }
 
+void AsidEditor::setupSwitch(juce::ToggleButton& segA, juce::ToggleButton& segB,
+                             const juce::String& labelA, const juce::String& labelB,
+                             const juce::String& paramId) {
+    segA.setButtonText(labelA);
+    segB.setButtonText(labelB);
+    for (auto* b : {&segA, &segB}) {
+        b->setClickingTogglesState(false);  // the parameter drives the state, not the click
+        oscPage.addAndMakeVisible(*b);
+    }
+    // A 2-value switch: clicking either segment flips to the other value. State
+    // syncs from the parameter in updateEnablement (and immediately here).
+    auto flip = [this, paramId, &segA, &segB] {
+        auto* rp = state.getRawParameterValue(paramId);
+        const int next = (rp && juce::roundToInt(rp->load()) == 0) ? 1 : 0;
+        if (auto* p = state.getParameter(paramId)) {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost(p->convertTo0to1((float) next));
+            p->endChangeGesture();
+        }
+        segA.setToggleState(next == 0, juce::dontSendNotification);
+        segB.setToggleState(next == 1, juce::dontSendNotification);
+        segA.repaint();
+        segB.repaint();
+    };
+    segA.onClick = flip;
+    segB.onClick = flip;
+}
+
 void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::String& prefix) {
     u.prefix = prefix;
     parent.addAndMakeVisible(u.enableButton);
@@ -166,6 +194,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         oscPage.addAndMakeVisible(*b);
     oscPage.addAndMakeVisible(syncButton);
     oscPage.addAndMakeVisible(ringButton);
+    oscPage.addAndMakeVisible(oscDiv1);
+    oscPage.addAndMakeVisible(oscDiv2);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -195,14 +225,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
 
     setupKnob(oscPage, portaKnob, portaLabel, "Glide time", "portaTime", portaAtt);
-    oscPage.addAndMakeVisible(portaTrigBox);  // no captions; values are self-describing
-    portaTrigBox.addItem("Legato", 1);
-    portaTrigBox.addItem("Always", 2);
-    portaTrigAtt = std::make_unique<ComboAtt>(state, "portaTrigger", portaTrigBox);
-    oscPage.addAndMakeVisible(portaTypeBox);
-    portaTypeBox.addItem("Smooth", 1);
-    portaTypeBox.addItem("Stepped", 2);
-    portaTypeAtt = std::make_unique<ComboAtt>(state, "portaType", portaTypeBox);
+    setupSwitch(portaTrigBtns[0], portaTrigBtns[1], "Legato", "Always", "portaTrigger");
+    setupSwitch(portaTypeBtns[0], portaTypeBtns[1], "Smooth", "Stepped", "portaType");
+    oscPage.addAndMakeVisible(tuningDiv1);
+    oscPage.addAndMakeVisible(tuningDiv2);
 
     // ---- AMP+MOD page: Amp envelope, Pitch Mod, PW Mod ----
     setupKnob(oscPage, attackKnob, attackLabel, "Attack", "attack", attackAtt);
@@ -229,6 +255,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         sharedPage.addAndMakeVisible(modeButtons[i]);
         modeAtts[i] = std::make_unique<ButtonAtt>(state, modeIds[i], modeButtons[i]);
     }
+    sharedPage.addAndMakeVisible(filtDiv1);
+    sharedPage.addAndMakeVisible(filtDiv2);
     setupKnob(sharedPage, cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
     setupKnob(sharedPage, resKnob, resLabel, "Resonance", "resonance", resAtt);
     setupLfo(sharedPage, cutLfoUi, "cutLfo");
@@ -329,10 +357,17 @@ void AsidEditor::updateEnablement() {
     syncButton.setEnabled(!noise);
     ringButton.setEnabled(intParam("waveTri") != 0 && !noise);
 
-    // Glide trigger and type only matter when portamento time is up.
+    // Glide trigger and type only matter when portamento time is up. Reflect the
+    // choice value in each 2-segment switch (which segment is lit).
     const bool porta = intParam("portaTime") > 0;
-    portaTrigBox.setEnabled(porta);
-    portaTypeBox.setEnabled(porta);
+    auto syncSwitch = [porta](juce::ToggleButton& a, juce::ToggleButton& b, int val) {
+        a.setToggleState(val == 0, juce::dontSendNotification);
+        b.setToggleState(val == 1, juce::dontSendNotification);
+        a.setEnabled(porta);
+        b.setEnabled(porta);
+    };
+    syncSwitch(portaTrigBtns[0], portaTrigBtns[1], intParam("portaTrigger"));
+    syncSwitch(portaTypeBtns[0], portaTypeBtns[1], intParam("portaType"));
 
     // The wavetable's config and steps are live only when it is on.
     const bool wtOn = boolParam("wtOn");
@@ -516,11 +551,13 @@ void AsidEditor::resized() {
 void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
     const int gap = 10;
     const int rowH = (area.getHeight() - 2 * gap) / 3;
-    {  // OSCILLATOR: 2x2 waveform buttons + Sync/Ring, then Pulse W knob.
+    {  // OSCILLATOR in three groups: waveform | Sync/Ring | Pulse Width.
         auto box = area.removeFromTop(rowH);
         oscGroup.setBounds(box);
         auto c = innerBox(box);
-        {  // self-labelled waveform buttons, vertically centred
+        const int gGap = 34;
+        // Group 1: 2x2 self-labelled waveform buttons, vertically centred.
+        {
             auto cell = c.removeFromLeft(190).withSizeKeepingCentre(190, 2 * 30 + 8);
             auto r1 = cell.removeFromTop(30);
             waveTriButton.setBounds(r1.removeFromLeft(88)); r1.removeFromLeft(10);
@@ -530,23 +567,51 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
             wavePulseButton.setBounds(r2.removeFromLeft(88)); r2.removeFromLeft(10);
             waveNoiseButton.setBounds(r2.removeFromLeft(88));
         }
-        auto togCol = colOf(c, 0, 2);
-        auto t = togCol.withSizeKeepingCentre(juce::jmin(togCol.getWidth() - 8, 200), 30);
-        syncButton.setBounds(t.removeFromLeft(94)); t.removeFromLeft(12);
-        ringButton.setBounds(t.removeFromLeft(94));
-        knobInCol(colOf(c, 1, 2), pwKnob, pwLabel);
+        placeDivider(oscDiv1, c.removeFromLeft(gGap));
+        // Group 2: Sync + Ring, centred as a pair.
+        {
+            auto pair = c.removeFromLeft(196).withSizeKeepingCentre(196, 30);
+            syncButton.setBounds(pair.removeFromLeft(92)); pair.removeFromLeft(12);
+            ringButton.setBounds(pair.removeFromLeft(92));
+        }
+        placeDivider(oscDiv2, c.removeFromLeft(gGap));
+        // Group 3: Pulse Width (rest).
+        knobInCol(c, pwKnob, pwLabel);
     }
     area.removeFromTop(gap);
-    {  // TUNING: coarse, fine, bend range, glide time, glide trigger, glide type
+    {  // TUNING in three groups: (Coarse, Fine) | (Bend Range) | (Glide time +
+       // stacked trigger/type switches).
         auto box = area.removeFromTop(rowH);
         glideGroup.setBounds(box);
         auto c = innerBox(box);
-        knobInCol(colOf(c, 0, 6), coarseKnob, coarseLabel);
-        knobInCol(colOf(c, 1, 6), fineKnob, fineLabel);
-        knobInCol(colOf(c, 2, 6), bendKnob, bendLabel);
-        knobInCol(colOf(c, 3, 6), portaKnob, portaLabel);
-        comboInCol(colOf(c, 4, 6), portaTrigBox);
-        comboInCol(colOf(c, 5, 6), portaTypeBox);
+        const int gGap = 34;  // gap between groups (wider than within a group)
+        // A 2-segment switch: the second segment overlaps the first by 2px so the
+        // shared divider is a single 2px line, matching the outer border.
+        auto laySwitch = [](juce::Rectangle<int> row, juce::ToggleButton& a, juce::ToggleButton& b) {
+            const int half = row.getWidth() / 2;
+            a.setBounds(row.getX(), row.getY(), half, row.getHeight());
+            b.setBounds(row.getX() + half - 2, row.getY(), row.getWidth() - half + 2, row.getHeight());
+        };
+        auto divider = [](VDivider& d, juce::Rectangle<int> gap) {
+            d.setBounds(gap.withSizeKeepingCentre(2, gap.getHeight()));
+        };
+        // Group 1: Coarse, Fine.
+        auto g1 = c.removeFromLeft(168);
+        knobInCol(colOf(g1, 0, 2), coarseKnob, coarseLabel);
+        knobInCol(colOf(g1, 1, 2), fineKnob, fineLabel);
+        divider(tuningDiv1, c.removeFromLeft(gGap));
+        // Group 2: Bend Range.
+        knobInCol(c.removeFromLeft(96), bendKnob, bendLabel);
+        divider(tuningDiv2, c.removeFromLeft(gGap));
+        // Group 3: Glide time knob + the two stacked switches, kept close together.
+        const int knobW = 96, swW = 172, innerGap = 8;
+        auto g3 = c.withSizeKeepingCentre(knobW + innerGap + swW, c.getHeight());
+        knobInCol(g3.removeFromLeft(knobW), portaKnob, portaLabel);
+        g3.removeFromLeft(innerGap);
+        auto stack = g3.withSizeKeepingCentre(swW, 2 * 28 + 8);
+        laySwitch(stack.removeFromTop(28), portaTrigBtns[0], portaTrigBtns[1]);
+        stack.removeFromTop(8);
+        laySwitch(stack.removeFromTop(28), portaTypeBtns[0], portaTypeBtns[1]);
     }
     area.removeFromTop(gap);
     {  // AMP ENVELOPE
@@ -579,15 +644,20 @@ void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
 void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
     const int gap = 10;
     const int rowH = (area.getHeight() - 2 * gap) / 3;
-    {  // FILTER: voice buttons (V1/V2/V3) + mode buttons (LP/BP/HP), then knobs.
+    {  // FILTER in three groups: voices (V1/V2/V3) | modes (LP/BP/HP) | Cutoff+Reso.
         auto box = area.removeFromTop(rowH);
         filterGroup.setBounds(box);
         auto c = innerBox(box);
-        auto fcell = c.removeFromLeft(340).withSizeKeepingCentre(340, 30);
-        for (auto& b : filtButtons) { b.setBounds(fcell.removeFromLeft(46)); fcell.removeFromLeft(8); }
-        fcell.removeFromLeft(20);  // gap between the voice group and the mode group
-        for (auto& b : modeButtons) { b.setBounds(fcell.removeFromLeft(46)); fcell.removeFromLeft(8); }
-        knobInCol(colOf(c, 0, 2), cutoffKnob, cutoffLabel);
+        const int gGap = 34, segW = 46, segGap = 8, groupW = 3 * segW + 2 * segGap;
+        auto layButtons = [&](juce::ToggleButton (&btns)[3]) {
+            auto g = c.removeFromLeft(groupW).withSizeKeepingCentre(groupW, 30);
+            for (auto& b : btns) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
+        };
+        layButtons(filtButtons);                          // Group 1: voices
+        placeDivider(filtDiv1, c.removeFromLeft(gGap));
+        layButtons(modeButtons);                          // Group 2: modes
+        placeDivider(filtDiv2, c.removeFromLeft(gGap));
+        knobInCol(colOf(c, 0, 2), cutoffKnob, cutoffLabel);  // Group 3: cutoff, reso
         knobInCol(colOf(c, 1, 2), resKnob, resLabel);
     }
     area.removeFromTop(gap);
