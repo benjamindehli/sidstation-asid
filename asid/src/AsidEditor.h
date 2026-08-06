@@ -89,9 +89,14 @@ private:
             for (int i = 0; i < n; ++i) {
                 juce::Rectangle<int> cell(i * w, 0, (i == n - 1 ? getWidth() - i * w : w), getHeight());
                 const bool on = i == selected;
-                g.setColour(on ? colours[i] : colours[i].withMultipliedBrightness(0.3f));
+                const auto c = colours[i];
+                // Unselected cells are dimmed three ways: a dark, desaturated fill
+                // with just a soft hue number glowing on it, so the vivid selected
+                // cell (full colour, dark number) is clearly the one that is lit.
+                g.setColour(on ? c : c.withMultipliedSaturation(0.5f).withMultipliedBrightness(0.24f));
                 g.fillRect(cell.reduced(1));
-                g.setColour(on ? juce::Colour(SidLookAndFeel::kBg) : colours[i].withMultipliedBrightness(0.65f));
+                g.setColour(on ? juce::Colour(SidLookAndFeel::kBg)
+                              : c.withMultipliedSaturation(0.85f).withMultipliedBrightness(0.68f));
                 g.setFont(SidLookAndFeel::mono(15.0f, true));
                 g.drawText(juce::String(i + 1), cell, juce::Justification::centred);
             }
