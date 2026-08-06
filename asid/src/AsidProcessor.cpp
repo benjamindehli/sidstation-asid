@@ -143,6 +143,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtSaw" + s, 1}, "WT Saw " + n, false));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtPulse" + s, 1}, "WT Pulse " + n, false));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtNoise" + s, 1}, "WT Noise " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtSync" + s, 1}, "WT Sync " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtRing" + s, 1}, "WT Ring " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterInt>(
+            juce::ParameterID{"wtPw" + s, 1}, "WT Pulse Width " + n, 0, 4095, 2048));
         layout.add(std::make_unique<juce::AudioParameterInt>(
             juce::ParameterID{"wtArp" + s, 1}, "WT Arp " + n, -24, 24, 0));
     }
@@ -197,18 +201,19 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         flush(asidPlayer.setSustainRelease(voice, s, rel));
     }
     const int pw = paramInt("pulseWidth");
-    // Skip the static pulse width while the LFO is driving it, or they fight.
-    if (!lfoOwnedPw && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
+    // Skip the static pulse width while the LFO or the wavetable drives it.
+    if (!lfoOwnedPw && !wtOwnsWave && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
     const int coarse = paramInt("coarse"), fine = paramInt("fine"), bendRange = paramInt("pitchBendRange");
     if (forceAll || coarse != sent.coarse || fine != sent.fine || bendRange != sent.bendRange) {
         sent.coarse = coarse; sent.fine = fine; sent.bendRange = bendRange;
         updatePitchOffset();  // coarse + fine + current pitch-wheel bend
         flush(asidPlayer.setPitchMod(voice, 0.0));  // retune a held note (empty if none)
     }
+    // Skip the static sync/ring while the wavetable drives them per step.
     const int sync = paramInt("sync");
-    if (forceAll || sync != sent.sync) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
+    if (!wtOwnsWave && (forceAll || sync != sent.sync)) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
-    if (forceAll || ring != sent.ring) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
+    if (!wtOwnsWave && (forceAll || ring != sent.ring)) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
     // Filter routing (3 shared voice bits) and resonance both live in register
     // 0x17. Routing and resonance are shared, so only the instance where the
     // value actually changed sends it (a synced-in echo is skipped).
@@ -307,19 +312,19 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         wtPlayer.stop();
         wtArp = 0;
         wtStepDisplay.store(-1, std::memory_order_relaxed);  // nothing playing
-        // Hand the waveform register back to the static control ONLY when the
-        // wavetable is switched off, not merely because the note released. On
-        // release the envelope is still sounding, so keep the table's last
-        // waveform playing through it instead of snapping back to the static one.
-        if (wtOwnsWave && !wtOn) sent.wave = -1;
+        // Hand the waveform / sync / ring / pulse-width registers back to the
+        // static controls ONLY when the wavetable is switched off, not merely
+        // because the note released. On release the envelope is still sounding, so
+        // keep the table's last values playing through it. sent.*=-1 forces a resend.
+        if (wtOwnsWave && !wtOn) { sent.wave = sent.sync = sent.ring = sent.pw = -1; }
     }
     wtOwnsWave = wtActive;
 
     const int pwDepth = paramInt("pwLfoDepth");
     // PW mod only matters when the pulse waveform actually sounds (noise would
-    // suppress it).
+    // suppress it), and the wavetable takes over pulse width while it plays.
     const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0
-                      && paramInt("wavePulse") && !paramInt("waveNoise");
+                      && paramInt("wavePulse") && !paramInt("waveNoise") && !wtActive;
     if (!pwOn && lfoOwnedPw) sent.pw = -1;
     lfoOwnedPw = pwOn;
 
@@ -370,8 +375,16 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
     if (wtActive) {
         if (const int step = wtPlayer.currentStep(); step >= 0) {
+            const juce::String ss(step);
+            // Waveform + Sync + Ring share the control register; Pulse Width has its
+            // own. The wavetable drives all of them per step while it plays.
             asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(step)));
-            wtArp = paramInt("wtArp" + juce::String(step));
+            asidPlayer.setSync(voice, paramInt("wtSync" + ss) != 0);
+            asidPlayer.setRing(voice, paramInt("wtRing" + ss) != 0);
+            asidPlayer.setPulseWidth(voice, paramInt("wtPw" + ss));
+            addReg(base + 2);
+            addReg(base + 3);
+            wtArp = paramInt("wtArp" + ss);
             wtStepDisplay.store(step, std::memory_order_relaxed);  // for the editor
         }
         wtPlayer.advanceFrame();

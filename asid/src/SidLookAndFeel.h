@@ -80,14 +80,18 @@ public:
         const float knobR = radius - 9.0f;
         const float angle = startAngle + pos * (endAngle - startAngle);
 
-        // Value arc: a dim full-sweep track with a bright fill up to the value.
+        // Value arc: a dim full-sweep track with a bright fill up to the value. A
+        // "sidBipolar" control (centre default, e.g. tune / pulse width) fills out
+        // from the 12-o'clock centre instead of from the start.
+        const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
+        const float from = bipolar ? startAngle + 0.5f * (endAngle - startAngle) : startAngle;
         const juce::PathStrokeType stroke(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
         juce::Path track, value;
         track.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
         g.setColour(juce::Colour(kBg).darker(0.35f));
         g.strokePath(track, stroke);
-        if (angle > startAngle + 0.01f) {
-            value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, angle, true);
+        if (std::abs(angle - from) > 0.01f) {
+            value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, juce::jmin(from, angle), juce::jmax(from, angle), true);
             g.setColour(on ? accent : juce::Colour(kDim));  // accent value arc
             g.strokePath(value, stroke);
         }
@@ -102,6 +106,24 @@ public:
                                      c.y - std::cos(angle) * (knobR - 2.0f));
         g.setColour(hot);
         g.drawLine({c, tip}, 2.5f);
+    }
+
+    // Horizontal fader: a dim track, an accent fill (from the centre when the
+    // control is "sidBipolar", else from the left), and a bright thumb bar.
+    void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h, float sliderPos, float, float,
+                          juce::Slider::SliderStyle, juce::Slider& s) override {
+        const bool on = s.isEnabled();
+        const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
+        auto area = juce::Rectangle<int>(x, y, w, h).toFloat();
+        auto track = juce::Rectangle<float>(area.getX(), area.getCentreY() - 3.0f, area.getWidth(), 6.0f);
+        g.setColour(juce::Colour(kBg).darker(0.35f));
+        g.fillRect(track);
+        g.setColour(on ? accent : juce::Colour(kDim));
+        const float from = bipolar ? area.getCentreX() : area.getX();
+        g.fillRect(juce::Rectangle<float>(juce::jmin(from, sliderPos), track.getY(),
+                                          std::abs(sliderPos - from), track.getHeight()));
+        g.setColour(juce::Colour(on ? kHot : kDim));
+        g.fillRect(juce::Rectangle<float>(sliderPos - 1.5f, area.getY() + 2.0f, 3.0f, area.getHeight() - 4.0f));
     }
 
     // Shared height for checkboxes, combo boxes, number boxes and buttons, so a

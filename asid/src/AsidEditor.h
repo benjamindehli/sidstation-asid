@@ -133,9 +133,14 @@ private:
     // Per step, four combinable waveform toggles under shared column headers, plus
     // a header over the arp stepper column.
     juce::Label wtWaveHead[4];
-    juce::Label wtArpHead{{}, "Arp"};
+    juce::Label wtSyncHead{{}, "Sync"}, wtRingHead{{}, "Ring"}, wtPwHead{{}, "PW"}, wtArpHead{{}, "Arp"};
     juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
     std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
+    // Per-step Sync/Ring toggles and a small Pulse Width knob.
+    juce::ToggleButton wtSyncTog[AsidProcessor::kWtSteps], wtRingTog[AsidProcessor::kWtSteps];
+    std::unique_ptr<ButtonAtt> wtSyncAtt[AsidProcessor::kWtSteps], wtRingAtt[AsidProcessor::kWtSteps];
+    juce::Slider wtPwKnob[AsidProcessor::kWtSteps];
+    std::unique_ptr<SliderAtt> wtPwAtt[AsidProcessor::kWtSteps];
     // Arp stepper per step: a hidden slider holds the value (APVTS binding),
     // shown as a bordered number field flanked by square - / + buttons.
     juce::Slider wtArpSlider[AsidProcessor::kWtSteps];

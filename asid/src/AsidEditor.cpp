@@ -220,6 +220,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(oscPage, pwKnob, pwLabel, "Pulse Width", "pulseWidth", pwAtt);
     setupKnob(oscPage, coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
     setupKnob(oscPage, fineKnob, fineLabel, "Fine", "fine", fineAtt);
+    // These have a natural centre default, so their arcs fill out from the centre.
+    for (auto* k : {&pwKnob, &coarseKnob, &fineKnob}) k->getProperties().set("sidBipolar", true);
     setupKnob(oscPage, bendKnob, bendLabel, "Bend Range", "pitchBendRange", bendAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
@@ -276,8 +278,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtWaveHead[w].setJustificationType(juce::Justification::centred);
         wtPage.addAndMakeVisible(wtWaveHead[w]);
     }
-    wtArpHead.setJustificationType(juce::Justification::centred);
-    wtPage.addAndMakeVisible(wtArpHead);
+    for (auto* h : {&wtSyncHead, &wtRingHead, &wtPwHead, &wtArpHead}) {
+        h->setJustificationType(juce::Justification::centred);
+        wtPage.addAndMakeVisible(*h);
+    }
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
         wtStepInd[i].number = i + 1;
         wtPage.addAndMakeVisible(wtStepInd[i]);
@@ -286,6 +290,16 @@ AsidEditor::AsidEditor(AsidProcessor& p)
             wtWaveTogAtt[i][w] = std::make_unique<ButtonAtt>(
                 state, juce::String(wtIds[w]) + juce::String(i), wtWaveTog[i][w]);
         }
+        wtPage.addAndMakeVisible(wtSyncTog[i]);
+        wtSyncAtt[i] = std::make_unique<ButtonAtt>(state, "wtSync" + juce::String(i), wtSyncTog[i]);
+        wtPage.addAndMakeVisible(wtRingTog[i]);
+        wtRingAtt[i] = std::make_unique<ButtonAtt>(state, "wtRing" + juce::String(i), wtRingTog[i]);
+        wtPwKnob[i].setSliderStyle(juce::Slider::LinearHorizontal);
+        wtPwKnob[i].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        wtPwKnob[i].setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
+        wtPwKnob[i].getProperties().set("sidBipolar", true);  // fill from the centre default
+        wtPage.addAndMakeVisible(wtPwKnob[i]);
+        wtPwAtt[i] = std::make_unique<SliderAtt>(state, "wtPw" + juce::String(i), wtPwKnob[i]);
         // Hidden slider: the value model / APVTS binding. UI is the field + buttons.
         wtPage.addChildComponent(wtArpSlider[i]);
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
@@ -377,7 +391,7 @@ void AsidEditor::updateEnablement() {
     for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
         s->setEnabled(wtOn);
     for (auto& h : wtWaveHead) h.setEnabled(wtOn);
-    wtArpHead.setEnabled(wtOn);
+    for (auto* h : {&wtSyncHead, &wtRingHead, &wtPwHead, &wtArpHead}) h->setEnabled(wtOn);
     const int wtLen = intParam("wtLength");
     const int wtLoopPt = intParam("wtLoop");
     const int wtPlaying = proc.wtStep();
@@ -388,6 +402,9 @@ void AsidEditor::updateEnablement() {
         const bool stepNoise = intParam((juce::String("wtNoise") + juce::String(i)).toRawUTF8()) != 0;
         for (int w = 0; w < 4; ++w)
             wtWaveTog[i][w].setEnabled(rowActive && (w == 3 || !stepNoise));
+        wtSyncTog[i].setEnabled(rowActive);
+        wtRingTog[i].setEnabled(rowActive);
+        wtPwKnob[i].setEnabled(rowActive);
         wtArpValue[i].setEnabled(rowActive);
         wtArpDec[i].setEnabled(rowActive);
         wtArpInc[i].setEnabled(rowActive);
@@ -698,34 +715,47 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         knobInCol(colOf(c, 3, 4), wtLoopKnob, wtLoopLabel);
     }
     area.removeFromTop(10);
-    {  // STEPS: header + 8 rows, the grid centred and the rows filling the height.
+    {  // STEPS: header + 8 rows. Columns: number, 4 waveforms, Sync, Ring, PW, Arp.
         const int steps = AsidProcessor::kWtSteps;
         wtStepsGroup.setBounds(area);  // fill the rest of the page
         auto c = innerBox(area);
-        const int numW = 22, cgap = 8, colW = 80, arpGap = 16, arpW = 88;  // wide cols for Triangle/Sawtooth
-        const int gridW = numW + cgap + 4 * colW + arpGap + arpW;
+        const int numW = 24, gap = 10, waveW = 60, togW = 46, pwW = 96, arpGap = 16, arpW = 88;
+        const int gridW = numW + gap + 4 * waveW + 2 * togW + pwW + arpGap + arpW;
         c.removeFromLeft(juce::jmax(0, (c.getWidth() - gridW) / 2));  // centre the grid
-        auto colX = [&](juce::Rectangle<int> row, int w) {
-            return row.getX() + numW + cgap + w * colW + (w == 4 ? arpGap : 0);
+        // Column left-edge x for a given row (0..3 waveform, 4 sync, 5 ring, 6 pw, 7 arp).
+        auto colX = [&](juce::Rectangle<int> row, int col) {
+            int x = row.getX() + numW + gap;
+            for (int k = 0; k < col; ++k)
+                x += (k < 4 ? waveW : k < 6 ? togW : pwW);  // waveform | sync,ring | pw
+            if (col >= 7) x += arpGap;  // small gap before the arp stepper
+            return x;
         };
         auto head = c.removeFromTop(16);
         for (int w = 0; w < 4; ++w)
-            wtWaveHead[w].setBounds(colX(head, w), head.getY(), colW, head.getHeight());
-        wtArpHead.setBounds(colX(head, 4), head.getY(), arpW, head.getHeight());
+            wtWaveHead[w].setBounds(colX(head, w), head.getY(), waveW, head.getHeight());
+        wtSyncHead.setBounds(colX(head, 4), head.getY(), togW, head.getHeight());
+        wtRingHead.setBounds(colX(head, 5), head.getY(), togW, head.getHeight());
+        wtPwHead.setBounds(colX(head, 6), head.getY(), pwW, head.getHeight());
+        wtArpHead.setBounds(colX(head, 7), head.getY(), arpW, head.getHeight());
         c.removeFromTop(2);
         const int rowH = juce::jmax(26, c.getHeight() / steps);  // spread rows over the height
+        auto cell = [](int x, int y, int w, int side) {
+            return juce::Rectangle<int>(x, y, w, 24).withSizeKeepingCentre(side, 24);
+        };
         for (int i = 0; i < steps; ++i) {
             auto full = c.removeFromTop(rowH);
             auto line = full.withSizeKeepingCentre(full.getWidth(), 24);  // 24 band, centred vertically
-            wtStepInd[i].setBounds(line.getX(), line.getY(), numW, 24);
-            for (int w = 0; w < 4; ++w) {  // centred matrix cell under each header
-                juce::Rectangle<int> cellR(colX(line, w), line.getY(), colW, 24);
-                wtWaveTog[i][w].setBounds(cellR.withSizeKeepingCentre(28, 24));
-            }
-            auto arp = juce::Rectangle<int>(colX(line, 4), line.getY(), arpW, 24);
-            wtArpDec[i].setBounds(arp.removeFromLeft(24));   // square buttons
-            wtArpInc[i].setBounds(arp.removeFromRight(24));
-            wtArpValue[i].setBounds(arp);
+            const int y = line.getY();
+            wtStepInd[i].setBounds(line.getX(), y, numW, 24);
+            for (int w = 0; w < 4; ++w) wtWaveTog[i][w].setBounds(cell(colX(line, w), y, waveW, 28));
+            wtSyncTog[i].setBounds(cell(colX(line, 4), y, togW, 28));
+            wtRingTog[i].setBounds(cell(colX(line, 5), y, togW, 28));
+            wtPwKnob[i].setBounds(colX(line, 6) + 4, y, pwW - 8, 24);  // horizontal fader
+            // Arp stepper: [-] value [+], segments overlapped 2px for single dividers.
+            const int ax = colX(line, 7), bw = 24;
+            wtArpDec[i].setBounds(ax, y, bw, 24);
+            wtArpInc[i].setBounds(ax + arpW - bw, y, bw, 24);
+            wtArpValue[i].setBounds(ax + bw - 2, y, arpW - 2 * bw + 4, 24);
         }
     }
 }
