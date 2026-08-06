@@ -17,6 +17,7 @@ public:
     explicit AsidEditor(AsidProcessor&);
     ~AsidEditor() override;
     void paint(juce::Graphics&) override;
+    void paintOverChildren(juce::Graphics&) override;  // decorative overlay, on top of everything
     void resized() override;
 
 private:
@@ -75,6 +76,11 @@ private:
     juce::AudioProcessorValueTreeState& state;
 
     std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
+    // Optional semi-transparent overlays painted over the whole GUI. They carry
+    // their own alpha and never intercept mouse events (drawn in paintOverChildren).
+    // A per-voice "OverlayVoiceN.png" is used if present, else the shared "Overlay.png".
+    juce::Image overlay[3];
+    juce::Image overlayShared;
     juce::Label title{{}, "SidStation ASID"};
 
     // Top-right voice selector: three cells 1/2/3, each in its own voice accent.

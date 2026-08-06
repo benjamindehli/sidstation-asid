@@ -11,10 +11,10 @@
 class SidLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     // C64 screen palette.
-    static constexpr juce::uint32 kBg    = 0xff483aaa;  // screen blue (darker shade)
-    static constexpr juce::uint32 kPanel = 0xff3a2f88;  // slightly darker inset
-    static constexpr juce::uint32 kFg    = 0xff867ade;  // light blue (text, outlines, border)
-    static constexpr juce::uint32 kDim   = 0xff635ab8;  // dimmed light blue (disabled)
+    static constexpr juce::uint32 kBg    = 0xff463ea4;  // screen blue (darker shade)
+    static constexpr juce::uint32 kPanel = 0xff383382;  // slightly darker inset
+    static constexpr juce::uint32 kFg    = 0xff8781e3;  // light blue (text, outlines, border)
+    static constexpr juce::uint32 kDim   = 0xff6461bd;  // dimmed light blue (disabled)
     static constexpr juce::uint32 kHot   = 0xffffffff;  // white highlight (pointers, text)
     static constexpr juce::uint32 kAccent = 0xff35d6d0; // cyan for active states / values
 

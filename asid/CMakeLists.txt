@@ -19,9 +19,14 @@ juce_add_plugin(SidStationAsid
     VST3_CATEGORIES           Instrument
     AU_MAIN_TYPE              kAudioUnitType_MusicDevice)
 
-# Embed assets (the Dehli Musikk logo) so they ship inside the plugin binary.
+# Embed assets so they ship inside the plugin binary: the Dehli Musikk logo, plus
+# any decorative overlay PNGs present (Overlay.png shared, OverlayVoice1..3.png per
+# voice). The overlays are optional - the editor draws them only if embedded.
+file(GLOB SID_OVERLAYS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/Overlay*.png")
 juce_add_binary_data(SidStationAsidAssets
-    SOURCES assets/DehliMusikkLogoInverseHorizontal.svg)
+    SOURCES
+        assets/DehliMusikkLogoInverseHorizontal.svg
+        ${SID_OVERLAYS})
 
 target_sources(SidStationAsid PRIVATE
     src/AsidProcessor.cpp

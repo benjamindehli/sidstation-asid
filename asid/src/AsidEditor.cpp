@@ -163,6 +163,17 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     laf.setAccent(voiceColour(currentVoice()));  // colour-code this voice's window
     logo = juce::Drawable::createFromImageData(BinaryData::DehliMusikkLogoInverseHorizontal_svg,
                                                BinaryData::DehliMusikkLogoInverseHorizontal_svgSize);
+    // Optional decorative overlays (embedded if the PNGs are present in assets/).
+    // Looked up by name so missing files just leave an invalid, unused image.
+    auto loadImage = [](const juce::String& resName) {
+        int sz = 0;
+        if (const char* d = BinaryData::getNamedResource(resName.toRawUTF8(), sz))
+            return juce::ImageFileFormat::loadFrom(d, (size_t) sz);
+        return juce::Image();
+    };
+    overlayShared = loadImage("Overlay_png");
+    for (int i = 0; i < 3; ++i)
+        overlay[i] = loadImage("OverlayVoice" + juce::String(i + 1) + "_png");
     title.setFont(SidLookAndFeel::mono(26.0f, true));  // match the VOICE N size
     title.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
     title.setJustificationType(juce::Justification::centred);
@@ -616,6 +627,19 @@ void AsidEditor::paint(juce::Graphics& g) {
         }
         g.setColour(juce::Colour(SidLookAndFeel::kFg));
         g.drawRect(meterArea, 2);
+    }
+}
+
+void AsidEditor::paintOverChildren(juce::Graphics& g) {
+    // Drawn after every child, so the overlay sits on top of the controls but,
+    // being pure paint, leaves all mouse handling untouched. Per-voice image if
+    // one was embedded, else the shared overlay; nothing if neither is present.
+    const int v = currentVoice();
+    const juce::Image& img = (v >= 0 && v < 3 && overlay[v].isValid()) ? overlay[v] : overlayShared;
+    if (img.isValid()) {
+        auto b = getLocalBounds();
+        g.drawImageWithin(img, b.getX(), b.getY(), b.getWidth(), b.getHeight(),
+                          juce::RectanglePlacement::stretchToFit);
     }
 }
 
