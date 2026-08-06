@@ -479,6 +479,25 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     voiceBubble.setInterceptsMouseClicks(false, false);
     addChildComponent(voiceBubble);  // above the overlay; shown on demand by the hover handler
 
+    // Hover hints on the non-obvious controls (bubble sits above the overlay).
+    hints.host = this;
+    hints.bubble.setInterceptsMouseClicks(false, false);
+    addChildComponent(hints.bubble);
+    hints.add(testButton, "Holds the oscillator in reset - silences the voice (SID TEST bit).",
+              juce::BubbleComponent::above);
+    hints.add(syncButton, "Hard-sync this oscillator to the previous voice's.",
+              juce::BubbleComponent::above);
+    hints.add(ringButton, "Ring-modulate with the previous voice (needs the Triangle wave).",
+              juce::BubbleComponent::above);
+    hints.add(filtExtButton, "Route the SidStation's external audio input through the filter.");
+    hints.add(voice3offButton, "Silence voice 3's output so it can drive ring/sync as a modulator.");
+    hints.add(panicButton, "All-notes-off for every voice.");
+    hints.add(initButton, "Reset this voice's sound to the default patch.");
+    for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
+        hints.add(u->syncButton, "Lock the rate to the host tempo (Rate becomes a note division).");
+        hints.add(u->wheelButton, "The mod wheel scales the depth (Depth becomes the maximum).");
+    }
+
     refreshDevices();
     updateEnablement();
     setTab(0);

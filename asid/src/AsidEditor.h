@@ -7,6 +7,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <map>
 #include <memory>
 
 #include "AsidProcessor.h"
@@ -97,6 +98,34 @@ private:
         }
     };
     OverlayComp overlayComp;
+
+    // Hover hints via BubbleMessageComponent (JUCE's TooltipWindow did not show in
+    // the DAW). Attach a control with add(); it shows the text on mouse-enter.
+    struct Hints : juce::MouseListener {
+        static constexpr int anySide = juce::BubbleComponent::above | juce::BubbleComponent::below
+                                     | juce::BubbleComponent::left | juce::BubbleComponent::right;
+        juce::BubbleMessageComponent bubble;
+        juce::Component* host = nullptr;
+        std::map<juce::Component*, juce::String> text;
+        std::map<juce::Component*, int> place;
+        void add(juce::Component& c, const juce::String& t, int placement = anySide) {
+            text[&c] = t;
+            place[&c] = placement;
+            c.addMouseListener(this, false);
+        }
+        void mouseEnter(const juce::MouseEvent& e) override {
+            auto it = text.find(e.eventComponent);
+            if (it == text.end() || host == nullptr) return;
+            juce::AttributedString msg(it->second);
+            msg.setColour(juce::Colour(SidLookAndFeel::kHot));
+            msg.setJustification(juce::Justification::centred);
+            bubble.setAllowedPlacement(place[e.eventComponent]);
+            bubble.showAt(host->getLocalArea(e.eventComponent, e.eventComponent->getLocalBounds()),
+                          msg, 0, false, false);
+        }
+        void mouseExit(const juce::MouseEvent&) override { bubble.setVisible(false); }
+    };
+    Hints hints;
     juce::Label title{{}, "SidStation ASID"};
 
     // Top-right voice selector: three cells 1/2/3. This instance's voice is bright.
