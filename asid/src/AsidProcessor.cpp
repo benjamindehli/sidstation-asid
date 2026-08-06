@@ -132,6 +132,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::make_unique<Choice>(juce::ParameterID{"modRate", 1}, "Mod Rate",
         juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
 
+    // Tempo the BPM-synced LFOs lock to when there is no host transport (standalone,
+    // or a host that reports no tempo). In a DAW the host BPM is used instead and
+    // this is ignored. Saved per instance.
+    layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("bpm", "Tempo (BPM)", 20, 300, 120)));
+
     // Wavetable: a per-voice table stepped once per PAL frame (~50 Hz), the SID
     // "waveform table" done in software. Each of the 8 steps sets a waveform and
     // an arpeggio offset; the table advances every `wtSpeed` frames and loops.
@@ -290,18 +295,24 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     using sidstation::SidState;
     const int base = SidState::voiceBase(voice);
 
-    bool playing = false;
+    bool playing = false, hostHasBpm = false;
     double ppq = 0.0, bpm = 120.0, blockPlayheadMs = 0.0;
     if (auto* ph = getPlayHead()) {
         if (const auto pos = ph->getPosition()) {
             playing = pos->getIsPlaying();
             if (const auto q = pos->getPpqPosition()) ppq = *q;
-            if (const auto b = pos->getBpm()) bpm = *b;
+            if (const auto b = pos->getBpm(); b && *b > 0.0) { bpm = *b; hostHasBpm = true; }
             const double srr = juce::jmax(1.0, getSampleRate());
             if (const auto s = pos->getTimeInSamples()) blockPlayheadMs = *s * 1000.0 / srr;
             else if (const auto t = pos->getTimeInSeconds()) blockPlayheadMs = *t * 1000.0;
         }
     }
+    // Standalone (or a host that reports no tempo): lock the synced LFOs to the user
+    // BPM param. Expose the host BPM to the editor: 0 means "none", so it shows an
+    // editable field; a positive value is the fixed host tempo it displays read-only.
+    const bool useParamBpm = wrapperType == wrapperType_Standalone || !hostHasBpm;
+    if (useParamBpm) bpm = static_cast<double>(paramInt("bpm"));
+    hostBpmValue.store(useParamBpm ? 0.0 : bpm, std::memory_order_relaxed);
     // Modulation plays on the same aligned timeline as the notes, so on an
     // ahead-rendered track the pitch/PW stream never runs ahead of the note it
     // belongs to. Stopped: now. Playing: the block's playhead mapped to wall time.

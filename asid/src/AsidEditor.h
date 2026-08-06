@@ -76,6 +76,32 @@ private:
 
     std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
     juce::Label title{{}, "SidStation ASID"};
+
+    // Top-right voice selector: three cells 1/2/3, each in its own voice accent.
+    // The selected voice is bright; the other two are dimmed versions of their hue.
+    // Clicking a cell selects that voice (sets asidVoice via onSelect).
+    struct VoiceSwitch : juce::Component {
+        int selected = 0;                   // 0..2
+        juce::Colour colours[3];            // per-voice accent, filled by the editor
+        std::function<void(int)> onSelect;
+        void paint(juce::Graphics& g) override {
+            const int n = 3, w = getWidth() / n;
+            for (int i = 0; i < n; ++i) {
+                juce::Rectangle<int> cell(i * w, 0, (i == n - 1 ? getWidth() - i * w : w), getHeight());
+                const bool on = i == selected;
+                g.setColour(on ? colours[i] : colours[i].withMultipliedBrightness(0.3f));
+                g.fillRect(cell.reduced(1));
+                g.setColour(on ? juce::Colour(SidLookAndFeel::kBg) : colours[i].withMultipliedBrightness(0.65f));
+                g.setFont(SidLookAndFeel::mono(15.0f, true));
+                g.drawText(juce::String(i + 1), cell, juce::Justification::centred);
+            }
+        }
+        void mouseDown(const juce::MouseEvent& e) override {
+            if (onSelect) onSelect(juce::jlimit(0, 2, e.x * 3 / juce::jmax(1, getWidth())));
+        }
+    };
+    VoiceSwitch voiceSwitch;
+    juce::Label voiceCaption{{}, "VOICE"};
     // Tab bar and the three pages the tabs switch between.
     juce::TextButton oscTabBtn{"VOICE"}, ampModTabBtn{"MODULATION"}, sharedTabBtn{"GLOBAL"}, waveTabBtn{"WAVETABLE"};
     juce::Component oscPage, ampModPage, sharedPage, wtPage;
@@ -95,9 +121,13 @@ private:
     juce::Label outLabel{{}, "MIDI Out"};
     juce::ComboBox outputBox;
     juce::TextButton refreshButton{"Refresh"};
-    juce::Label voiceLabel{{}, "SID Voice"};
-    juce::ComboBox voiceBox;
-    std::unique_ptr<ComboAtt> voiceAtt;
+    // Tempo: an editable BPM field in standalone, a read-only host BPM in a DAW. A
+    // hidden slider carries the APVTS "bpm" binding; bpmField is the visible number.
+    juce::Label bpmLabel{{}, "BPM"};
+    juce::Label bpmField;
+    juce::Slider bpmSlider;
+    std::unique_ptr<SliderAtt> bpmAtt;
+    bool bpmHostDriven = false;  // last known state, to toggle editability only on change
 
     // Section boxes drawn as titled group frames, spread across the three tab
     // pages. Filter nests Cutoff Mod. Filter and Master are the shared controls.

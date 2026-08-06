@@ -51,6 +51,9 @@ public:
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return AsidShared::get().out; }  // one output shared by all instances
     int wtStep() const { return wtStepDisplay.load(std::memory_order_relaxed); }  // playing step, -1 = none
+    // Host tempo the editor should display: >0 is the DAW BPM (shown read-only),
+    // 0 means no host transport (standalone), so the editor shows an editable field.
+    double hostBpm() const { return hostBpmValue.load(std::memory_order_relaxed); }
 
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.
@@ -132,6 +135,8 @@ private:
     double noteOnMs = -1.0e18;   // last note attack time (wall clock), for the LFO fade-in
     // Currently-playing wavetable step (-1 = not playing), for the editor's display.
     std::atomic<int> wtStepDisplay{-1};
+    // Host BPM for the editor's tempo field (0 = no host transport / standalone).
+    std::atomic<double> hostBpmValue{0.0};
 
     juce::AudioProcessorValueTreeState apvts;
     sidstation::AsidVoicePlayer asidPlayer;

@@ -209,8 +209,45 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(outLabel);
     addAndMakeVisible(outputBox);
     addAndMakeVisible(refreshButton);
-    addAndMakeVisible(voiceLabel);
-    addAndMakeVisible(voiceBox);
+    // Tempo field (replaces the old SID Voice selector; voice moved to the top-right
+    // switch). A hidden slider holds the "bpm" param; bpmField is the visible number.
+    addAndMakeVisible(bpmLabel);
+    addChildComponent(bpmSlider);
+    bpmAtt = std::make_unique<SliderAtt>(state, "bpm", bpmSlider);
+    bpmField.setJustificationType(juce::Justification::centred);
+    bpmField.setFont(juce::Font(juce::FontOptions().withHeight(14.0f)));
+    bpmField.getProperties().set("sidField", true);  // draw as a bordered field
+    bpmField.setColour(juce::Label::backgroundColourId, juce::Colour(SidLookAndFeel::kPanel));
+    bpmField.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
+    bpmField.setEditable(true, true, false);  // standalone: click to type (toggled off in a DAW)
+    addAndMakeVisible(bpmField);
+    bpmField.onTextChange = [this] {
+        bpmSlider.setValue(juce::jlimit(20, 300, bpmField.getText().getIntValue()),
+                           juce::sendNotificationSync);
+    };
+    bpmSlider.onValueChange = [this] {
+        if (proc.hostBpm() <= 0.0 && !bpmField.isBeingEdited())
+            bpmField.setText(juce::String((int) bpmSlider.getValue()), juce::dontSendNotification);
+    };
+
+    // Voice selector, top right: three coloured cells, click to switch this
+    // instance's SID voice. Recolours the whole window (see updateEnablement).
+    for (int i = 0; i < 3; ++i) voiceSwitch.colours[i] = voiceColour(i);
+    voiceSwitch.selected = currentVoice();
+    voiceSwitch.onSelect = [this](int v) {
+        if (auto* p = state.getParameter("asidVoice")) {
+            p->beginChangeGesture();
+            p->setValueNotifyingHost(p->convertTo0to1((float) v));
+            p->endChangeGesture();
+        }
+        voiceSwitch.selected = v;  // light the cell now; updateEnablement recolours the rest
+        voiceSwitch.repaint();
+    };
+    addAndMakeVisible(voiceSwitch);
+    voiceCaption.setJustificationType(juce::Justification::centredRight);
+    voiceCaption.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));  // white
+    voiceCaption.setFont(SidLookAndFeel::mono(24.0f, true));
+    addAndMakeVisible(voiceCaption);
     addAndMakeVisible(midiLoadLabel);
     addAndMakeVisible(modRateLabel);
     addAndMakeVisible(modRateBox);
@@ -236,11 +273,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         }
     };
     refreshButton.onClick = [this] { refreshDevices(); };
-
-    voiceBox.addItem("Voice 1", 1);
-    voiceBox.addItem("Voice 2", 2);
-    voiceBox.addItem("Voice 3", 3);
-    voiceAtt = std::make_unique<ComboAtt>(state, "asidVoice", voiceBox);
 
     waveTriAtt = std::make_unique<ButtonAtt>(state, "waveTri", waveTriButton);
     waveSawAtt = std::make_unique<ButtonAtt>(state, "waveSaw", waveSawButton);
@@ -459,9 +491,26 @@ void AsidEditor::updateEnablement() {
     if (myVoice != highlightedVoice) {
         highlightedVoice = myVoice;
         laf.setAccent(voiceColour(myVoice));  // recolour the whole window for the new voice
+        voiceSwitch.selected = myVoice;       // light the selected cell in the top-right switch
         for (int i = 0; i < 3; ++i)
             filtButtons[i].getProperties().set("sidHighlight", i == myVoice);
-        repaint();  // border, voice number, and every control pick up the new accent
+        repaint();  // border, voice switch, and every control pick up the new accent
+    }
+
+    // Tempo field: a DAW drives it (host BPM, read-only); standalone lets the user
+    // edit the BPM parameter. Toggle editability only when the source changes.
+    const double hb = proc.hostBpm();
+    const bool hostDriven = hb > 0.0;
+    if (hostDriven != bpmHostDriven) {
+        bpmHostDriven = hostDriven;
+        bpmField.setEditable(!hostDriven, !hostDriven, false);
+    }
+    if (hostDriven) {
+        const int r = juce::roundToInt(hb);
+        const bool whole = hb - r < 0.05 && r - hb < 0.05;  // show "120", not "120.0"
+        bpmField.setText(whole ? juce::String(r) : juce::String(hb, 1), juce::dontSendNotification);
+    } else if (!bpmField.isBeingEdited()) {
+        bpmField.setText(juce::String((int) bpmSlider.getValue()), juce::dontSendNotification);
     }
 
     // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
@@ -531,23 +580,19 @@ void AsidEditor::refreshDevices() {
 
 void AsidEditor::paint(juce::Graphics& g) {
     // C64 screen: the neutral light-blue border framing the darker screen. The
-    // per-voice colour lives in the accent (arcs, active buttons) and the number.
-    const int voice = currentVoice();
-    const auto accent = voiceColour(voice);
+    // per-voice colour lives in the accent (arcs, active buttons) and the voice
+    // switch (top right), which are components drawn over this.
     g.fillAll(juce::Colour(SidLookAndFeel::kFg));
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
     g.fillRect(getLocalBounds().reduced(kBorder));
 
-    // Top row: Dehli Musikk logo left, product title centred (the Label), big
-    // voice number right in the accent.
+    // Top row: Dehli Musikk logo left, product title centred (the Label), and the
+    // voice caption + switch right (components, positioned in resized()).
     auto titleRow = getLocalBounds().reduced(kBorder + 6).removeFromTop(34);
     if (logo != nullptr)
         logo->drawWithin(g, titleRow.removeFromLeft(150).reduced(0, 3).toFloat(),
                          juce::RectanglePlacement(juce::RectanglePlacement::xLeft
                                                   | juce::RectanglePlacement::yMid), 1.0f);
-    g.setColour(accent);
-    g.setFont(SidLookAndFeel::mono(26.0f, true));
-    g.drawText("VOICE " + juce::String(voice + 1), titleRow, juce::Justification::centredRight);
 
     // MIDI load meter: segmented blocks lit to the current fraction. The top
     // fifth turns white as a warning; over 100% every block is white (overload).
@@ -576,7 +621,14 @@ void AsidEditor::paint(juce::Graphics& g) {
 
 void AsidEditor::resized() {
     auto area = getLocalBounds().reduced(kBorder + 6);  // inside the C64 border
-    title.setBounds(area.removeFromTop(34));  // taller row so the voice number reads big
+    auto titleRow = area.removeFromTop(34);
+    title.setBounds(titleRow);  // full width, text centred
+    {   // Voice selector in the top-right: "VOICE" caption then the 3-cell switch.
+        auto sw = titleRow.removeFromRight(96);
+        voiceSwitch.setBounds(sw.withSizeKeepingCentre(96, 28));
+        titleRow.removeFromRight(8);
+        voiceCaption.setBounds(titleRow.removeFromRight(84));
+    }
     area.removeFromTop(6);
 
     // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid
@@ -588,9 +640,9 @@ void AsidEditor::resized() {
     midi.removeFromRight(6);
     outputBox.setBounds(midi);
     header.removeFromLeft(12);
-    auto voice = header.removeFromLeft(108);
-    voiceLabel.setBounds(voice.removeFromTop(14));
-    voiceBox.setBounds(voice.removeFromTop(24));
+    auto tempo = header.removeFromLeft(108);
+    bpmLabel.setBounds(tempo.removeFromTop(14));
+    bpmField.setBounds(tempo.removeFromTop(24));
     header.removeFromLeft(12);
     auto mod = header.removeFromLeft(128);
     modRateLabel.setBounds(mod.removeFromTop(14));
