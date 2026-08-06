@@ -220,6 +220,11 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     overlayShared = loadImage("Overlay_png");
     for (int i = 0; i < 3; ++i)
         overlay[i] = loadImage("OverlayVoice" + juce::String(i + 1) + "_png");
+    overlayComp.pick = [this]() -> const juce::Image* {
+        const int v = currentVoice();
+        if (v >= 0 && v < 3 && overlay[v].isValid()) return &overlay[v];
+        return overlayShared.isValid() ? &overlayShared : nullptr;
+    };
     title.setFont(SidLookAndFeel::mono(26.0f, true));  // match the VOICE N size
     title.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
     title.setJustificationType(juce::Justification::centred);
@@ -299,6 +304,21 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         }
         voiceSwitch.selected = v;  // light the cell now; updateEnablement recolours the rest
         voiceSwitch.repaint();
+    };
+    // Hover an in-use voice cell: show a bubble hint (BubbleMessageComponent, which
+    // works where TooltipWindow did not). Leaving the cell hides it.
+    voiceSwitch.onHover = [this](int cell) {
+        if (cell >= 0 && cell < 3 && voiceSwitch.usedByOther[cell]) {
+            const auto sw = voiceSwitch.getBounds();
+            const int w = sw.getWidth() / 3;
+            const juce::Rectangle<int> cellRect(sw.getX() + cell * w, sw.getY(), w, sw.getHeight());
+            juce::AttributedString msg("In use by another instance");
+            msg.setColour(juce::Colour(SidLookAndFeel::kHot));
+            msg.setJustification(juce::Justification::centred);
+            voiceBubble.showAt(cellRect, msg, 0, false, false);  // stays until the mouse leaves
+        } else {
+            voiceBubble.setVisible(false);
+        }
     };
     addAndMakeVisible(voiceSwitch);
     voiceCaption.setJustificationType(juce::Justification::centredRight);
@@ -390,6 +410,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(sharedPage, latencyKnob, latencyLabel, "Latency", "latency", latencyAtt);
     sharedPage.addAndMakeVisible(voice3offButton);
     voice3offAtt = std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
+    sharedPage.addAndMakeVisible(panicButton);
+    panicButton.onClick = [this] { proc.panic(); };
 
     // ---- WAVE page: wavetable config and the per-step rows ----
     wtPage.addAndMakeVisible(wtOnButton);
@@ -450,6 +472,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
             wtArpSlider[i].setValue(wtArpSlider[i].getValue() + 1, juce::sendNotificationSync);
         };
     }
+
+    addAndMakeVisible(overlayComp);  // added last so it draws over all the controls
+    voiceBubble.setInterceptsMouseClicks(false, false);
+    addChildComponent(voiceBubble);  // above the overlay; shown on demand by the hover handler
 
     refreshDevices();
     updateEnablement();
@@ -700,19 +726,6 @@ void AsidEditor::paint(juce::Graphics& g) {
     }
 }
 
-void AsidEditor::paintOverChildren(juce::Graphics& g) {
-    // Drawn after every child, so the overlay sits on top of the controls but,
-    // being pure paint, leaves all mouse handling untouched. Per-voice image if
-    // one was embedded, else the shared overlay; nothing if neither is present.
-    const int v = currentVoice();
-    const juce::Image& img = (v >= 0 && v < 3 && overlay[v].isValid()) ? overlay[v] : overlayShared;
-    if (img.isValid()) {
-        auto b = getLocalBounds();
-        g.drawImageWithin(img, b.getX(), b.getY(), b.getWidth(), b.getHeight(),
-                          juce::RectanglePlacement::stretchToFit);
-    }
-}
-
 void AsidEditor::parentHierarchyChanged() {
     // Standalone only: recolour the host window's title bar and drop the yellow/red
     // from its buttons. In a DAW the host owns the title bar, so leave it untouched.
@@ -732,6 +745,7 @@ void AsidEditor::parentHierarchyChanged() {
 }
 
 void AsidEditor::resized() {
+    overlayComp.setBounds(getLocalBounds());  // full-window overlay, on top of everything
     auto area = getLocalBounds().reduced(kBorder + 6);  // inside the C64 border
     auto titleRow = area.removeFromTop(34);
     title.setBounds(titleRow);  // full width, text centred
@@ -912,11 +926,13 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
     {  // MASTER: Volume, Latency and the Voice 3 output toggle, grouped centred.
         auto box = area.removeFromTop(sideH);
         masterGroup.setBounds(box);
-        const int knobW = 96, togW = 150, gap = 24, groupW = 2 * knobW + togW + 2 * gap;
+        const int knobW = 96, togW = 150, panicW = 90, gap = 24;
+        const int groupW = 2 * knobW + togW + panicW + 3 * gap;
         auto g = innerBox(box).withSizeKeepingCentre(groupW, innerBox(box).getHeight());
         knobInCol(g.removeFromLeft(knobW), volumeKnob, volumeLabel); g.removeFromLeft(gap);
         knobInCol(g.removeFromLeft(knobW), latencyKnob, latencyLabel); g.removeFromLeft(gap);
-        voice3offButton.setBounds(g.removeFromLeft(togW).withSizeKeepingCentre(togW, 30));
+        voice3offButton.setBounds(g.removeFromLeft(togW).withSizeKeepingCentre(togW, 30)); g.removeFromLeft(gap);
+        panicButton.setBounds(g.removeFromLeft(panicW).withSizeKeepingCentre(panicW, 30));
     }
 }
 

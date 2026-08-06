@@ -63,6 +63,9 @@ public:
     // The plugin always streams ASID, there is no on/off, since that is its job.
     void requestReinit() { initRequest.store(true); }
 
+    // Manual all-notes-off for every voice (Panic button).
+    void panic() { AsidShared::get().panicAllVoices(); }
+
 private:
     // One modulation stream per LFO target: its LFO, when it last sent, and the
     // last frame sent (to skip identical steps).
@@ -155,7 +158,9 @@ private:
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double lastGateOffMs = -1.0e18;  // when this voice last released, to time hard restarts
     int lastPlaying = 0;          // transport state last block, to spot a start
+    int lastModPlaying = 0;       // transport state last block in updateModulation, to spot a stop
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
+    int lastReleaseGen = 0;       // shared watchdog release generation seen, to clear a stale note
 
     ModStream pitchStream, pwStream, cutStream;  // only the .lfo of each is used now
     sidstation::WaveTablePlayer wtPlayer;

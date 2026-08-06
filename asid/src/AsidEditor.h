@@ -17,7 +17,6 @@ public:
     explicit AsidEditor(AsidProcessor&);
     ~AsidEditor() override;
     void paint(juce::Graphics&) override;
-    void paintOverChildren(juce::Graphics&) override;  // decorative overlay, on top of everything
     void parentHierarchyChanged() override;            // brand the standalone window's title bar
     void resized() override;
 
@@ -75,27 +74,44 @@ private:
     SidLookAndFeel laf;  // declared first so it outlives every child that uses it
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
-    juce::TooltipWindow tooltipWindow{this};  // hover bubbles (voice "in use", etc.)
+    // The "in use" hint uses a BubbleMessageComponent (the same reliable popup the
+    // knob value bubbles use); JUCE's TooltipWindow did not show inside the DAW.
+    juce::BubbleMessageComponent voiceBubble;
 
     std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
-    // Optional semi-transparent overlays painted over the whole GUI. They carry
-    // their own alpha and never intercept mouse events (drawn in paintOverChildren).
-    // A per-voice "OverlayVoiceN.png" is used if present, else the shared "Overlay.png".
+    // Optional semi-transparent overlays painted over the whole GUI. They carry their
+    // own alpha. A per-voice "OverlayVoiceN.png" is used if present, else "Overlay.png".
     juce::Image overlay[3];
     juce::Image overlayShared;
+    // The overlay is a top child component (not paintOverChildren) so it sits over
+    // the controls yet under the tooltip bubble, and passes all mouse events through.
+    struct OverlayComp : juce::Component {
+        std::function<const juce::Image*()> pick;
+        OverlayComp() { setInterceptsMouseClicks(false, false); }
+        void paint(juce::Graphics& g) override {
+            if (pick)
+                if (const juce::Image* img = pick())
+                    if (img->isValid())
+                        g.drawImageWithin(*img, 0, 0, getWidth(), getHeight(),
+                                          juce::RectanglePlacement::stretchToFit);
+        }
+    };
+    OverlayComp overlayComp;
     juce::Label title{{}, "SidStation ASID"};
 
     // Top-right voice selector: three cells 1/2/3. This instance's voice is bright.
     // A voice another instance already drives shows in its (dim) hue and is blocked
     // (hovering it shows an "in use" bubble). A free voice is monochrome and reveals
     // its hue on hover, inviting a click to switch to it.
-    struct VoiceSwitch : juce::Component, juce::TooltipClient {
+    struct VoiceSwitch : juce::Component {
         int selected = 0;                              // 0..2, this instance's voice
         int hovered = -1;                              // cell under the mouse, or -1
         juce::Colour colours[3];                       // per-voice accent, filled by the editor
         bool usedByOther[3] = {false, false, false};   // driven by another instance
         std::function<void(int)> onSelect;
+        std::function<void(int)> onHover;              // hovered cell changed (-1 = left)
         int cellAt(int x) const { return juce::jlimit(0, 2, x * 3 / juce::jmax(1, getWidth())); }
+        void setHover(int i) { if (i != hovered) { hovered = i; repaint(); if (onHover) onHover(i); } }
         void paint(juce::Graphics& g) override {
             const int n = 3, w = getWidth() / n;
             for (int i = 0; i < n; ++i) {
@@ -113,17 +129,8 @@ private:
                 g.drawText(juce::String(i + 1), cell, juce::Justification::centred);
             }
         }
-        juce::String getTooltip() override {
-            return (hovered >= 0 && usedByOther[hovered]) ? juce::String("In use by another instance")
-                                                          : juce::String();
-        }
-        void mouseMove(const juce::MouseEvent& e) override {
-            const int i = cellAt(e.x);
-            if (i != hovered) { hovered = i; repaint(); }
-        }
-        void mouseExit(const juce::MouseEvent&) override {
-            if (hovered != -1) { hovered = -1; repaint(); }
-        }
+        void mouseMove(const juce::MouseEvent& e) override { setHover(cellAt(e.x)); }
+        void mouseExit(const juce::MouseEvent&) override { setHover(-1); }
         void mouseDown(const juce::MouseEvent& e) override {
             const int i = cellAt(e.x);
             if (usedByOther[i]) return;   // voice taken by another instance: blocked
@@ -255,6 +262,7 @@ private:
     std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
     juce::ToggleButton voice3offButton{"Voice 3 Silent"};  // V3 output off, used as mod source
     std::unique_ptr<ButtonAtt> voice3offAtt;
+    juce::TextButton panicButton{"Panic"};  // all-notes-off for every voice
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 

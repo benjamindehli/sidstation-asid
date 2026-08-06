@@ -16,6 +16,7 @@
 #include <map>
 
 #include "MidiHub.h"
+#include "sidstation/Asid.h"
 
 class AsidShared {
 public:
@@ -33,6 +34,41 @@ public:
         // leaking it lets the OS reclaim everything at exit with no teardown.
         static AsidShared* instance = new AsidShared();
         return *instance;
+    }
+
+    AsidShared() {
+        for (int v = 0; v < 3; ++v) { voiceNote[v] = -1; voiceSeenMs[v] = 0.0; releaseGenV[v] = 0; }
+        watchdog.startThread();  // never stopped (this singleton is intentionally leaked)
+    }
+
+    // Per-voice stuck-note watchdog. Each instance reports its voice's held note (or
+    // -1) every processBlock; the watchdog thread - which stays alive even when a DAW
+    // suspends an unselected track's processBlock and its editor timer - releases a
+    // voice that stops being reported while a note is held. releaseGen(voice) bumps
+    // when it does, so the instance clears its stale note on resume (no re-gate).
+    void reportVoiceNote(int voice, int note, double nowMs) {
+        if (voice < 0 || voice > 2) return;
+        voiceSeenMs[voice].store(nowMs, std::memory_order_relaxed);
+        voiceNote[voice].store(note, std::memory_order_relaxed);
+    }
+    int releaseGen(int voice) const {
+        return (voice >= 0 && voice < 3) ? releaseGenV[voice].load(std::memory_order_relaxed) : 0;
+    }
+    // Release every voice right now (manual Panic button).
+    void panicAllVoices() {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        lastPanicMs.store(now, std::memory_order_relaxed);
+        for (int v = 0; v < 3; ++v) releaseStuckVoice(v, now);
+    }
+    // Same, for transport stop: every instance hits this on the same block, and a
+    // burst of overlapping panics overruns the unit (a single one commits fine), so
+    // the first instance wins the race and the rest skip.
+    void panicOnStop() {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        double last = lastPanicMs.load(std::memory_order_relaxed);
+        if (now - last < 150.0) return;
+        if (!lastPanicMs.compare_exchange_strong(last, now)) return;
+        for (int v = 0; v < 3; ++v) releaseStuckVoice(v, now);
     }
 
     static bool isShared(const juce::String& id) {
@@ -161,8 +197,51 @@ public:
     void addBytes(int n) { bytesSent.fetch_add(n > 0 ? n : 0, std::memory_order_relaxed); }
 
 private:
+    // Send a repeated, spaced hard gate-off (control register = 0: gate low, no
+    // waveform) so it commits on the SidStation's one-update-per-frame handling.
+    void releaseStuckVoice(int voice, double nowMs) {
+        voiceNote[voice].store(-1, std::memory_order_relaxed);
+        releaseGenV[voice].fetch_add(1, std::memory_order_relaxed);
+        const int base = sidstation::SidState::voiceBase(voice);
+        const auto frame = sidstation::encodeAsidUpdate(
+            {{static_cast<sidstation::Byte>(base + 4), static_cast<sidstation::Byte>(0)}});
+        // Repeat over a window longer than the note stream's max schedule-ahead (a
+        // playing track aligns frames up to ~500 ms into the future for the DAW's
+        // render-ahead). The first frame releases at once; later ones land after any
+        // gate-on frame still queued from before the stop, which would re-gate the
+        // voice. One frame per voice per step, so the density matches a clean Panic.
+        for (double t = 0.0; t <= 600.0; t += 30.0) {
+            juce::MidiBuffer buf;
+            buf.addEvent(juce::MidiMessage::createSysExMessage(frame.data() + 1,
+                             static_cast<int>(frame.size()) - 2), 0);
+            out.sendScheduled(buf, nowMs + t, 1000.0);
+        }
+    }
+
+    static constexpr double kNoteStallMs = 180.0;  // no report for this long -> release the voice
+    struct Watchdog : juce::Thread {
+        AsidShared& sh;
+        explicit Watchdog(AsidShared& s) : juce::Thread("SidStation note watchdog"), sh(s) {}
+        void run() override {
+            while (!threadShouldExit()) {
+                const double now = juce::Time::getMillisecondCounterHiRes();
+                for (int v = 0; v < 3; ++v)
+                    if (sh.voiceNote[v].load(std::memory_order_relaxed) >= 0
+                        && now - sh.voiceSeenMs[v].load(std::memory_order_relaxed) > kNoteStallMs)
+                        sh.releaseStuckVoice(v, now);
+                wait(40);
+            }
+        }
+    };
+
     mutable juce::CriticalSection lock;
     juce::Array<Client*> clients;
     // Which SID voice each instance currently drives (for the "voice in use" marks).
     std::map<Client*, int> clientVoice;
+    // Stuck-note watchdog state (see reportVoiceNote).
+    std::atomic<int> voiceNote[3];
+    std::atomic<double> voiceSeenMs[3];
+    std::atomic<int> releaseGenV[3];
+    std::atomic<double> lastPanicMs{-1.0e18};  // dedupe simultaneous transport-stop panics
+    Watchdog watchdog{*this};
 };

@@ -248,17 +248,19 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     const int routing = routingMask();
     const int res = paramInt("resonance");
     bool reg17dirty = false;
+    // echo*.exchange(-1) consumes the one-shot echo: a synced-in value is skipped
+    // once, but a later user edit to that same value is not wrongly suppressed.
     if (forceAll || routing != sent.routing) {
         sent.routing = routing;
         AsidShared::get().routing.store(routing);
-        if (forceAll || routing != echoRouting.load()) reg17dirty = true;
+        if (forceAll || routing != echoRouting.exchange(-1)) reg17dirty = true;
     }
     if (forceAll || res != sent.resonance) {
         sent.resonance = res;
-        if (forceAll || res != echoResonance.load()) reg17dirty = true;
+        if (forceAll || res != echoResonance.exchange(-1)) reg17dirty = true;
     }
-    if (reg17dirty)
-        flush(asidPlayer.setResonanceRouting(res, routing));
+    bool globalSent = false;
+    if (reg17dirty) { flush(asidPlayer.setResonanceRouting(res, routing)); globalSent = true; }
 
     // Shared filter and volume: only the instance that changed the value sends
     // it. The others share the one physical filter, so they stay off the wire.
@@ -267,7 +269,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         sent.cutoff = cutoff;
         // Skip while an LFO is sweeping the shared cutoff, or they fight.
         const bool cutoffFree = !AsidShared::get().cutoffModActive();
-        if (cutoffFree && (forceAll || cutoff != echoCutoff.load())) flush(asidPlayer.setCutoff(cutoff));
+        if (cutoffFree && (forceAll || cutoff != echoCutoff.exchange(-1))) { flush(asidPlayer.setCutoff(cutoff)); globalSent = true; }
     }
     const int mode = modeMask();
     if (forceAll || mode != sent.mode) {
@@ -277,13 +279,19 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
                                               | (mode & 2 ? sid::kBandPass : 0)
                                               | (mode & 4 ? sid::kHighPass : 0)
                                               | (mode & 8 ? sid::kVoice3Off : 0));
-        if (forceAll || mode != echoMode.load()) flush(asidPlayer.setFilterMode(modeBits));
+        if (forceAll || mode != echoMode.exchange(-1)) { flush(asidPlayer.setFilterMode(modeBits)); globalSent = true; }
     }
     const int vol = paramInt("volume");
     if (forceAll || vol != sent.volume) {
         sent.volume = vol;
-        if (forceAll || vol != echoVolume.load()) flush(asidPlayer.setVolume(vol));
+        if (forceAll || vol != echoVolume.exchange(-1)) { flush(asidPlayer.setVolume(vol)); globalSent = true; }
     }
+    // The shared filter/volume registers are not part of the per-tick modulation
+    // stream, so a change made while this voice is idle has no following frame to
+    // commit it on the one-message-late unit (it "sticks" until the next edit). A
+    // settle frame (a harmless re-write) pushes the pending register through now.
+    if (globalSent && asidPlayer.currentNoteOf(voice) < 0)
+        flush(asidPlayer.settleFrame(voice));
 }
 
 double AsidProcessor::sampleLfo(sidstation::Lfo& lfo, const juce::String& prefix, double dt,
@@ -325,6 +333,12 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     const bool useParamBpm = wrapperType == wrapperType_Standalone || !hostHasBpm;
     if (useParamBpm) bpm = static_cast<double>(paramInt("bpm"));
     hostBpmValue.store(useParamBpm ? 0.0 : bpm, std::memory_order_relaxed);
+    // On the block where the transport just stopped, scheduleNotes releases the held
+    // note. Streaming this voice's control register here would carry the still-high
+    // gate and, scheduled at now+latency, land after that release and re-gate the
+    // voice (with two voices the per-instance timing differs, so one hangs). Skip it.
+    const bool modStopTransition = !playing && lastModPlaying;
+    lastModPlaying = playing ? 1 : 0;
     // Modulation plays on the same aligned timeline as the notes, so on an
     // ahead-rendered track the pitch/PW stream never runs ahead of the note it
     // belongs to. Stopped: now. Playing: the block's playhead mapped to wall time.
@@ -399,7 +413,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // is the stuck note). Idle when nothing modulates, zeroing the clock so the
     // next active tick starts with a fresh dt (else a resumed glide leaps).
     const double interval = modIntervalForRate(paramInt("modRate"));
-    if (blockHasNotes || !anyMod) { modTickMs = 0.0; return; }
+    if (blockHasNotes || !anyMod || modStopTransition) { modTickMs = 0.0; return; }
     if (modTickMs > 0.0 && nowMs - modTickMs < interval) return;
     double dt = (modTickMs <= 0.0) ? interval : juce::jmin(nowMs - modTickMs, 4.0 * interval);
     dt /= 1000.0;
@@ -519,6 +533,7 @@ bool AsidProcessor::voiceUsedByOthers(int v) const {
     return AsidShared::get().usersOnVoice(v, this) > 0;
 }
 
+
 void AsidProcessor::sharedUpdated() {
     auto& sh = AsidShared::get();
     // Set the param and remember it as an echo, so applyControlChanges knows this
@@ -613,9 +628,13 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // transport stops or pauses, so release this voice now to avoid a stuck note.
     // Like any note-off, the gate-off needs a message behind it to take effect on
     // the one-message-late unit; the stream has stopped, so add a settle frame.
-    if (justStopped && asidPlayer.currentNoteOf(voice) >= 0) {
-        for (const auto& f : asidPlayer.allNotesOff()) addFrame(out, f, 0);
-        addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(kSettleMs)));
+    if (justStopped) {
+        // Release EVERY voice, not just ours. A note usually hangs on another
+        // instance whose processBlock the host stopped calling, so it never runs its
+        // own release; whichever instance still gets this stop block releases them
+        // all (deduped, so overlapping stop-panics do not overrun the unit).
+        // releaseGen makes each instance clear its stale note on resume.
+        AsidShared::get().panicOnStop();
         glidePitch = -1.0;
     }
 
@@ -729,6 +748,14 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     const int voice = paramInt("asidVoice");
     asidPlayer.setTargetVoice(voice);
 
+    // If the shared watchdog released our voice while our processBlock was stalled
+    // (the host stopped calling it), clear the stale note here on resume so we do
+    // not re-gate it before the transport's own notes play.
+    if (const int rg = AsidShared::get().releaseGen(voice); rg != lastReleaseGen) {
+        lastReleaseGen = rg;
+        if (asidPlayer.currentNoteOf(voice) >= 0) { asidPlayer.allNotesOff(); glidePitch = -1.0; }
+    }
+
     // Any instance opening the shared device bumps the generation; re-push then.
     if (const int gen = AsidShared::get().outGeneration.load(); gen != lastOutGeneration) {
         lastOutGeneration = gen;
@@ -757,6 +784,13 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     updateModulation(voice, blockHasNotes);
 
     scheduleNotes(midiMessages, voice);
+
+    // Heartbeat for the shared stuck-note watchdog: report our voice's held note (or
+    // -1). If we stop reporting (the host stops calling processBlock) while a note is
+    // held, the watchdog thread releases it - the one context that stays alive when a
+    // track is unselected and the transport stops.
+    AsidShared::get().reportVoiceNote(voice, asidPlayer.currentNoteOf(voice),
+                                      juce::Time::getMillisecondCounterHiRes());
 
     buffer.clear();  // sound comes from the hardware
 }
