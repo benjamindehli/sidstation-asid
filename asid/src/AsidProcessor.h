@@ -54,6 +54,9 @@ public:
     // Host tempo the editor should display: >0 is the DAW BPM (shown read-only),
     // 0 means no host transport (standalone), so the editor shows an editable field.
     double hostBpm() const { return hostBpmValue.load(std::memory_order_relaxed); }
+    // True if another instance is currently driving SID voice v (0..2). The editor's
+    // voice switch marks voices it shares live with another instance.
+    bool voiceUsedByOthers(int v) const;
 
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.

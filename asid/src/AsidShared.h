@@ -13,6 +13,7 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <atomic>
+#include <map>
 
 #include "MidiHub.h"
 
@@ -48,6 +49,24 @@ public:
     void removeClient(Client* c) {
         const juce::ScopedLock sl(lock);
         clients.removeFirstMatchingValue(c);
+        clientVoice.erase(c);
+    }
+
+    // ---- Voice ownership (which instance drives which SID voice 0..2) ----
+    // Each instance registers the voice it drives, so the editor can mark and block
+    // voices already taken by another instance (one instance per voice).
+    void setClientVoice(Client* c, int voice) {
+        const juce::ScopedLock sl(lock);
+        clientVoice[c] = voice;
+    }
+    // How many instances drive a voice, optionally excluding one (to answer "is any
+    // OTHER instance already on this voice?").
+    int usersOnVoice(int voice, const Client* except = nullptr) const {
+        const juce::ScopedLock sl(lock);
+        int n = 0;
+        for (const auto& kv : clientVoice)
+            if (kv.second == voice && kv.first != except) ++n;
+        return n;
     }
 
     // Stores new shared values and tells every client except the source. routing
@@ -142,6 +161,8 @@ public:
     void addBytes(int n) { bytesSent.fetch_add(n > 0 ? n : 0, std::memory_order_relaxed); }
 
 private:
-    juce::CriticalSection lock;
+    mutable juce::CriticalSection lock;
     juce::Array<Client*> clients;
+    // Which SID voice each instance currently drives (for the "voice in use" marks).
+    std::map<Client*, int> clientVoice;
 };

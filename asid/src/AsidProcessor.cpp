@@ -481,9 +481,13 @@ AsidProcessor::AsidProcessor()
           "Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "ASID", makeLayout()) {
     for (const char* id : kSharedIds) apvts.addParameterListener(id, this);
+    // Track this instance's voice so the editor can mark/block voices already in use.
+    apvts.addParameterListener("asidVoice", this);
+
     AsidShared::get().addClient(this);
     // Match the filter and volume of instances that are already open.
     if (AsidShared::get().hasData.load()) sharedUpdated();
+    AsidShared::get().setClientVoice(this, paramInt("asidVoice"));
 }
 
 AsidProcessor::~AsidProcessor() {
@@ -492,9 +496,16 @@ AsidProcessor::~AsidProcessor() {
     AsidShared::get().releaseCutoffMod(this);
     AsidShared::get().removeClient(this);
     for (const char* id : kSharedIds) apvts.removeParameterListener(id, this);
+    apvts.removeParameterListener("asidVoice", this);
 }
 
 void AsidProcessor::parameterChanged(const juce::String& id, float value) {
+    // Track which SID voice this instance drives, so the editor can mark and block
+    // voices already taken by another instance.
+    if (id == "asidVoice") {
+        AsidShared::get().setClientVoice(this, juce::jlimit(0, 2, juce::roundToInt(value)));
+        return;
+    }
     if (!AsidShared::isShared(id)) return;
     auto& sh = AsidShared::get();
     // Ignore an echo of a value we just synced in from another instance.
@@ -502,6 +513,10 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
     // The user changed a shared control here: publish it to the other instances.
     sh.publish(paramInt("cutoff"), paramInt("resonance"), modeMask(), routingMask(),
                paramInt("volume"), paramInt("latency"), paramInt("modRate"), this);
+}
+
+bool AsidProcessor::voiceUsedByOthers(int v) const {
+    return AsidShared::get().usersOnVoice(v, this) > 0;
 }
 
 void AsidProcessor::sharedUpdated() {

@@ -569,6 +569,15 @@ void AsidEditor::updateEnablement() {
         repaint();  // border, voice switch, and every control pick up the new accent
     }
 
+    // Mark voices another instance already drives, so the switch colours and blocks
+    // them (one instance per voice).
+    bool sharesChanged = false;
+    for (int i = 0; i < 3; ++i) {
+        const bool used = proc.voiceUsedByOthers(i);
+        if (voiceSwitch.usedByOther[i] != used) { voiceSwitch.usedByOther[i] = used; sharesChanged = true; }
+    }
+    if (sharesChanged) voiceSwitch.repaint();
+
     // Tempo field: a DAW drives it (host BPM, read-only); standalone lets the user
     // edit the BPM parameter. Toggle editability only when the source changes.
     const double hb = proc.hostBpm();

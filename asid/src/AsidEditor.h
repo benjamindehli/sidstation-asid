@@ -75,6 +75,7 @@ private:
     SidLookAndFeel laf;  // declared first so it outlives every child that uses it
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
+    juce::TooltipWindow tooltipWindow{this};  // hover bubbles (voice "in use", etc.)
 
     std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
     // Optional semi-transparent overlays painted over the whole GUI. They carry
@@ -84,32 +85,49 @@ private:
     juce::Image overlayShared;
     juce::Label title{{}, "SidStation ASID"};
 
-    // Top-right voice selector: three cells 1/2/3, each in its own voice accent.
-    // The selected voice is bright; the other two are dimmed versions of their hue.
-    // Clicking a cell selects that voice (sets asidVoice via onSelect).
-    struct VoiceSwitch : juce::Component {
-        int selected = 0;                   // 0..2
-        juce::Colour colours[3];            // per-voice accent, filled by the editor
+    // Top-right voice selector: three cells 1/2/3. This instance's voice is bright.
+    // A voice another instance already drives shows in its (dim) hue and is blocked
+    // (hovering it shows an "in use" bubble). A free voice is monochrome and reveals
+    // its hue on hover, inviting a click to switch to it.
+    struct VoiceSwitch : juce::Component, juce::TooltipClient {
+        int selected = 0;                              // 0..2, this instance's voice
+        int hovered = -1;                              // cell under the mouse, or -1
+        juce::Colour colours[3];                       // per-voice accent, filled by the editor
+        bool usedByOther[3] = {false, false, false};   // driven by another instance
         std::function<void(int)> onSelect;
+        int cellAt(int x) const { return juce::jlimit(0, 2, x * 3 / juce::jmax(1, getWidth())); }
         void paint(juce::Graphics& g) override {
             const int n = 3, w = getWidth() / n;
             for (int i = 0; i < n; ++i) {
                 juce::Rectangle<int> cell(i * w, 0, (i == n - 1 ? getWidth() - i * w : w), getHeight());
                 const bool on = i == selected;
+                // Colour a cell when it is taken by another instance, or while hovering
+                // a free one; otherwise a free cell is monochrome (saturation off).
+                const float sat = (usedByOther[i] || i == hovered) ? 1.0f : 0.0f;
                 const auto c = colours[i];
-                // Unselected cells are dimmed three ways: a dark, desaturated fill
-                // with just a soft hue number glowing on it, so the vivid selected
-                // cell (full colour, dark number) is clearly the one that is lit.
-                g.setColour(on ? c : c.withMultipliedSaturation(0.5f).withMultipliedBrightness(0.24f));
+                g.setColour(on ? c : c.withMultipliedSaturation(0.5f * sat).withMultipliedBrightness(0.24f));
                 g.fillRect(cell.reduced(1));
                 g.setColour(on ? juce::Colour(SidLookAndFeel::kBg)
-                              : c.withMultipliedSaturation(0.85f).withMultipliedBrightness(0.68f));
+                              : c.withMultipliedSaturation(0.85f * sat).withMultipliedBrightness(0.68f));
                 g.setFont(SidLookAndFeel::mono(15.0f, true));
                 g.drawText(juce::String(i + 1), cell, juce::Justification::centred);
             }
         }
+        juce::String getTooltip() override {
+            return (hovered >= 0 && usedByOther[hovered]) ? juce::String("In use by another instance")
+                                                          : juce::String();
+        }
+        void mouseMove(const juce::MouseEvent& e) override {
+            const int i = cellAt(e.x);
+            if (i != hovered) { hovered = i; repaint(); }
+        }
+        void mouseExit(const juce::MouseEvent&) override {
+            if (hovered != -1) { hovered = -1; repaint(); }
+        }
         void mouseDown(const juce::MouseEvent& e) override {
-            if (onSelect) onSelect(juce::jlimit(0, 2, e.x * 3 / juce::jmax(1, getWidth())));
+            const int i = cellAt(e.x);
+            if (usedByOther[i]) return;   // voice taken by another instance: blocked
+            if (onSelect) onSelect(i);
         }
     };
     VoiceSwitch voiceSwitch;
