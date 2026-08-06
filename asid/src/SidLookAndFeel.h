@@ -214,8 +214,12 @@ public:
             // Monospaced, so glyph advance is a steady fraction of the height.
             const float tw = text.length() * f.getHeight() * 0.62f + 10.0f;
             auto title = juce::Rectangle<float>(10.0f, 0.0f, tw, titleH);
-            g.setColour(juce::Colour(kBg));  // break the border behind the title
-            g.fillRect(title);
+            // Break the border behind the title, matching each side: the outside
+            // screen colour above the border line, the inset panel colour below it.
+            g.setColour(juce::Colour(kBg));
+            g.fillRect(title.withHeight(titleH * 0.5f));
+            g.setColour(juce::Colour(kBg).darker(0.12f));
+            g.fillRect(title.withTrimmedTop(titleH * 0.5f));
             g.setColour(juce::Colour(kHot));
             g.drawText(text, title.getSmallestIntegerContainer(), juce::Justification::centred, false);
         }
