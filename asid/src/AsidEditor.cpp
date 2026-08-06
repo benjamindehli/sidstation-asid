@@ -412,6 +412,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     voice3offAtt = std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
     sharedPage.addAndMakeVisible(panicButton);
     panicButton.onClick = [this] { proc.panic(); };
+    sharedPage.addAndMakeVisible(initButton);
+    initButton.onClick = [this] { proc.resetVoiceToDefault(); };
 
     // ---- WAVE page: wavetable config and the per-step rows ----
     wtPage.addAndMakeVisible(wtOnButton);
@@ -926,13 +928,14 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
     {  // MASTER: Volume, Latency and the Voice 3 output toggle, grouped centred.
         auto box = area.removeFromTop(sideH);
         masterGroup.setBounds(box);
-        const int knobW = 96, togW = 150, panicW = 90, gap = 24;
-        const int groupW = 2 * knobW + togW + panicW + 3 * gap;
+        const int knobW = 96, togW = 150, btnW = 80, gap = 20;
+        const int groupW = 2 * knobW + togW + 2 * btnW + 4 * gap;
         auto g = innerBox(box).withSizeKeepingCentre(groupW, innerBox(box).getHeight());
         knobInCol(g.removeFromLeft(knobW), volumeKnob, volumeLabel); g.removeFromLeft(gap);
         knobInCol(g.removeFromLeft(knobW), latencyKnob, latencyLabel); g.removeFromLeft(gap);
         voice3offButton.setBounds(g.removeFromLeft(togW).withSizeKeepingCentre(togW, 30)); g.removeFromLeft(gap);
-        panicButton.setBounds(g.removeFromLeft(panicW).withSizeKeepingCentre(panicW, 30));
+        initButton.setBounds(g.removeFromLeft(btnW).withSizeKeepingCentre(btnW, 30)); g.removeFromLeft(gap);
+        panicButton.setBounds(g.removeFromLeft(btnW).withSizeKeepingCentre(btnW, 30));
     }
 }
 

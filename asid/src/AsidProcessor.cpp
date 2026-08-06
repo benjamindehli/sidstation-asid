@@ -533,6 +533,19 @@ bool AsidProcessor::voiceUsedByOthers(int v) const {
     return AsidShared::get().usersOnVoice(v, this) > 0;
 }
 
+void AsidProcessor::resetVoiceToDefault() {
+    for (auto* p : getParameters()) {
+        auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p);
+        if (wid == nullptr) continue;
+        const auto& id = wid->paramID;
+        // Skip the shared globals (they belong to all voices), this instance's
+        // voice selection, and the tempo, so Init only resets the voice's own sound.
+        if (id == "asidVoice" || id == "bpm" || AsidShared::isShared(id)) continue;
+        if (apvts.getParameter(id) == nullptr) continue;
+        p->setValueNotifyingHost(p->getDefaultValue());
+    }
+}
+
 
 void AsidProcessor::sharedUpdated() {
     auto& sh = AsidShared::get();

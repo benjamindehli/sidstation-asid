@@ -65,6 +65,9 @@ public:
 
     // Manual all-notes-off for every voice (Panic button).
     void panic() { AsidShared::get().panicAllVoices(); }
+    // Reset this voice's sound to its default patch. Leaves the shared filter and
+    // volume (they belong to every voice) and this instance's identity (asidVoice).
+    void resetVoiceToDefault();
 
 private:
     // One modulation stream per LFO target: its LFO, when it last sent, and the

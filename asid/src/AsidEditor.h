@@ -263,6 +263,7 @@ private:
     juce::ToggleButton voice3offButton{"Voice 3 Silent"};  // V3 output off, used as mod source
     std::unique_ptr<ButtonAtt> voice3offAtt;
     juce::TextButton panicButton{"Panic"};  // all-notes-off for every voice
+    juce::TextButton initButton{"Init"};    // reset this voice's sound to default
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 
