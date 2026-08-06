@@ -114,7 +114,7 @@ private:
     double lastBytesMs = 0.0;
     float midiLoad = 0.0f;
 
-    juce::Label modRateLabel{{}, "Mod Rate"};
+    juce::Label modRateLabel{{}, "Clock"};
     juce::ComboBox modRateBox;
     std::unique_ptr<ComboAtt> modRateAtt;
 
