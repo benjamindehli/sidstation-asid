@@ -45,16 +45,15 @@ private:
 
     // One reusable block of controls for a single LFO target.
     struct LfoControls {
-        juce::ToggleButton enableButton{"On"};
-        std::unique_ptr<ButtonAtt> enableAtt;
-        juce::Label shapeLabel{{}, "Shape"};
+        // The Shape selector doubles as the on/off: its first item "Off" disables
+        // the LFO and any waveform enables it, so there is no separate On button.
         juce::ComboBox shapeBox;
-        juce::ToggleButton syncButton{"Tempo Sync"};
-        juce::Slider rateKnob, depthKnob;
-        juce::Label rateLabel, depthLabel;
-        std::unique_ptr<ComboAtt> shapeAtt;
-        std::unique_ptr<ButtonAtt> syncAtt;
-        std::unique_ptr<SliderAtt> rateAtt, depthAtt;
+        juce::ToggleButton syncButton{"BPM Sync"};  // under Rate: free Hz vs tempo division
+        juce::ToggleButton wheelButton{"Mod Wheel"};   // under Depth: mod wheel scales the depth
+        juce::Slider rateKnob, depthKnob, delayKnob;
+        juce::Label rateLabel, depthLabel, delayLabel;
+        std::unique_ptr<ButtonAtt> syncAtt, wheelAtt;
+        std::unique_ptr<SliderAtt> rateAtt, depthAtt, delayAtt;
         juce::String prefix;  // parameter prefix, for re-binding the rate knob
         int rateMode = -1;    // -1 uninit, 0 free (Hz), 1 tempo-synced (division)
     };

@@ -116,6 +116,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
             juce::ParameterID{prefix + "Div", 1}, name + " Division",
             juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16", "1/16T"}, 2));
         layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{prefix + "Depth", 1}, name + " Depth", 0, 100, 50));
+        // Mod-wheel control (depth becomes the maximum, scaled by the wheel) and a
+        // fade-in delay in ms that ramps the LFO up on each note trigger.
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{prefix + "Wheel", 1}, name + " Mod Wheel", false));
+        layout.add(std::make_unique<juce::AudioParameterInt>(juce::ParameterID{prefix + "Delay", 1}, name + " Delay", 0, 4000, 0));
     };
     addLfo("pitchLfo", "Pitch LFO");
     addLfo("pwLfo", "PW LFO");
@@ -161,6 +165,14 @@ int AsidProcessor::paramInt(const char* id) const {
 float AsidProcessor::paramFloat(const char* id) const {
     if (auto* p = apvts.getRawParameterValue(id)) return p->load();
     return 0.0f;
+}
+
+double AsidProcessor::lfoAmount(const char* prefix, double nowMs) const {
+    double amt = paramInt(juce::String(prefix) + "Depth") / 100.0;
+    if (paramInt(juce::String(prefix) + "Wheel")) amt *= modWheelValue / 127.0;  // wheel scales depth
+    const int delayMs = paramInt(juce::String(prefix) + "Delay");
+    if (delayMs > 0) amt *= juce::jlimit(0.0, 1.0, (nowMs - noteOnMs) / delayMs);  // fade in
+    return amt;
 }
 
 void AsidProcessor::updatePitchOffset() {
@@ -399,7 +411,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         }
         const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
         const double vibrato = vibratoOn
-            ? sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * (pitchDepth / 100.0) * 12.0
+            ? sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * lfoAmount("pitchLfo", nowMs) * 12.0
             : 0.0;
         asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
         addReg(base + 0);
@@ -409,7 +421,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     if (pwOn) {
         const double v = sampleLfo(pwStream.lfo, "pwLfo", dt, playing, ppq, bpm);
         asidPlayer.setPulseWidth(voice, juce::jlimit(0, 4095,
-            paramInt("pulseWidth") + static_cast<int>(v * (pwDepth / 100.0) * 2047.0)));
+            paramInt("pulseWidth") + static_cast<int>(v * lfoAmount("pwLfo", nowMs) * 2047.0)));
         addReg(base + 2);
         addReg(base + 3);
     }
@@ -417,7 +429,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     if (cutOn) {
         const double v = sampleLfo(cutStream.lfo, "cutLfo", dt, playing, ppq, bpm);
         asidPlayer.setCutoff(juce::jlimit(0, 2047,
-            paramInt("cutoff") + static_cast<int>(v * (cutDepth / 100.0) * 2047.0)));
+            paramInt("cutoff") + static_cast<int>(v * lfoAmount("cutLfo", nowMs) * 2047.0)));
         addReg(21);  // cutoff low/high (registers 21, 22)
         addReg(22);
     }
@@ -595,6 +607,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         if (on) {
             const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
             freshAttack = !wasHeld;  // nothing sounding = a real attack, not a legato overlap
+            if (freshAttack) noteOnMs = nowMs;  // restart the LFO fade-in on a fresh attack
             const bool always = paramInt("portaTrigger") == 1;  // 0 Legato, 1 Always
             const bool glide = paramInt("portaTime") > 0 && glidePitch >= 0.0 && (always || wasHeld);
             if (glide) asidPlayer.setNextGlideStart(glidePitch);  // start at the held pitch
@@ -695,6 +708,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         const auto m = meta.getMessage();
         if (m.isNoteOn() || m.isNoteOff()) blockHasNotes = true;
         else if (m.isPitchWheel()) { pitchWheelValue = m.getPitchWheelValue(); updatePitchOffset(); }
+        else if (m.isController() && m.getControllerNumber() == 1) modWheelValue = m.getControllerValue();
     }
     updateModulation(voice, blockHasNotes);
 

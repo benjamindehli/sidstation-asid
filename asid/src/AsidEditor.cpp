@@ -22,17 +22,16 @@ juce::Rectangle<int> colOf(juce::Rectangle<int> row, int i, int n) {
     const int w = row.getWidth() / n;
     return {row.getX() + i * w, row.getY(), w, row.getHeight()};
 }
+// Every knob is drawn at this fixed size, so they all match regardless of how
+// tall their section is (a taller section just leaves more margin around it).
+constexpr int kKnob = 64;
 // A knob with its caption, centred in a column both ways. The label+knob group is
 // centred vertically so it lines up with the buttons in a mixed row.
 void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
-    const int side = juce::jmin(col.getWidth() - 8, col.getHeight() - 16, 100);
+    const int side = juce::jmin(col.getWidth() - 8, kKnob);
     auto grp = col.withSizeKeepingCentre(col.getWidth(), 14 + side);
     l.setBounds(grp.removeFromTop(14));
     s.setBounds(grp.withSizeKeepingCentre(side, side));
-}
-// A combo centred in a column, at button height (its value is its own label).
-void comboInCol(juce::Rectangle<int> col, juce::Component& c) {
-    c.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, 160), 30));
 }
 // A toggle button centred in a column both ways.
 void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
@@ -83,22 +82,39 @@ void AsidEditor::setupSwitch(juce::ToggleButton& segA, juce::ToggleButton& segB,
 
 void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::String& prefix) {
     u.prefix = prefix;
-    parent.addAndMakeVisible(u.enableButton);
-    u.enableAtt = std::make_unique<ButtonAtt>(state, prefix + "On", u.enableButton);
 
-    parent.addAndMakeVisible(u.shapeBox);  // no caption; the value names the shape
+    // Shape doubles as on/off: "Off" (id 1) disables the LFO, each waveform (id 2+)
+    // enables it and selects that shape. Managed by hand since one control drives
+    // two parameters (On and Shape).
+    parent.addAndMakeVisible(u.shapeBox);
+    u.shapeBox.addItem("Off", 1);
     for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"})
         u.shapeBox.addItem(s, u.shapeBox.getNumItems() + 1);
-    u.shapeAtt = std::make_unique<ComboAtt>(state, prefix + "Shape", u.shapeBox);
+    u.shapeBox.onChange = [this, &u] {
+        const int sel = u.shapeBox.getSelectedId();
+        const bool on = sel > 1;
+        auto set = [this](const juce::String& id, float raw) {
+            if (auto* p = state.getParameter(id)) {
+                p->beginChangeGesture();
+                p->setValueNotifyingHost(p->convertTo0to1(raw));
+                p->endChangeGesture();
+            }
+        };
+        set(u.prefix + "On", on ? 1.0f : 0.0f);
+        if (on) set(u.prefix + "Shape", (float) (sel - 2));  // 0-based shape index
+    };
 
     parent.addAndMakeVisible(u.syncButton);
     u.syncAtt = std::make_unique<ButtonAtt>(state, prefix + "Sync", u.syncButton);
+    parent.addAndMakeVisible(u.wheelButton);
+    u.wheelAtt = std::make_unique<ButtonAtt>(state, prefix + "Wheel", u.wheelButton);
 
     // Rate knob: set up the knob shell, then bind it (free Hz by default, or the
     // stepped tempo division when Tempo Sync is on - see configureRateKnob).
     setupKnob(parent, u.rateKnob, u.rateLabel, "Rate", prefix + "Rate", u.rateAtt);
     configureRateKnob(u, false);
     setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
+    setupKnob(parent, u.delayKnob, u.delayLabel, "Delay", prefix + "Delay", u.delayAtt);
 }
 
 void AsidEditor::configureRateKnob(LfoControls& u, bool synced) {
@@ -114,17 +130,31 @@ void AsidEditor::configureRateKnob(LfoControls& u, bool synced) {
 }
 
 void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
-    // Five items spread across the width, each centred vertically: On, Shape,
-    // Tempo Sync, Rate, Depth. (Rate doubles as the stepped division when synced.)
-    const int ws[] = {64, 140, 128, 96, 96};
-    int total = 0; for (int w : ws) total += w;
-    const int gap = juce::jmax(10, (area.getWidth() - total) / 4);
-    auto next = [&](int w) { auto c = area.removeFromLeft(w); area.removeFromLeft(gap); return c; };
-    toggleInCol(next(ws[0]), u.enableButton);
-    comboInCol(next(ws[1]), u.shapeBox);
-    toggleInCol(next(ws[2]), u.syncButton);
-    knobInCol(next(ws[3]), u.rateKnob, u.rateLabel);
-    knobInCol(next(ws[4]), u.depthKnob, u.depthLabel);
+    // One row: Shape (with its Off item), then the Rate, Depth and Delay knobs.
+    // Rate carries a small Sync toggle and Depth a small Mod toggle, right beneath
+    // them, since each toggle only changes what its own knob does. (Rate becomes
+    // the stepped tempo division when Sync is on.)
+    const int side = kKnob, togH = 22, togGap = 4, togW = 124;
+    const int stackH = 14 + side + togGap + togH;  // label + knob + toggle
+    auto row = area.withSizeKeepingCentre(area.getWidth(), stackH);
+    // Shape selector, centred against the label + knob band so it lines up.
+    u.shapeBox.setBounds(juce::Rectangle<int>(colOf(row, 0, 4).getX(), row.getY(),
+                                              colOf(row, 0, 4).getWidth(), 14 + side)
+                             .withSizeKeepingCentre(juce::jmin(colOf(row, 0, 4).getWidth() - 8, 160), 30));
+    // A knob with its caption above and, optionally, a small toggle below.
+    auto place = [&](int i, juce::Slider& s, juce::Label& l, juce::ToggleButton* t) {
+        auto col = colOf(row, i, 4);
+        l.setBounds(col.getX(), col.getY(), col.getWidth(), 14);
+        s.setBounds(juce::Rectangle<int>(col.getX(), col.getY() + 14, col.getWidth(), side)
+                        .withSizeKeepingCentre(side, side));
+        if (t != nullptr)
+            t->setBounds(juce::Rectangle<int>(col.getX(), col.getY() + 14 + side + togGap,
+                                              col.getWidth(), togH)
+                             .withSizeKeepingCentre(togW, togH));
+    };
+    place(1, u.rateKnob, u.rateLabel, &u.syncButton);
+    place(2, u.depthKnob, u.depthLabel, &u.wheelButton);
+    place(3, u.delayKnob, u.delayLabel, nullptr);
 }
 
 AsidEditor::AsidEditor(AsidProcessor& p)
@@ -442,21 +472,31 @@ void AsidEditor::updateEnablement() {
     if (sustainMax && decayKnob.getValue() != 0.0)
         decayKnob.setValue(0.0, juce::sendNotificationSync);
 
-    // Grey each LFO's controls when it is off. The rate knob works in either mode
-    // (free Hz or the stepped tempo division), so it is enabled whenever the LFO is.
+    // Shape doubles as on/off, so reflect each LFO's On + Shape into its selector.
+    // Never grey the selector itself, or the LFO could not be switched back on.
+    for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
+        const bool on = boolParam((u->prefix + "On").toRawUTF8());
+        const int wantId = on ? intParam((u->prefix + "Shape").toRawUTF8()) + 2 : 1;
+        if (u->shapeBox.getSelectedId() != wantId)
+            u->shapeBox.setSelectedId(wantId, juce::dontSendNotification);
+    }
+    // Grey the rest of each LFO's controls when it is off. The rate knob works in
+    // either mode (free Hz or the stepped tempo division), so it follows the LFO.
     auto applyLfo = [](LfoControls& u, bool on) {
-        u.shapeBox.setEnabled(on);
         u.syncButton.setEnabled(on);
+        u.wheelButton.setEnabled(on);
         u.depthKnob.setEnabled(on);
         u.depthLabel.setEnabled(on);
         u.rateKnob.setEnabled(on);
         u.rateLabel.setEnabled(on);
+        u.delayKnob.setEnabled(on);
+        u.delayLabel.setEnabled(on);
     };
     applyLfo(pitchLfoUi, boolParam("pitchLfoOn"));
-    // The PW LFO only works on a pulse wave, so its On toggle greys out too.
-    pwLfoUi.enableButton.setEnabled(pulse);
-    applyLfo(pwLfoUi, pulse && boolParam("pwLfoOn"));
     applyLfo(cutLfoUi, boolParam("cutLfoOn"));
+    // The PW LFO only works on a pulse wave, so its Shape selector greys out too.
+    pwLfoUi.shapeBox.setEnabled(pulse);
+    applyLfo(pwLfoUi, pulse && boolParam("pwLfoOn"));
 }
 
 void AsidEditor::timerCallback() {
@@ -671,9 +711,10 @@ void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
 
 void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
     const int gap = 10;
-    const int rowH = (area.getHeight() - 2 * gap) / 3;
+    const int lfoH = 136;  // the LFO stack (knob + toggle below) is a touch taller
+    const int sideH = (area.getHeight() - 2 * gap - lfoH) / 2;  // Filter and Master split the rest
     {  // FILTER in three groups: voices (V1/V2/V3) | modes (LP/BP/HP) | Cutoff+Reso.
-        auto box = area.removeFromTop(rowH);
+        auto box = area.removeFromTop(sideH);
         filterGroup.setBounds(box);
         auto c = innerBox(box);
         const int gGap = 34, segW = 46, segGap = 8, groupW = 3 * segW + 2 * segGap;
@@ -690,13 +731,13 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
     }
     area.removeFromTop(gap);
     {  // CUTOFF MODULATION
-        auto cm = area.removeFromTop(rowH);
+        auto cm = area.removeFromTop(lfoH);
         cutModGroup.setBounds(cm);
         layoutLfo(cutLfoUi, innerBox(cm));
     }
     area.removeFromTop(gap);
     {  // MASTER: only two knobs, so group them centred rather than spread wide.
-        auto box = area.removeFromTop(rowH);
+        auto box = area.removeFromTop(sideH);
         masterGroup.setBounds(box);
         auto pair = innerBox(box).withSizeKeepingCentre(300, innerBox(box).getHeight());
         knobInCol(colOf(pair, 0, 2), volumeKnob, volumeLabel);

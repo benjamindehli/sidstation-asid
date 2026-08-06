@@ -124,7 +124,12 @@ private:
     // Recompute the player's pitch offset from coarse + fine + the pitch wheel
     // (scaled by the bend range). Cheap: sets a value the frequency stream reads.
     void updatePitchOffset();
+    // Effective 0..1 modulation amount for an LFO: its depth, scaled by the mod
+    // wheel when its Mod Wheel toggle is on, and ramped in over its fade-in delay.
+    double lfoAmount(const char* prefix, double nowMs) const;
     int pitchWheelValue = 8192;  // last MIDI pitch wheel value (14-bit, centre 8192)
+    int modWheelValue = 0;       // last MIDI mod wheel (CC 1) value, 0..127
+    double noteOnMs = -1.0e18;   // last note attack time (wall clock), for the LFO fade-in
     // Currently-playing wavetable step (-1 = not playing), for the editor's display.
     std::atomic<int> wtStepDisplay{-1};
 
