@@ -113,9 +113,27 @@ private:
     juce::Slider wtSpeedKnob, wtLengthKnob, wtLoopKnob;
     juce::Label wtSpeedLabel, wtLengthLabel, wtLoopLabel;
     std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
-    juce::Label wtStepNum[AsidProcessor::kWtSteps];
-    // Per step, four combinable waveform toggles under shared column headers.
+    // Per-step indicator: the step number, dim when the step is beyond the table
+    // length, an accent outline at the loop point, and an accent fill while it plays.
+    struct StepIndicator : juce::Component {
+        int number = 1;
+        bool active = false, loop = false, playing = false;
+        juce::Colour accent{juce::Colour(SidLookAndFeel::kAccent)};
+        void paint(juce::Graphics& g) override {
+            auto r = getLocalBounds().toFloat().reduced(1.0f);
+            if (playing) { g.setColour(accent); g.fillRect(r); }
+            else if (loop) { g.setColour(accent); g.drawRect(r, 2.0f); }
+            g.setColour(playing ? juce::Colour(SidLookAndFeel::kBg)
+                                : juce::Colour(active ? SidLookAndFeel::kFg : SidLookAndFeel::kDim));
+            g.setFont(SidLookAndFeel::mono(13.0f, playing || loop));
+            g.drawText(juce::String(number), getLocalBounds(), juce::Justification::centred);
+        }
+    };
+    StepIndicator wtStepInd[AsidProcessor::kWtSteps];
+    // Per step, four combinable waveform toggles under shared column headers, plus
+    // a header over the arp stepper column.
     juce::Label wtWaveHead[4];
+    juce::Label wtArpHead{{}, "Arp"};
     juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
     std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
     // Arp stepper per step: a hidden slider holds the value (APVTS binding),

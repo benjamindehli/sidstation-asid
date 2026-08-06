@@ -276,10 +276,11 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtWaveHead[w].setJustificationType(juce::Justification::centred);
         wtPage.addAndMakeVisible(wtWaveHead[w]);
     }
+    wtArpHead.setJustificationType(juce::Justification::centred);
+    wtPage.addAndMakeVisible(wtArpHead);
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
-        wtStepNum[i].setText(juce::String(i + 1), juce::dontSendNotification);
-        wtStepNum[i].setJustificationType(juce::Justification::centredRight);
-        wtPage.addAndMakeVisible(wtStepNum[i]);
+        wtStepInd[i].number = i + 1;
+        wtPage.addAndMakeVisible(wtStepInd[i]);
         for (int w = 0; w < 4; ++w) {
             wtPage.addAndMakeVisible(wtWaveTog[i][w]);
             wtWaveTogAtt[i][w] = std::make_unique<ButtonAtt>(
@@ -369,20 +370,33 @@ void AsidEditor::updateEnablement() {
     syncSwitch(portaTrigBtns[0], portaTrigBtns[1], intParam("portaTrigger"));
     syncSwitch(portaTypeBtns[0], portaTypeBtns[1], intParam("portaType"));
 
-    // The wavetable's config and steps are live only when it is on.
+    // The wavetable's config and steps are live only when it is on. Steps beyond
+    // the table length are greyed; the loop point and the playing step are marked
+    // on the per-step indicators.
     const bool wtOn = boolParam("wtOn");
     for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
         s->setEnabled(wtOn);
     for (auto& h : wtWaveHead) h.setEnabled(wtOn);
+    wtArpHead.setEnabled(wtOn);
+    const int wtLen = intParam("wtLength");
+    const int wtLoopPt = intParam("wtLoop");
+    const int wtPlaying = proc.wtStep();
+    const auto acc = voiceColour(currentVoice());
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
+        const bool rowActive = wtOn && i < wtLen;
         // Noise is exclusive per step, same as the oscillator: grey the other three.
         const bool stepNoise = intParam((juce::String("wtNoise") + juce::String(i)).toRawUTF8()) != 0;
         for (int w = 0; w < 4; ++w)
-            wtWaveTog[i][w].setEnabled(wtOn && (w == 3 || !stepNoise));
-        wtArpValue[i].setEnabled(wtOn);
-        wtArpDec[i].setEnabled(wtOn);
-        wtArpInc[i].setEnabled(wtOn);
-        wtStepNum[i].setEnabled(wtOn);
+            wtWaveTog[i][w].setEnabled(rowActive && (w == 3 || !stepNoise));
+        wtArpValue[i].setEnabled(rowActive);
+        wtArpDec[i].setEnabled(rowActive);
+        wtArpInc[i].setEnabled(rowActive);
+        auto& ind = wtStepInd[i];
+        const bool loop = wtOn && i == wtLoopPt, playing = i == wtPlaying;
+        if (ind.active != rowActive || ind.loop != loop || ind.playing != playing || ind.accent != acc) {
+            ind.active = rowActive; ind.loop = loop; ind.playing = playing; ind.accent = acc;
+            ind.repaint();
+        }
     }
 
     // Re-bind each LFO's rate knob when its Tempo Sync toggles (free Hz vs the
@@ -592,17 +606,14 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
             a.setBounds(row.getX(), row.getY(), half, row.getHeight());
             b.setBounds(row.getX() + half - 2, row.getY(), row.getWidth() - half + 2, row.getHeight());
         };
-        auto divider = [](VDivider& d, juce::Rectangle<int> gap) {
-            d.setBounds(gap.withSizeKeepingCentre(2, gap.getHeight()));
-        };
         // Group 1: Coarse, Fine.
         auto g1 = c.removeFromLeft(168);
         knobInCol(colOf(g1, 0, 2), coarseKnob, coarseLabel);
         knobInCol(colOf(g1, 1, 2), fineKnob, fineLabel);
-        divider(tuningDiv1, c.removeFromLeft(gGap));
+        placeDivider(tuningDiv1, c.removeFromLeft(gGap));
         // Group 2: Bend Range.
         knobInCol(c.removeFromLeft(96), bendKnob, bendLabel);
-        divider(tuningDiv2, c.removeFromLeft(gGap));
+        placeDivider(tuningDiv2, c.removeFromLeft(gGap));
         // Group 3: Glide time knob + the two stacked switches, kept close together.
         const int knobW = 96, swW = 172, innerGap = 8;
         auto g3 = c.withSizeKeepingCentre(knobW + innerGap + swW, c.getHeight());
@@ -700,12 +711,13 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         auto head = c.removeFromTop(16);
         for (int w = 0; w < 4; ++w)
             wtWaveHead[w].setBounds(colX(head, w), head.getY(), colW, head.getHeight());
+        wtArpHead.setBounds(colX(head, 4), head.getY(), arpW, head.getHeight());
         c.removeFromTop(2);
         const int rowH = juce::jmax(26, c.getHeight() / steps);  // spread rows over the height
         for (int i = 0; i < steps; ++i) {
             auto full = c.removeFromTop(rowH);
             auto line = full.withSizeKeepingCentre(full.getWidth(), 24);  // 24 band, centred vertically
-            wtStepNum[i].setBounds(line.getX(), line.getY(), numW, 24);
+            wtStepInd[i].setBounds(line.getX(), line.getY(), numW, 24);
             for (int w = 0; w < 4; ++w) {  // centred matrix cell under each header
                 juce::Rectangle<int> cellR(colX(line, w), line.getY(), colW, 24);
                 wtWaveTog[i][w].setBounds(cellR.withSizeKeepingCentre(28, 24));

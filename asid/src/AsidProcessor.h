@@ -50,6 +50,7 @@ public:
 
     juce::AudioProcessorValueTreeState& state() { return apvts; }
     MidiHub& midi() { return AsidShared::get().out; }  // one output shared by all instances
+    int wtStep() const { return wtStepDisplay.load(std::memory_order_relaxed); }  // playing step, -1 = none
 
     // (Re)sends the full ASID state to the unit. The editor calls this when the
     // MIDI output is opened, so the current sound is pushed to a fresh device.
@@ -124,6 +125,8 @@ private:
     // (scaled by the bend range). Cheap: sets a value the frequency stream reads.
     void updatePitchOffset();
     int pitchWheelValue = 8192;  // last MIDI pitch wheel value (14-bit, centre 8192)
+    // Currently-playing wavetable step (-1 = not playing), for the editor's display.
+    std::atomic<int> wtStepDisplay{-1};
 
     juce::AudioProcessorValueTreeState apvts;
     sidstation::AsidVoicePlayer asidPlayer;

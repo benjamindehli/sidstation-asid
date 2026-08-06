@@ -306,6 +306,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     else {
         wtPlayer.stop();
         wtArp = 0;
+        wtStepDisplay.store(-1, std::memory_order_relaxed);  // nothing playing
         // Hand the waveform register back to the static control ONLY when the
         // wavetable is switched off, not merely because the note released. On
         // release the envelope is still sounding, so keep the table's last
@@ -371,6 +372,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         if (const int step = wtPlayer.currentStep(); step >= 0) {
             asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(step)));
             wtArp = paramInt("wtArp" + juce::String(step));
+            wtStepDisplay.store(step, std::memory_order_relaxed);  // for the editor
         }
         wtPlayer.advanceFrame();
     }
