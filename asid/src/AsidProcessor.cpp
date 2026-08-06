@@ -83,6 +83,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
         juce::StringArray{"Smooth", "Stepped"}, 0));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"sync", 1}, "Sync", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"ring", 1}, "Ring Mod", false));
+    // TEST bit: holds the oscillator in reset (silent) while on. Advanced.
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"test", 1}, "Test (osc reset)", false));
 
     // Shared across all three voices (one physical SID filter and master volume).
     // Filter routing is per voice (filt1/2/3) but shared, so any instance can
@@ -90,12 +92,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt1", 1}, "Filter Voice 1", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt2", 1}, "Filter Voice 2", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filt3", 1}, "Filter Voice 3", false));
+    // External audio input through the filter (4th bit of the routing nibble). Shared.
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"filtExt", 1}, "Filter External In", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeLP", 1}, "Filter Low Pass", true));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeBP", 1}, "Filter Band Pass", false));
     layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"modeHP", 1}, "Filter High Pass", false));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("cutoff", "Cutoff", 0, 2047, 2047)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("resonance", "Resonance", 0, 15, 0)));
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("volume", "Volume", 0, 15, 15)));
+    // Disconnects voice 3 from the output while it keeps running, so it can be used
+    // purely as a ring/sync modulation source ($18 bit 7). Shared, only affects V3.
+    layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"voice3off", 1}, "Voice 3 Silent", false));
     // Milliseconds added to each note's scheduled play time, to line the
     // hardware sound up with the DAW's audio output. Shared by all instances.
     layout.add(std::unique_ptr<juce::AudioParameterInt>(intParam("latency", "Output Latency", 0, 500, 0)));
@@ -231,6 +238,10 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (!wtOwnsWave && (forceAll || sync != sent.sync)) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
     if (!wtOwnsWave && (forceAll || ring != sent.ring)) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
+    // TEST bit is not driven by the wavetable (setWaveform/Sync/Ring preserve it), so
+    // it is safe to write any time. It holds the oscillator in reset while on.
+    const int test = paramInt("test");
+    if (forceAll || test != sent.test) { sent.test = test; flush(asidPlayer.setTest(voice, test != 0)); }
     // Filter routing (3 shared voice bits) and resonance both live in register
     // 0x17. Routing and resonance are shared, so only the instance where the
     // value actually changed sends it (a synced-in echo is skipped).
@@ -264,7 +275,8 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         // Translate the logical LP/BP/HP mask to the SID mode bits (combinable).
         const Byte modeBits = static_cast<Byte>((mode & 1 ? sid::kLowPass : 0)
                                               | (mode & 2 ? sid::kBandPass : 0)
-                                              | (mode & 4 ? sid::kHighPass : 0));
+                                              | (mode & 4 ? sid::kHighPass : 0)
+                                              | (mode & 8 ? sid::kVoice3Off : 0));
         if (forceAll || mode != echoMode.load()) flush(asidPlayer.setFilterMode(modeBits));
     }
     const int vol = paramInt("volume");
@@ -461,7 +473,8 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
 }
 
 static const char* kSharedIds[] = {"cutoff", "resonance", "volume", "latency", "modRate",
-                                   "filt1", "filt2", "filt3", "modeLP", "modeBP", "modeHP"};
+                                   "filt1", "filt2", "filt3", "filtExt",
+                                   "modeLP", "modeBP", "modeHP", "voice3off"};
 
 AsidProcessor::AsidProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
@@ -504,11 +517,13 @@ void AsidProcessor::sharedUpdated() {
     setParamValue("filt1", (r >> 0) & 1);
     setParamValue("filt2", (r >> 1) & 1);
     setParamValue("filt3", (r >> 2) & 1);
+    setParamValue("filtExt", (r >> 3) & 1);
     echoRouting.store(r);
     const int md = sh.mode.load();
     setParamValue("modeLP", (md >> 0) & 1);
     setParamValue("modeBP", (md >> 1) & 1);
     setParamValue("modeHP", (md >> 2) & 1);
+    setParamValue("voice3off", (md >> 3) & 1);
     echoMode.store(md);
 }
 

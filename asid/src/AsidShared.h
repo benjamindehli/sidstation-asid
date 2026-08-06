@@ -36,8 +36,9 @@ public:
 
     static bool isShared(const juce::String& id) {
         return id == "cutoff" || id == "resonance" || id == "volume" || id == "latency"
-            || id == "filt1" || id == "filt2" || id == "filt3"
-            || id == "modeLP" || id == "modeBP" || id == "modeHP" || id == "modRate";
+            || id == "filt1" || id == "filt2" || id == "filt3" || id == "filtExt"
+            || id == "modeLP" || id == "modeBP" || id == "modeHP" || id == "voice3off"
+            || id == "modRate";
     }
 
     void addClient(Client* c) {
@@ -77,9 +78,11 @@ public:
         if (id == "filt1") return (routing.load() >> 0) & 1;
         if (id == "filt2") return (routing.load() >> 1) & 1;
         if (id == "filt3") return (routing.load() >> 2) & 1;
+        if (id == "filtExt") return (routing.load() >> 3) & 1;
         if (id == "modeLP") return (mode.load() >> 0) & 1;
         if (id == "modeBP") return (mode.load() >> 1) & 1;
         if (id == "modeHP") return (mode.load() >> 2) & 1;
+        if (id == "voice3off") return (mode.load() >> 3) & 1;
         return -1;
     }
 

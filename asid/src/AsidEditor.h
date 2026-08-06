@@ -195,8 +195,8 @@ private:
     juce::ToggleButton waveTriButton{"Triangle"}, waveSawButton{"Sawtooth"},
                        wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
     std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
-    juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"};
-    std::unique_ptr<ButtonAtt> syncAtt, ringAtt;
+    juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"}, testButton{"Test"};
+    std::unique_ptr<ButtonAtt> syncAtt, ringAtt, testAtt;
     juce::Slider pwKnob, coarseKnob, fineKnob, bendKnob, portaKnob;
     juce::Label pwLabel, coarseLabel, fineLabel, bendLabel, portaLabel;
     std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, bendAtt, portaAtt;
@@ -226,6 +226,8 @@ private:
     juce::Label filterActiveLabel{{}, "Filter"};
     juce::ToggleButton filtButtons[3];
     std::unique_ptr<ButtonAtt> filtAtts[3];
+    juce::ToggleButton filtExtButton{"Ext"};  // route the external audio input through the filter
+    std::unique_ptr<ButtonAtt> filtExtAtt;
     juce::Label filterModeLabel{{}, "Mode"};
     juce::ToggleButton modeButtons[3];  // LP, BP, HP
     std::unique_ptr<ButtonAtt> modeAtts[3];
@@ -233,6 +235,8 @@ private:
     juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
     juce::Label cutoffLabel, resLabel, volumeLabel, latencyLabel;
     std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
+    juce::ToggleButton voice3offButton{"Voice 3 Silent"};  // V3 output off, used as mod source
+    std::unique_ptr<ButtonAtt> voice3offAtt;
 
     juce::Array<juce::MidiDeviceInfo> outDevices;
 

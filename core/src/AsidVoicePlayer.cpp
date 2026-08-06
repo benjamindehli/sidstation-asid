@@ -232,6 +232,10 @@ Bytes AsidVoicePlayer::setSync(int voice, bool on) {
     return setControlBit(sidState, voice, sid::kSync, on);
 }
 
+Bytes AsidVoicePlayer::setTest(int voice, bool on) {
+    return setControlBit(sidState, voice, sid::kTest, on);
+}
+
 Bytes AsidVoicePlayer::setRing(int voice, bool on) {
     return setControlBit(sidState, voice, sid::kRing, on);
 }

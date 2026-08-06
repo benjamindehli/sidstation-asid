@@ -97,10 +97,12 @@ private:
     // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
     // (bit0 LP, bit1 BP, bit2 HP, combinable).
     int routingMask() const {
-        return (paramInt("filt1") ? 1 : 0) | (paramInt("filt2") ? 2 : 0) | (paramInt("filt3") ? 4 : 0);
+        return (paramInt("filt1") ? 1 : 0) | (paramInt("filt2") ? 2 : 0) | (paramInt("filt3") ? 4 : 0)
+             | (paramInt("filtExt") ? 8 : 0);  // bit 3: external input through the filter
     }
     int modeMask() const {
-        return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0);
+        return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0)
+             | (paramInt("voice3off") ? 8 : 0);  // bit 3: voice 3 output off (silent mod source)
     }
     // SID control-register waveform bits from the four toggles. The waveforms
     // combine (bits OR together), but noise locks the others on the 6581, so when
@@ -176,7 +178,7 @@ private:
     // and mode are 3-bit masks (routing: voice 1/2/3; mode: LP/BP/HP, combinable).
     struct Sent {
         int voice = -1, wave = -1, attack = -1, decay = -1, sustain = -1, release = -1;
-        int pw = -1, sync = -1, ring = -1, routing = -1, coarse = -100, fine = -100;
+        int pw = -1, sync = -1, ring = -1, test = -1, routing = -1, coarse = -100, fine = -100;
         int cutoff = -1, resonance = -1, mode = -1, volume = -1, bendRange = -1;
     } sent;
 

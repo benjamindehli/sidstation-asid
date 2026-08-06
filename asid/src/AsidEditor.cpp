@@ -318,6 +318,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         oscPage.addAndMakeVisible(*b);
     oscPage.addAndMakeVisible(syncButton);
     oscPage.addAndMakeVisible(ringButton);
+    oscPage.addAndMakeVisible(testButton);
     oscPage.addAndMakeVisible(oscDiv1);
     oscPage.addAndMakeVisible(oscDiv2);
 
@@ -344,6 +345,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(oscPage, bendKnob, bendLabel, "Bend Range", "pitchBendRange", bendAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
+    testAtt = std::make_unique<ButtonAtt>(state, "test", testButton);
 
     setupKnob(oscPage, portaKnob, portaLabel, "Glide time", "portaTime", portaAtt);
     setupSwitch(portaTrigBtns[0], portaTrigBtns[1], "Legato", "Always", "portaTrigger");
@@ -376,6 +378,9 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         sharedPage.addAndMakeVisible(modeButtons[i]);
         modeAtts[i] = std::make_unique<ButtonAtt>(state, modeIds[i], modeButtons[i]);
     }
+    filtExtButton.setButtonText("Ext");
+    sharedPage.addAndMakeVisible(filtExtButton);
+    filtExtAtt = std::make_unique<ButtonAtt>(state, "filtExt", filtExtButton);
     sharedPage.addAndMakeVisible(filtDiv1);
     sharedPage.addAndMakeVisible(filtDiv2);
     setupKnob(sharedPage, cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
@@ -383,6 +388,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupLfo(sharedPage, cutLfoUi, "cutLfo");
     setupKnob(sharedPage, volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
     setupKnob(sharedPage, latencyKnob, latencyLabel, "Latency", "latency", latencyAtt);
+    sharedPage.addAndMakeVisible(voice3offButton);
+    voice3offAtt = std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
 
     // ---- WAVE page: wavetable config and the per-step rows ----
     wtPage.addAndMakeVisible(wtOnButton);
@@ -787,11 +794,13 @@ void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
             waveNoiseButton.setBounds(r2.removeFromLeft(88));
         }
         placeDivider(oscDiv1, c.removeFromLeft(gGap));
-        // Group 2: Sync + Ring, centred as a pair.
+        // Group 2: Sync + Ring + Test, centred as a row.
         {
-            auto pair = c.removeFromLeft(196).withSizeKeepingCentre(196, 30);
-            syncButton.setBounds(pair.removeFromLeft(92)); pair.removeFromLeft(12);
-            ringButton.setBounds(pair.removeFromLeft(92));
+            const int bw = 58, bg = 10, groupW = 3 * bw + 2 * bg;
+            auto row = c.removeFromLeft(groupW + 16).withSizeKeepingCentre(groupW, 30);
+            syncButton.setBounds(row.removeFromLeft(bw)); row.removeFromLeft(bg);
+            ringButton.setBounds(row.removeFromLeft(bw)); row.removeFromLeft(bg);
+            testButton.setBounds(row.removeFromLeft(bw));
         }
         placeDivider(oscDiv2, c.removeFromLeft(gGap));
         // Group 3: Pulse Width (rest).
@@ -865,14 +874,21 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
         auto box = area.removeFromTop(sideH);
         filterGroup.setBounds(box);
         auto c = innerBox(box);
-        const int gGap = 34, segW = 46, segGap = 8, groupW = 3 * segW + 2 * segGap;
-        auto layButtons = [&](juce::ToggleButton (&btns)[3]) {
-            auto g = c.removeFromLeft(groupW).withSizeKeepingCentre(groupW, 30);
-            for (auto& b : btns) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
-        };
-        layButtons(filtButtons);                          // Group 1: voices
+        const int gGap = 34, segW = 46, segGap = 8;
+        // Group 1: routing - the three voices plus the external input.
+        {
+            const int gw = 4 * segW + 3 * segGap;
+            auto g = c.removeFromLeft(gw).withSizeKeepingCentre(gw, 30);
+            for (auto& b : filtButtons) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
+            filtExtButton.setBounds(g.removeFromLeft(segW));
+        }
         placeDivider(filtDiv1, c.removeFromLeft(gGap));
-        layButtons(modeButtons);                          // Group 2: modes
+        // Group 2: modes (LP/BP/HP).
+        {
+            const int gw = 3 * segW + 2 * segGap;
+            auto g = c.removeFromLeft(gw).withSizeKeepingCentre(gw, 30);
+            for (auto& b : modeButtons) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
+        }
         placeDivider(filtDiv2, c.removeFromLeft(gGap));
         knobInCol(colOf(c, 0, 2), cutoffKnob, cutoffLabel);  // Group 3: cutoff, reso
         knobInCol(colOf(c, 1, 2), resKnob, resLabel);
@@ -884,12 +900,14 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
         layoutLfo(cutLfoUi, innerBox(cm));
     }
     area.removeFromTop(gap);
-    {  // MASTER: only two knobs, so group them centred rather than spread wide.
+    {  // MASTER: Volume, Latency and the Voice 3 output toggle, grouped centred.
         auto box = area.removeFromTop(sideH);
         masterGroup.setBounds(box);
-        auto pair = innerBox(box).withSizeKeepingCentre(300, innerBox(box).getHeight());
-        knobInCol(colOf(pair, 0, 2), volumeKnob, volumeLabel);
-        knobInCol(colOf(pair, 1, 2), latencyKnob, latencyLabel);
+        const int knobW = 96, togW = 150, gap = 24, groupW = 2 * knobW + togW + 2 * gap;
+        auto g = innerBox(box).withSizeKeepingCentre(groupW, innerBox(box).getHeight());
+        knobInCol(g.removeFromLeft(knobW), volumeKnob, volumeLabel); g.removeFromLeft(gap);
+        knobInCol(g.removeFromLeft(knobW), latencyKnob, latencyLabel); g.removeFromLeft(gap);
+        voice3offButton.setBounds(g.removeFromLeft(togW).withSizeKeepingCentre(togW, 30));
     }
 }
 
