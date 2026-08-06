@@ -152,6 +152,7 @@ private:
     double modTickMs = 0.0;       // one modulation clock for the whole voice
     int wtArp = 0;                // current wavetable arpeggio offset (semitones)
     bool wtOwnsWave = false;      // wavetable is driving the waveform register
+    bool lastWtOn = false;        // wtOn last block, to catch the switch-off edge
     double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send

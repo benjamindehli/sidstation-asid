@@ -324,12 +324,15 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         wtPlayer.stop();
         wtArp = 0;
         wtStepDisplay.store(-1, std::memory_order_relaxed);  // nothing playing
-        // Hand the waveform / sync / ring / pulse-width registers back to the
-        // static controls ONLY when the wavetable is switched off, not merely
-        // because the note released. On release the envelope is still sounding, so
-        // keep the table's last values playing through it. sent.*=-1 forces a resend.
-        if (wtOwnsWave && !wtOn) { sent.wave = sent.sync = sent.ring = sent.pw = -1; }
     }
+    // Hand the waveform / sync / ring / pulse-width registers back to the static
+    // controls when the wavetable is switched off (its on->off edge), even with no
+    // note playing, so the SID does not stay stuck on the last table waveform.
+    // We do this on the switch-off edge, not merely on a note release: on release
+    // the envelope is still sounding, so the table's last values play through it.
+    // sent.*=-1 forces applyControlChanges to resend the oscillator settings.
+    if (lastWtOn && !wtOn) { sent.wave = sent.sync = sent.ring = sent.pw = -1; }
+    lastWtOn = wtOn;
     wtOwnsWave = wtActive;
 
     const int pwDepth = paramInt("pwLfoDepth");
