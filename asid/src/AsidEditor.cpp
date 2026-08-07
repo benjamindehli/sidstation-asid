@@ -196,8 +196,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
     setLookAndFeel(&laf);
     laf.setAccent(voiceColour(currentVoice()));  // colour-code this voice's window
-    logo = juce::Drawable::createFromImageData(BinaryData::DehliMusikkLogoInverseHorizontal_svg,
-                                               BinaryData::DehliMusikkLogoInverseHorizontal_svgSize);
+    logo = juce::ImageFileFormat::loadFrom(BinaryData::DehliMusikkLogo_PETSCII_png,
+                                           (size_t) BinaryData::DehliMusikkLogo_PETSCII_pngSize);
     // Optional decorative overlays (embedded if the PNGs are present in assets/).
     // Looked up by name so missing files just leave an invalid, unused image.
     auto loadImage = [](const juce::String& resName) {
@@ -777,10 +777,14 @@ void AsidEditor::paint(juce::Graphics& g) {
     // Top row: Dehli Musikk logo left, product title centred (the Label), and the
     // voice caption + switch right (components, positioned in resized()).
     auto titleRow = innerArea().removeFromTop(34);
-    if (logo != nullptr)
-        logo->drawWithin(g, titleRow.removeFromLeft(150).reduced(0, 3).toFloat(),
-                         juce::RectanglePlacement(juce::RectanglePlacement::xLeft
-                                                  | juce::RectanglePlacement::yMid), 1.0f);
+    if (logo.isValid()) {
+        // Draw the 96x8 pixel logo at an exact 2x (192x16), left-aligned and
+        // vertically centred. Low resampling quality keeps the pixels crisp.
+        const int lw = logo.getWidth() * 2, lh = logo.getHeight() * 2;
+        g.setImageResamplingQuality(juce::Graphics::lowResamplingQuality);
+        g.drawImage(logo, titleRow.getX(), titleRow.getCentreY() - lh / 2, lw, lh,
+                    0, 0, logo.getWidth(), logo.getHeight());
+    }
 
     // MIDI load meter: segmented blocks lit to the current fraction. The top
     // fifth turns white as a warning; over 100% every block is white (overload).

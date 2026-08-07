@@ -97,7 +97,7 @@ private:
     // knob value bubbles use); JUCE's TooltipWindow did not show inside the DAW.
     juce::BubbleMessageComponent voiceBubble;
 
-    std::unique_ptr<juce::Drawable> logo;  // Dehli Musikk logo, top-left
+    juce::Image logo;  // Dehli Musikk PETSCII logo (96x8), top-left, drawn at 2x
     // Optional semi-transparent overlays painted over the whole GUI. They carry their
     // own alpha. A per-voice "OverlayVoiceN.png" is used if present, else "Overlay.png".
     juce::Image overlay[3];
