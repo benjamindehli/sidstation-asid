@@ -26,6 +26,7 @@ file(GLOB SID_OVERLAYS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/assets/Ove
 juce_add_binary_data(SidStationAsidAssets
     SOURCES
         assets/DehliMusikkLogoInverseHorizontal.svg
+        assets/SidStationC64.ttf
         ${SID_OVERLAYS})
 
 target_sources(SidStationAsid PRIVATE
