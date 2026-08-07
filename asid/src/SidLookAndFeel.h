@@ -8,6 +8,8 @@
 
 #include <cmath>
 
+#include "BinaryData.h"  // embedded SidStationC64.ttf (the PETSCII pixel font)
+
 class SidLookAndFeel : public juce::LookAndFeel_V4 {
 public:
     // C64 screen palette.
@@ -16,7 +18,7 @@ public:
     static constexpr juce::uint32 kFg    = 0xff8781e3;  // light blue (text, outlines, border)
     static constexpr juce::uint32 kDim   = 0xff6461bd;  // dimmed light blue (disabled)
     static constexpr juce::uint32 kHot   = 0xffffffff;  // white highlight (pointers, text)
-    static constexpr juce::uint32 kAccent = 0xff35d6d0; // cyan for active states / values
+    static constexpr juce::uint32 kAccent = 0xff3cb8a6; // teal (Voice 1) default accent
 
     SidLookAndFeel() {
         setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(kBg));
@@ -34,7 +36,7 @@ public:
         setColour(juce::PopupMenu::highlightedTextColourId, juce::Colour(kBg));
         setColour(juce::TextButton::buttonColourId, juce::Colour(kPanel));
         setColour(juce::TextButton::textColourOffId, juce::Colour(kFg));
-        setColour(juce::TextButton::textColourOnId, juce::Colour(kHot));
+        setColour(juce::TextButton::textColourOnId, juce::Colour(kBg));  // dark text on the light active fill
         setColour(juce::ToggleButton::textColourId, juce::Colour(kFg));
         setColour(juce::ToggleButton::tickColourId, juce::Colour(kHot));
         setColour(juce::GroupComponent::outlineColourId, juce::Colour(kFg));
@@ -54,9 +56,27 @@ public:
     juce::Colour accent{juce::Colour(kAccent)};
     void setAccent(juce::Colour c) { accent = c; }
 
-    static juce::Font mono(float height, bool bold = false) {
-        auto o = juce::FontOptions().withName(juce::Font::getDefaultMonospacedFontName()).withHeight(height);
-        return juce::Font(bold ? o.withStyle("Bold") : o);
+    // The embedded C64 PETSCII pixel typeface, loaded once. This is the SID's own
+    // machine's screen font, so all GUI text is in it.
+    static const juce::Typeface::Ptr& c64Typeface() {
+        static juce::Typeface::Ptr tf = juce::Typeface::createSystemTypefaceFor(
+            BinaryData::SidStationC64_ttf, BinaryData::SidStationC64_ttfSize);
+        return tf;
+    }
+
+    // One uniform text size for the whole GUI (labels, section titles, buttons, the
+    // product title). Twice the 8 px source cell, so the pixels stay crisp. The C64
+    // screen shows every character at one size, and we match that.
+    static constexpr float kTextPx = 16.0f;
+
+    // A single-weight, single-size pixel font: the height and bold arguments are
+    // ignored so every call renders at kTextPx (kept for call-site compatibility).
+    static juce::Font mono(float = kTextPx, bool = false) {
+        if (auto tf = c64Typeface())
+            return juce::Font(juce::FontOptions().withTypeface(tf).withHeight(kTextPx));
+        return juce::Font(juce::FontOptions()
+                              .withName(juce::Font::getDefaultMonospacedFontName())
+                              .withHeight(kTextPx));
     }
 
     juce::Font getLabelFont(juce::Label& l) override { return mono(l.getFont().getHeight()); }
@@ -64,93 +84,119 @@ public:
     juce::Font getPopupMenuFont() override { return mono(14.0f); }
     juce::Font getTextButtonFont(juce::TextButton&, int) override { return mono(14.0f); }
 
-    // Round knob: a filled body with a bright value arc sweeping around it and a
-    // pointer line. The arc reads the value at a glance; the body gives it weight.
+    // Pixel knob: a ring of square "LED" ticks lit up to the value, a square body
+    // block, and a bright square marker at the value angle. All squares (snapped to
+    // whole pixels), so it reads at the same resolution as the font, not smooth.
     void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
                           float pos, float startAngle, float endAngle, juce::Slider& s) override {
         const bool on = s.isEnabled();
-        const auto fg = juce::Colour(on ? kFg : kDim);
-        const auto hot = juce::Colour(on ? kHot : kDim);
-
-        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(4.0f);
+        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(3.0f);
         const float size = juce::jmin(area.getWidth(), area.getHeight());
         const auto c = area.getCentre();
         const float radius = size * 0.5f;
-        const float arcR = radius - 2.0f;
-        const float knobR = radius - 9.0f;
-        const float angle = startAngle + pos * (endAngle - startAngle);
 
-        // Value arc: a dim full-sweep track with a bright fill up to the value. A
-        // "sidBipolar" control (centre default, e.g. tune / pulse width) fills out
-        // from the 12-o'clock centre instead of from the start.
+        // A "sidBipolar" control (centre default, e.g. tune / pulse width) lights
+        // out from the 12-o'clock centre; others fill from the start.
         const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
-        const float from = bipolar ? startAngle + 0.5f * (endAngle - startAngle) : startAngle;
-        const juce::PathStrokeType stroke(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded);
-        juce::Path track, value;
-        track.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, startAngle, endAngle, true);
-        g.setColour(juce::Colour(kBg).darker(0.35f));
-        g.strokePath(track, stroke);
-        if (std::abs(angle - from) > 0.01f) {
-            value.addCentredArc(c.x, c.y, arcR, arcR, 0.0f, juce::jmin(from, angle), juce::jmax(from, angle), true);
-            g.setColour(on ? accent : juce::Colour(kDim));  // accent value arc
-            g.strokePath(value, stroke);
+        const float ctr = bipolar ? 0.5f : 0.0f;
+
+        // Draw a whole-pixel square centred on a point.
+        auto pixelSquare = [&g](juce::Point<float> p, float side) {
+            g.fillRect(juce::Rectangle<int>((int) std::round(p.x - side * 0.5f),
+                                            (int) std::round(p.y - side * 0.5f),
+                                            (int) side, (int) side));
+        };
+
+        const int ticks = 11;
+        const float tickSide = juce::jmax(4.0f, std::floor(size * 0.14f));
+        const float ringR = radius - tickSide * 0.5f;
+        const auto litCol = on ? accent : juce::Colour(kDim);
+        const auto dimCol = juce::Colour(kBg).darker(0.45f);
+        for (int i = 0; i < ticks; ++i) {
+            const float f = (float) i / (ticks - 1);
+            const float ang = startAngle + f * (endAngle - startAngle);
+            const juce::Point<float> p(c.x + std::sin(ang) * ringR, c.y - std::cos(ang) * ringR);
+            const bool lit = f >= juce::jmin(ctr, pos) && f <= juce::jmax(ctr, pos);
+            g.setColour(lit ? litCol : dimCol);
+            pixelSquare(p, tickSide);
         }
 
-        // Knob body, then a pointer from the centre to its rim.
-        auto body = juce::Rectangle<float>(knobR * 2, knobR * 2).withCentre(c);
-        g.setColour(juce::Colour(kPanel));
-        g.fillEllipse(body);
-        g.setColour(fg);
-        g.drawEllipse(body, 2.0f);
-        const juce::Point<float> tip(c.x + std::sin(angle) * (knobR - 2.0f),
-                                     c.y - std::cos(angle) * (knobR - 2.0f));
-        g.setColour(hot);
-        g.drawLine({c, tip}, 2.5f);
+        // Body block and the value marker riding its edge at the value angle.
+        const float bodySide = std::floor(size * 0.42f);
+        g.setColour(on ? fieldFill() : juce::Colour(kDim).darker(0.3f));
+        pixelSquare(c, bodySide);
+        const float ang = startAngle + pos * (endAngle - startAngle);
+        const juce::Point<float> marker(c.x + std::sin(ang) * (bodySide * 0.5f),
+                                        c.y - std::cos(ang) * (bodySide * 0.5f));
+        g.setColour(juce::Colour(on ? kHot : kDim));
+        pixelSquare(marker, tickSide);
     }
 
-    // Horizontal fader: a dim track, an accent fill (from the centre when the
-    // control is "sidBipolar", else from the left), and a bright thumb bar.
-    void drawLinearSlider(juce::Graphics& g, int x, int y, int w, int h, float sliderPos, float, float,
+    // Value bar: the whole control is one field-height block. The unfilled part is
+    // a field (dark, kFg text) and the filled part is the accent (kBg text), so it
+    // reads exactly like an off/on button split at the value. The slider's name is
+    // drawn inside, two-toned across the split. A "sidBipolar" bar fills out from
+    // the centre. Value-while-dragging still shows in the popup bubble.
+    void drawLinearSlider(juce::Graphics& g, int, int, int, int, float, float, float,
                           juce::Slider::SliderStyle, juce::Slider& s) override {
         const bool on = s.isEnabled();
         const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
-        auto area = juce::Rectangle<int>(x, y, w, h).toFloat();
-        auto track = juce::Rectangle<float>(area.getX(), area.getCentreY() - 3.0f, area.getWidth(), 6.0f);
-        g.setColour(juce::Colour(kBg).darker(0.35f));
-        g.fillRect(track);
-        g.setColour(on ? accent : juce::Colour(kDim));
-        const float from = bipolar ? area.getCentreX() : area.getX();
-        g.fillRect(juce::Rectangle<float>(juce::jmin(from, sliderPos), track.getY(),
-                                          std::abs(sliderPos - from), track.getHeight()));
-        g.setColour(juce::Colour(on ? kHot : kDim));
-        g.fillRect(juce::Rectangle<float>(sliderPos - 1.5f, area.getY() + 2.0f, 3.0f, area.getHeight() - 4.0f));
+        // Fill the whole component (JUCE insets the linear-slider track by a thumb
+        // margin; we want the bar flush with the buttons and toggles beside it).
+        const auto bar = s.getLocalBounds();
+        const int x = bar.getX(), y = bar.getY(), w = bar.getWidth(), h = bar.getHeight();
+        const float frac = (float) s.valueToProportionOfLength(s.getValue());
+        const float ctr = bipolar ? 0.5f : 0.0f;
+        const int fx0 = x + juce::roundToInt(w * juce::jmin(ctr, frac));
+        const int fx1 = x + juce::roundToInt(w * juce::jmax(ctr, frac));
+        const auto filled = juce::Rectangle<int>(fx0, y, fx1 - fx0, h);
+
+        g.setColour(on ? fieldFill() : juce::Colour(kDim).darker(0.3f));  // unfilled (off) part
+        g.fillRect(bar);
+        g.setColour(on ? accent : juce::Colour(kDim));                    // filled (on) part
+        g.fillRect(filled);
+
+        const auto name = s.getName();
+        if (name.isNotEmpty()) {
+            g.setFont(mono());
+            const auto txt = bar.reduced(4, 0);
+            g.setColour(juce::Colour(on ? kFg : kDim));  // text over the unfilled part
+            g.drawText(name, txt, juce::Justification::centred, false);
+            juce::Graphics::ScopedSaveState clip(g);     // over the filled part: inverted
+            g.reduceClipRegion(filled);
+            g.setColour(juce::Colour(on ? kBg : kDim).withMultipliedAlpha(on ? 1.0f : 0.6f));
+            g.drawText(name, txt, juce::Justification::centred, false);
+        }
     }
 
     // Shared height for checkboxes, combo boxes, number boxes and buttons, so a
-    // row of mixed controls lines up. They also share the panel fill and 2px
-    // border (the same look as the buttons via drawButtonBackground).
+    // row of mixed controls lines up.
     static constexpr float kFieldH = 24.0f;
-    static constexpr float kCaptionH = 13.0f;  // one size for all caption labels
+    static constexpr float kCaptionH = 16.0f;  // one size for all caption labels
+
+    // Two backgrounds only (keeping it Commodore-spare): the screen (kBg) and one
+    // darker fill for every field, input and button. Active states use the accent.
+    static juce::Colour fieldFill() { return juce::Colour(kBg).darker(0.42f); }
 
     // Toggle drawn as a labelled button: it fills with the accent colour when on
     // (inverting its text), like the tab buttons, so on/off controls have the same
     // weight as everything else. "sidHighlight" marks the instance's own filter
-    // voice with a white border. An empty label gives a plain on/off cell (the
+    // voice with a brighter fill. An empty label gives a plain on/off cell (the
     // wavetable step matrix).
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down) override {
         const bool on = b.getToggleState();
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
         auto r = b.getLocalBounds().toFloat();
-        if (on) g.setColour(en ? accent : juce::Colour(kDim));  // accent when active
-        else    g.setColour(juce::Colour(kPanel).brighter(down ? 0.12f : (over ? 0.06f : 0.0f)));
+        if (on)      g.setColour(en ? accent : juce::Colour(kDim));  // accent when active
+        else if (hi) g.setColour(fieldFill().brighter(0.45f));       // own filter voice
+        else         g.setColour(fieldFill().brighter(down ? 0.20f : (over ? 0.10f : 0.0f)));
         g.fillRect(r);
-        g.setColour(juce::Colour(hi ? kHot : (en ? kFg : kDim)));
-        g.drawRect(r, 2.0f);
         if (b.getButtonText().isNotEmpty()) {
             g.setColour(juce::Colour(on ? kBg : (hi ? kHot : (en ? kFg : kDim))));
-            g.setFont(mono(14.0f, hi || on));
-            g.drawText(b.getButtonText(), r.getSmallestIntegerContainer(), juce::Justification::centred, false);
+            g.setFont(mono());
+            g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
+                             juce::Justification::centred, 1, 1.0f);
         }
     }
 
@@ -166,16 +212,11 @@ public:
                            || static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
         const float alpha = l.isEnabled() ? 1.0f : 0.5f;
         if (field) {
-            g.setColour(bg.isTransparent() ? juce::Colour(kPanel) : bg);
+            g.setColour(bg.isTransparent() ? fieldFill() : bg);
             g.fillRect(bounds);
-            g.setColour(juce::Colour(l.isEnabled() ? kFg : kDim));
-            g.drawRect(bounds, 2);
         }
         if (!l.isBeingEdited()) {
-            // All caption labels share one size; only large headings (the title)
-            // keep their own font.
-            const float h = l.getFont().getHeight();
-            const auto font = mono(h >= 16.0f ? h : kCaptionH);
+            const auto font = mono();  // one uniform size for every label
             g.setColour(l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
             g.setFont(font);
             auto textArea = bounds.reduced(field ? 3 : 0, 0);
@@ -194,10 +235,8 @@ public:
 
     void drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) override {
         auto r = juce::Rectangle<float>(0, 0, (float) w, (float) h);
-        g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
+        g.setColour(fieldFill());
         g.fillRect(r);
-        g.setColour(box.findColour(juce::ComboBox::outlineColourId).withAlpha(box.isEnabled() ? 1.0f : 0.5f));
-        g.drawRect(r, 2.0f);
         // A blocky down chevron.
         const float cx = w - 12.0f, cy = h * 0.5f;
         juce::Path p;
@@ -213,37 +252,32 @@ public:
         if (b.getToggleState())
             g.setColour(juce::Colour(kFg));
         else
-            g.setColour(juce::Colour(kPanel).brighter(down ? 0.12f : (over ? 0.06f : 0.0f)));
+            g.setColour(fieldFill().brighter(down ? 0.20f : (over ? 0.10f : 0.0f)));
         g.fillRect(r);
-        g.setColour(juce::Colour(b.isEnabled() ? kFg : kDim));
-        g.drawRect(r, 2.0f);
     }
 
-    // A blocky titled box for sections and their nested sub-sections. The title
-    // sits over the top edge, its background cleared so the line breaks around it.
+    // Text buttons (tabs, Init, Panic, the arp steppers) draw their own label so it
+    // uses the pixel font and fills the button width (the default inset clipped the
+    // one-character steppers to an ellipsis).
+    void drawButtonText(juce::Graphics& g, juce::TextButton& b, bool, bool) override {
+        const bool on = b.getToggleState();
+        g.setFont(mono());
+        g.setColour(b.findColour(on ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId)
+                        .withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.5f));
+        g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(3, 0),
+                         juce::Justification::centred, 1, 1.0f);
+    }
+
+    // A section is just its title on the screen background; the controls below are
+    // grouped by spacing alone. No panel fill or outline (fewer shades, cleaner).
     void drawGroupComponentOutline(juce::Graphics& g, int w, int h, const juce::String& text,
                                    const juce::Justification&, juce::GroupComponent&) override {
-        const float titleH = 16.0f;
-        auto box = juce::Rectangle<float>(1.0f, titleH * 0.5f, w - 2.0f, h - titleH * 0.5f - 1.0f);
-        g.setColour(juce::Colour(kBg).darker(0.12f));  // subtle inset panel for depth
-        g.fillRect(box);
-        g.setColour(juce::Colour(kFg));
-        g.drawRect(box, 2.0f);
-
-        if (text.isNotEmpty()) {
-            auto f = mono(13.0f, true);
-            g.setFont(f);
-            // Monospaced, so glyph advance is a steady fraction of the height.
-            const float tw = text.length() * f.getHeight() * 0.62f + 10.0f;
-            auto title = juce::Rectangle<float>(10.0f, 0.0f, tw, titleH);
-            // Break the border behind the title, matching each side: the outside
-            // screen colour above the border line, the inset panel colour below it.
-            g.setColour(juce::Colour(kBg));
-            g.fillRect(title.withHeight(titleH * 0.5f));
-            g.setColour(juce::Colour(kBg).darker(0.12f));
-            g.fillRect(title.withTrimmedTop(titleH * 0.5f));
-            g.setColour(juce::Colour(kHot));
-            g.drawText(text, title.getSmallestIntegerContainer(), juce::Justification::centred, false);
-        }
+        juce::ignoreUnused(h);
+        if (text.isEmpty()) return;
+        const float titleH = kTextPx + 2.0f;
+        g.setFont(mono());
+        g.setColour(juce::Colour(kHot));
+        g.drawText(text, juce::Rectangle<float>(6.0f, 0.0f, w - 12.0f, titleH).getSmallestIntegerContainer(),
+                   juce::Justification::centredLeft, false);
     }
 };

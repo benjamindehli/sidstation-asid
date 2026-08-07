@@ -3,7 +3,6 @@
 #include "BinaryData.h"
 
 namespace {
-constexpr int kRowBox = 114;  // a full-width box holding one inline row (22 title + 84 + 8)
 
 // The content area inside a titled box: sides in, and below the title.
 juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
@@ -12,9 +11,9 @@ juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
 // Distinct accent per SID voice, so the three plugin windows are colour-coded.
 juce::Colour voiceColour(int v) {
     switch (v) {
-        case 1:  return juce::Colour(0xfff05cc0);  // Voice 2 - magenta
-        case 2:  return juce::Colour(0xffe8a03c);  // Voice 3 - amber
-        default: return juce::Colour(0xff35d6d0);  // Voice 1 - cyan
+        case 1:  return juce::Colour(0xffe36d7a);  // Voice 2 - red/pink
+        case 2:  return juce::Colour(0xffe3c681);  // Voice 3 - sand
+        default: return juce::Colour(0xff3cb8a6);  // Voice 1 - teal
     }
 }
 // The i-th of n equal columns spanning a row, for spreading controls to fill it.
@@ -22,20 +21,19 @@ juce::Rectangle<int> colOf(juce::Rectangle<int> row, int i, int n) {
     const int w = row.getWidth() / n;
     return {row.getX() + i * w, row.getY(), w, row.getHeight()};
 }
-// Every knob is drawn at this fixed size, so they all match regardless of how
-// tall their section is (a taller section just leaves more margin around it).
-constexpr int kKnob = 64;
-// A knob with its caption, centred in a column both ways. The label+knob group is
-// centred vertically so it lines up with the buttons in a mixed row.
+// One uniform control height for every bar, button, toggle and menu.
+constexpr int kCtrlH = 30;
+// The max width a single control fills, so a control alone in a wide column does
+// not stretch absurdly (it still shrinks to fit narrow columns).
+constexpr int kCtrlWMax = 200;
+// A value bar centred in a column (the label is drawn inside the bar now).
 void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
-    const int side = juce::jmin(col.getWidth() - 8, kKnob);
-    auto grp = col.withSizeKeepingCentre(col.getWidth(), 14 + side);
-    l.setBounds(grp.removeFromTop(14));
-    s.setBounds(grp.withSizeKeepingCentre(side, side));
+    juce::ignoreUnused(l);
+    s.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, kCtrlWMax), kCtrlH));
 }
 // A toggle button centred in a column both ways.
 void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
-    b.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, 96), 30));
+    b.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, kCtrlWMax), kCtrlH));
 }
 
 // Standalone window chrome: paint the JUCE title bar dark (#191a1b) and draw the
@@ -87,14 +85,14 @@ WindowChromeLnF& windowChromeLnF() { static WindowChromeLnF lnf; return lnf; }
 
 void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
                            const juce::String& paramId, std::unique_ptr<SliderAtt>& att) {
-    s.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    // A horizontal value bar with its name drawn inside (see drawLinearSlider), so
+    // knobs, buttons and menus are all one uniform-height control. No caption label.
+    s.setSliderStyle(juce::Slider::LinearHorizontal);
     s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);  // value shown in a popup bubble instead
-    s.setPopupDisplayEnabled(true, false, this);  // value bubble while turning
+    s.setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
+    s.setName(name);                              // drawn inside the bar
+    juce::ignoreUnused(l);                        // caption is now inside the bar
     parent.addAndMakeVisible(s);
-    l.setText(name, juce::dontSendNotification);
-    l.setJustificationType(juce::Justification::centred);
-    l.setFont(juce::Font(juce::FontOptions().withHeight(12.0f)));
-    parent.addAndMakeVisible(l);
     att = std::make_unique<SliderAtt>(state, paramId, s);
 }
 
@@ -134,7 +132,7 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
     // two parameters (On and Shape).
     parent.addAndMakeVisible(u.shapeBox);
     u.shapeBox.addItem("Off", 1);
-    for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "Sample & Hold", "Random"})
+    for (const char* s : {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Random"})
         u.shapeBox.addItem(s, u.shapeBox.getNumItems() + 1);
     u.shapeBox.onChange = [this, &u] {
         const int sel = u.shapeBox.getSelectedId();
@@ -176,31 +174,22 @@ void AsidEditor::configureRateKnob(LfoControls& u, bool synced) {
 }
 
 void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
-    // One row: Shape (with its Off item), then the Rate, Depth and Delay knobs.
-    // Rate carries a small Sync toggle and Depth a small Mod toggle, right beneath
-    // them, since each toggle only changes what its own knob does. (Rate becomes
-    // the stepped tempo division when Sync is on.)
-    const int side = kKnob, togH = 22, togGap = 4, togW = 124;
-    const int stackH = 14 + side + togGap + togH;  // label + knob + toggle
-    auto row = area.withSizeKeepingCentre(area.getWidth(), stackH);
-    // Shape selector, centred against the label + knob band so it lines up.
-    u.shapeBox.setBounds(juce::Rectangle<int>(colOf(row, 0, 4).getX(), row.getY(),
-                                              colOf(row, 0, 4).getWidth(), 14 + side)
-                             .withSizeKeepingCentre(juce::jmin(colOf(row, 0, 4).getWidth() - 8, 160), 30));
-    // A knob with its caption above and, optionally, a small toggle below.
-    auto place = [&](int i, juce::Slider& s, juce::Label& l, juce::ToggleButton* t) {
-        auto col = colOf(row, i, 4);
-        l.setBounds(col.getX(), col.getY(), col.getWidth(), 14);
-        s.setBounds(juce::Rectangle<int>(col.getX(), col.getY() + 14, col.getWidth(), side)
-                        .withSizeKeepingCentre(side, side));
-        if (t != nullptr)
-            t->setBounds(juce::Rectangle<int>(col.getX(), col.getY() + 14 + side + togGap,
-                                              col.getWidth(), togH)
-                             .withSizeKeepingCentre(togW, togH));
+    // Two rows of three 208px cells on the standard grid (x = 0, 232, 464):
+    //   Shape | Rate | Depth
+    //   Delay | Sync | Mod Wheel   (Sync sits under Rate, Mod Wheel under Depth).
+    const int H = kCtrlH, vg = 8;
+    auto r1 = area.removeFromTop(H);
+    area.removeFromTop(vg);
+    auto r2 = area.removeFromTop(H);
+    auto cell = [](juce::Rectangle<int> row, int col) {
+        return juce::Rectangle<int>(row.getX() + col * 232, row.getY(), 208, row.getHeight());
     };
-    place(1, u.rateKnob, u.rateLabel, &u.syncButton);
-    place(2, u.depthKnob, u.depthLabel, &u.wheelButton);
-    place(3, u.delayKnob, u.delayLabel, nullptr);
+    u.shapeBox.setBounds(cell(r1, 0));
+    u.rateKnob.setBounds(cell(r1, 1));
+    u.depthKnob.setBounds(cell(r1, 2));
+    u.delayKnob.setBounds(cell(r2, 0));
+    u.syncButton.setBounds(cell(r2, 1));
+    u.wheelButton.setBounds(cell(r2, 2));
 }
 
 AsidEditor::AsidEditor(AsidProcessor& p)
@@ -324,8 +313,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     bpmAtt = std::make_unique<SliderAtt>(state, "bpm", bpmSlider);
     bpmField.setJustificationType(juce::Justification::centred);
     bpmField.setFont(juce::Font(juce::FontOptions().withHeight(14.0f)));
-    bpmField.getProperties().set("sidField", true);  // draw as a bordered field
-    bpmField.setColour(juce::Label::backgroundColourId, juce::Colour(SidLookAndFeel::kPanel));
+    bpmField.getProperties().set("sidField", true);  // draw as a filled field
     bpmField.setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
     bpmField.setEditable(true, true, false);  // standalone: click to type (toggled off in a DAW)
     addAndMakeVisible(bpmField);
@@ -408,14 +396,14 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(oscPage, fineKnob, fineLabel, "Fine", "fine", fineAtt);
     // These have a natural centre default, so their arcs fill out from the centre.
     for (auto* k : {&pwKnob, &coarseKnob, &fineKnob}) k->getProperties().set("sidBipolar", true);
-    setupKnob(oscPage, bendKnob, bendLabel, "Bend Range", "pitchBendRange", bendAtt);
+    setupKnob(oscPage, bendKnob, bendLabel, "Bend", "pitchBendRange", bendAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
     testAtt = std::make_unique<ButtonAtt>(state, "test", testButton);
 
-    setupKnob(oscPage, portaKnob, portaLabel, "Glide time", "portaTime", portaAtt);
+    setupKnob(oscPage, portaKnob, portaLabel, "Glide", "portaTime", portaAtt);
     setupSwitch(portaTrigBtns[0], portaTrigBtns[1], "Legato", "Always", "portaTrigger");
-    setupSwitch(portaTypeBtns[0], portaTypeBtns[1], "Smooth", "Stepped", "portaType");
+    setupSwitch(portaTypeBtns[0], portaTypeBtns[1], "Smooth", "Step", "portaType");
     oscPage.addAndMakeVisible(tuningDiv1);
     oscPage.addAndMakeVisible(tuningDiv2);
 
@@ -467,14 +455,14 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     setupKnob(wtPage, wtSpeedKnob, wtSpeedLabel, "Speed", "wtSpeed", wtSpeedAtt);
     setupKnob(wtPage, wtLengthKnob, wtLengthLabel, "Length", "wtLength", wtLengthAtt);
     setupKnob(wtPage, wtLoopKnob, wtLoopLabel, "Loop", "wtLoop", wtLoopAtt);
-    const char* wtHeads[4] = {"Triangle", "Sawtooth", "Pulse", "Noise"};
+    const char* wtHeads[4] = {"Tri", "Saw", "Pul", "Noi"};
     const char* wtIds[4] = {"wtTri", "wtSaw", "wtPulse", "wtNoise"};
     for (int w = 0; w < 4; ++w) {
         wtWaveHead[w].setText(wtHeads[w], juce::dontSendNotification);
         wtWaveHead[w].setJustificationType(juce::Justification::centred);
         wtPage.addAndMakeVisible(wtWaveHead[w]);
     }
-    for (auto* h : {&wtSyncHead, &wtRingHead, &wtPwHead, &wtArpHead}) {
+    for (auto* h : {&wtSyncHead, &wtRingHead, &wtTestHead, &wtPwHead, &wtArpHead}) {
         h->setJustificationType(juce::Justification::centred);
         wtPage.addAndMakeVisible(*h);
     }
@@ -490,6 +478,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtSyncAtt[i] = std::make_unique<ButtonAtt>(state, "wtSync" + juce::String(i), wtSyncTog[i]);
         wtPage.addAndMakeVisible(wtRingTog[i]);
         wtRingAtt[i] = std::make_unique<ButtonAtt>(state, "wtRing" + juce::String(i), wtRingTog[i]);
+        wtPage.addAndMakeVisible(wtTestTog[i]);
+        wtTestAtt[i] = std::make_unique<ButtonAtt>(state, "wtTest" + juce::String(i), wtTestTog[i]);
         wtPwKnob[i].setSliderStyle(juce::Slider::LinearHorizontal);
         wtPwKnob[i].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         wtPwKnob[i].setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
@@ -501,8 +491,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
         wtArpValue[i].setJustificationType(juce::Justification::centred);
         wtArpValue[i].setFont(juce::Font(juce::FontOptions().withHeight(13.0f)));
-        wtArpValue[i].getProperties().set("sidField", true);  // draw as a bordered field
-        wtArpValue[i].setColour(juce::Label::backgroundColourId, juce::Colour(SidLookAndFeel::kPanel));
+        wtArpValue[i].getProperties().set("sidField", true);  // draw as a filled field
         wtArpValue[i].setColour(juce::Label::textColourId, juce::Colour(SidLookAndFeel::kHot));
         wtPage.addAndMakeVisible(wtArpValue[i]);
         wtArpSlider[i].onValueChange = [this, i] {
@@ -635,7 +624,7 @@ void AsidEditor::updateEnablement() {
     for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
         s->setEnabled(wtOn);
     for (auto& h : wtWaveHead) h.setEnabled(wtOn);
-    for (auto* h : {&wtSyncHead, &wtRingHead, &wtPwHead, &wtArpHead}) h->setEnabled(wtOn);
+    for (auto* h : {&wtSyncHead, &wtRingHead, &wtTestHead, &wtPwHead, &wtArpHead}) h->setEnabled(wtOn);
     const int wtLen = intParam("wtLength");
     const int wtLoopPt = intParam("wtLoop");
     const int wtPlaying = proc.wtStep();
@@ -648,6 +637,7 @@ void AsidEditor::updateEnablement() {
             wtWaveTog[i][w].setEnabled(rowActive && (w == 3 || !stepNoise));
         wtSyncTog[i].setEnabled(rowActive);
         wtRingTog[i].setEnabled(rowActive);
+        wtTestTog[i].setEnabled(rowActive);
         wtPwKnob[i].setEnabled(rowActive);
         wtArpValue[i].setEnabled(rowActive);
         wtArpDec[i].setEnabled(rowActive);
@@ -782,11 +772,11 @@ void AsidEditor::paint(juce::Graphics& g) {
     g.setColour(juce::Colour(SidLookAndFeel::kFg));
     g.fillRect(content);
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
-    g.fillRect(content.reduced(kBorder));
+    g.fillRect(screenBox());  // 688 x 496 dark screen, centred in the light-blue frame
 
     // Top row: Dehli Musikk logo left, product title centred (the Label), and the
     // voice caption + switch right (components, positioned in resized()).
-    auto titleRow = content.reduced(kBorder + 6).removeFromTop(34);
+    auto titleRow = innerArea().removeFromTop(34);
     if (logo != nullptr)
         logo->drawWithin(g, titleRow.removeFromLeft(150).reduced(0, 3).toFloat(),
                          juce::RectanglePlacement(juce::RectanglePlacement::xLeft
@@ -795,7 +785,9 @@ void AsidEditor::paint(juce::Graphics& g) {
     // MIDI load meter: segmented blocks lit to the current fraction. The top
     // fifth turns white as a warning; over 100% every block is white (overload).
     if (!meterArea.isEmpty()) {
-        // Segments sit inside the 2px border, so the frame matches the other fields.
+        // A flat field holding the segments, no border (matching the other fields).
+        g.setColour(SidLookAndFeel::fieldFill());
+        g.fillRect(meterArea);
         auto inner = meterArea.reduced(2);
         const int segs = 20;
         const int gap = 2;
@@ -805,15 +797,11 @@ void AsidEditor::paint(juce::Graphics& g) {
             juce::Rectangle<int> seg(inner.getX() + i * (segW + gap), inner.getY(),
                                      segW, inner.getHeight());
             const bool lit = midiLoad > static_cast<float>(i) / segs;
-            juce::Colour col;
-            if (!lit) col = juce::Colour(SidLookAndFeel::kPanel);
-            else if (over || i >= 16) col = juce::Colour(SidLookAndFeel::kHot);  // warning / overload
-            else col = juce::Colour(SidLookAndFeel::kFg);
-            g.setColour(col);
+            if (!lit) continue;  // unlit shows the dark field behind
+            g.setColour((over || i >= 16) ? juce::Colour(SidLookAndFeel::kHot)   // warning / overload
+                                          : juce::Colour(SidLookAndFeel::kFg));
             g.fillRect(seg);
         }
-        g.setColour(juce::Colour(SidLookAndFeel::kFg));
-        g.drawRect(meterArea, 2);
     }
 }
 
@@ -846,7 +834,7 @@ void AsidEditor::resized() {
 
     const auto content = getLocalBounds().withTrimmedTop(kPresetBarH);
     overlayComp.setBounds(content);  // overlay stays on the 720x540 region, never stretched
-    auto area = content.reduced(kBorder + 6);  // inside the C64 border
+    auto area = innerArea();  // 672 x 480 padded area inside the dark screen
     auto titleRow = area.removeFromTop(34);
     title.setBounds(titleRow);  // full width, text centred
     {   // Voice selector in the top-right: "VOICE" caption then the 3-cell switch.
@@ -855,36 +843,37 @@ void AsidEditor::resized() {
         titleRow.removeFromRight(8);
         voiceCaption.setBounds(titleRow.removeFromRight(84));
     }
-    area.removeFromTop(6);
+    area.removeFromTop(8);
 
     // Global header (above the tabs): MIDI out (+ Refresh) and SID voice, laid
     // horizontally with labels over the controls.
-    auto header = area.removeFromTop(38);
-    auto midi = header.removeFromLeft(200);
-    outLabel.setBounds(midi.removeFromTop(14));
-    refreshButton.setBounds(midi.removeFromRight(58));
+    auto header = area.removeFromTop(44);
+    auto midi = header.removeFromLeft(210);
+    outLabel.setBounds(midi.removeFromTop(18));
+    refreshButton.setBounds(midi.removeFromRight(76));
     midi.removeFromRight(6);
     outputBox.setBounds(midi);
     header.removeFromLeft(12);
-    auto tempo = header.removeFromLeft(108);
-    bpmLabel.setBounds(tempo.removeFromTop(14));
+    auto tempo = header.removeFromLeft(100);
+    bpmLabel.setBounds(tempo.removeFromTop(18));
     bpmField.setBounds(tempo.removeFromTop(24));
     header.removeFromLeft(12);
-    auto mod = header.removeFromLeft(128);
-    modRateLabel.setBounds(mod.removeFromTop(14));
+    auto mod = header.removeFromLeft(126);
+    modRateLabel.setBounds(mod.removeFromTop(18));
     modRateBox.setBounds(mod.removeFromTop(24));
     header.removeFromLeft(12);
-    midiLoadLabel.setBounds(header.removeFromTop(14));
+    midiLoadLabel.setBounds(header.removeFromTop(18));
     meterArea = header.removeFromTop(24);
     area.removeFromTop(8);
 
-    auto tabs = area.removeFromTop(26);
-    const int tw = (tabs.getWidth() - 12) / 4;
-    oscTabBtn.setBounds(tabs.removeFromLeft(tw));    tabs.removeFromLeft(4);  // VOICE
-    waveTabBtn.setBounds(tabs.removeFromLeft(tw));   tabs.removeFromLeft(4);  // WAVETABLE
-    ampModTabBtn.setBounds(tabs.removeFromLeft(tw)); tabs.removeFromLeft(4);  // MODULATION
-    sharedTabBtn.setBounds(tabs.removeFromLeft(tw));                          // GLOBAL
-    area.removeFromTop(8);
+    // Tabs: four 168px cells filling the 672px width, no gap (colour marks the
+    // active one, like the dual buttons).
+    auto tabs = area.removeFromTop(30);
+    oscTabBtn.setBounds(tabs.removeFromLeft(168));     // VOICE
+    waveTabBtn.setBounds(tabs.removeFromLeft(168));    // WAVETABLE
+    ampModTabBtn.setBounds(tabs.removeFromLeft(168));  // MODULATION
+    sharedTabBtn.setBounds(tabs.removeFromLeft(168));  // GLOBAL
+    // No gap here: each page adds its own space above its first section title.
 
     // All pages fill the same area; each lays out in its own local coords.
     oscPage.setBounds(area);
@@ -898,197 +887,183 @@ void AsidEditor::resized() {
 }
 
 void AsidEditor::layoutOscPage(juce::Rectangle<int> area) {
-    const int gap = 10;
-    const int rowH = (area.getHeight() - 2 * gap) / 3;
-    {  // OSCILLATOR in three groups: waveform | Sync/Ring | Pulse Width.
-        auto box = area.removeFromTop(rowH);
+    // Fixed grid, full inner width (672): controls span the padded dark screen with
+    // no extra side inset. Heights are the uniform control height; gaps are 8 px
+    // vertical, 24 px between groups. The block is centred vertically in the page.
+    const int H = kCtrlH, vg = 8, hg = 24, titleH = 22, sabove = 24;
+    const int twoRow = titleH + 2 * H + vg;      // Oscillator / Tuning sections
+    const int ampH = titleH + H;                 // Amp Envelope section
+
+    auto laySwitchAt = [](juce::Rectangle<int> r, juce::ToggleButton& a, juce::ToggleButton& b) {
+        const int half = r.getWidth() / 2;  // two flush halves, no gap
+        a.setBounds(r.getX(), r.getY(), half, r.getHeight());
+        b.setBounds(r.getX() + half, r.getY(), r.getWidth() - half, r.getHeight());
+    };
+
+    area.removeFromTop(sabove);  // 24px above OSCILLATOR (from the tabs)
+    {  // OSCILLATOR. Row 1: Tri Saw | Sync Ring | Test(208). Row 2: Pulse Noise |
+       // Pulse Width(208) | dead space under Test.
+        auto box = area.removeFromTop(twoRow);
         oscGroup.setBounds(box);
-        auto c = innerBox(box);
-        const int gGap = 34;
-        // Group 1: 2x2 self-labelled waveform buttons, vertically centred.
-        {
-            auto cell = c.removeFromLeft(190).withSizeKeepingCentre(190, 2 * 30 + 8);
-            auto r1 = cell.removeFromTop(30);
-            waveTriButton.setBounds(r1.removeFromLeft(88)); r1.removeFromLeft(10);
-            waveSawButton.setBounds(r1.removeFromLeft(88));
-            cell.removeFromTop(8);
-            auto r2 = cell.removeFromTop(30);
-            wavePulseButton.setBounds(r2.removeFromLeft(88)); r2.removeFromLeft(10);
-            waveNoiseButton.setBounds(r2.removeFromLeft(88));
-        }
-        placeDivider(oscDiv1, c.removeFromLeft(gGap));
-        // Group 2: Sync + Ring + Test, centred as a row.
-        {
-            const int bw = 58, bg = 10, groupW = 3 * bw + 2 * bg;
-            auto row = c.removeFromLeft(groupW + 16).withSizeKeepingCentre(groupW, 30);
-            syncButton.setBounds(row.removeFromLeft(bw)); row.removeFromLeft(bg);
-            ringButton.setBounds(row.removeFromLeft(bw)); row.removeFromLeft(bg);
-            testButton.setBounds(row.removeFromLeft(bw));
-        }
-        placeDivider(oscDiv2, c.removeFromLeft(gGap));
-        // Group 3: Pulse Width (rest).
-        knobInCol(c, pwKnob, pwLabel);
+        auto c = box.withTrimmedTop(titleH);
+        auto r1 = c.removeFromTop(H);
+        c.removeFromTop(vg);
+        auto r2 = c.removeFromTop(H);
+        const int x = r1.getX();
+        waveTriButton.setBounds(x, r1.getY(), 100, H);
+        waveSawButton.setBounds(x + 108, r1.getY(), 100, H);
+        syncButton.setBounds(x + 232, r1.getY(), 100, H);   // 24px after Saw
+        ringButton.setBounds(x + 340, r1.getY(), 100, H);   // 8px after Sync
+        testButton.setBounds(x + 464, r1.getY(), 208, H);   // 24px after Ring, wide
+        wavePulseButton.setBounds(x, r2.getY(), 100, H);
+        waveNoiseButton.setBounds(x + 108, r2.getY(), 100, H);
+        pwKnob.setBounds(x + 232, r2.getY(), 208, H);        // under Sync/Ring, 208 wide
     }
-    area.removeFromTop(gap);
-    {  // TUNING in three groups: (Coarse, Fine) | (Bend Range) | (Glide time +
-       // stacked trigger/type switches).
-        auto box = area.removeFromTop(rowH);
+    area.removeFromTop(sabove);
+    {  // TUNING: Coarse/Fine, Bend/Glide and the switch pair - three 208px columns.
+        auto box = area.removeFromTop(twoRow);
         glideGroup.setBounds(box);
-        auto c = innerBox(box);
-        const int gGap = 34;  // gap between groups (wider than within a group)
-        // A 2-segment switch: the second segment overlaps the first by 2px so the
-        // shared divider is a single 2px line, matching the outer border.
-        auto laySwitch = [](juce::Rectangle<int> row, juce::ToggleButton& a, juce::ToggleButton& b) {
-            const int half = row.getWidth() / 2;
-            a.setBounds(row.getX(), row.getY(), half, row.getHeight());
-            b.setBounds(row.getX() + half - 2, row.getY(), row.getWidth() - half + 2, row.getHeight());
-        };
-        // Group 1: Coarse, Fine.
-        auto g1 = c.removeFromLeft(168);
-        knobInCol(colOf(g1, 0, 2), coarseKnob, coarseLabel);
-        knobInCol(colOf(g1, 1, 2), fineKnob, fineLabel);
-        placeDivider(tuningDiv1, c.removeFromLeft(gGap));
-        // Group 2: Bend Range.
-        knobInCol(c.removeFromLeft(96), bendKnob, bendLabel);
-        placeDivider(tuningDiv2, c.removeFromLeft(gGap));
-        // Group 3: Glide time knob + the two stacked switches, kept close together.
-        const int knobW = 96, swW = 172, innerGap = 8;
-        auto g3 = c.withSizeKeepingCentre(knobW + innerGap + swW, c.getHeight());
-        knobInCol(g3.removeFromLeft(knobW), portaKnob, portaLabel);
-        g3.removeFromLeft(innerGap);
-        auto stack = g3.withSizeKeepingCentre(swW, 2 * 28 + 8);
-        laySwitch(stack.removeFromTop(28), portaTrigBtns[0], portaTrigBtns[1]);
-        stack.removeFromTop(8);
-        laySwitch(stack.removeFromTop(28), portaTypeBtns[0], portaTypeBtns[1]);
+        auto c = box.withTrimmedTop(titleH);
+        auto r1 = c.removeFromTop(H);
+        c.removeFromTop(vg);
+        auto r2 = c.removeFromTop(H);
+        const int x = r1.getX(), colW = 208, step = colW + hg;  // 232
+        coarseKnob.setBounds(x, r1.getY(), colW, H);
+        fineKnob.setBounds(x, r2.getY(), colW, H);
+        bendKnob.setBounds(x + step, r1.getY(), colW, H);
+        portaKnob.setBounds(x + step, r2.getY(), colW, H);
+        laySwitchAt({x + 2 * step, r1.getY(), colW, H}, portaTrigBtns[0], portaTrigBtns[1]);
+        laySwitchAt({x + 2 * step, r2.getY(), colW, H}, portaTypeBtns[0], portaTypeBtns[1]);
     }
-    area.removeFromTop(gap);
-    {  // AMP ENVELOPE
-        auto box = area.removeFromTop(rowH);
+    area.removeFromTop(sabove);
+    {  // AMP ENVELOPE: four 162px bars, 8px gaps.
+        auto box = area.removeFromTop(ampH);
         ampGroup.setBounds(box);
-        auto c = innerBox(box);
-        knobInCol(colOf(c, 0, 4), attackKnob, attackLabel);
-        knobInCol(colOf(c, 1, 4), decayKnob, decayLabel);
-        knobInCol(colOf(c, 2, 4), sustainKnob, sustainLabel);
-        knobInCol(colOf(c, 3, 4), releaseKnob, releaseLabel);
+        auto r = box.withTrimmedTop(titleH).removeFromTop(H);
+        const int x = r.getX(), step = 162 + 8;  // 170
+        attackKnob.setBounds(x, r.getY(), 162, H);
+        decayKnob.setBounds(x + step, r.getY(), 162, H);
+        sustainKnob.setBounds(x + 2 * step, r.getY(), 162, H);
+        releaseKnob.setBounds(x + 3 * step, r.getY(), 162, H);
     }
 }
 
 void AsidEditor::layoutAmpModPage(juce::Rectangle<int> area) {
-    const int gap = 10;
-    const int rowH = (area.getHeight() - gap) / 2;  // two sections fill the height
+    const int H = kCtrlH, vg = 8, titleH = 22, sabove = 24;
+    const int secH = titleH + 2 * H + vg;  // title + the LFO's two rows
+    area.removeFromTop(sabove);
     {  // PITCH MODULATION
-        auto pm = area.removeFromTop(rowH);
+        auto pm = area.removeFromTop(secH);
         pitchModGroup.setBounds(pm);
-        layoutLfo(pitchLfoUi, innerBox(pm));
+        layoutLfo(pitchLfoUi, pm.withTrimmedTop(titleH));
     }
-    area.removeFromTop(gap);
+    area.removeFromTop(sabove);
     {  // PULSE WIDTH MODULATION
-        auto pw = area.removeFromTop(rowH);
+        auto pw = area.removeFromTop(secH);
         pwModGroup.setBounds(pw);
-        layoutLfo(pwLfoUi, innerBox(pw));
+        layoutLfo(pwLfoUi, pw.withTrimmedTop(titleH));
     }
 }
 
 void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
-    const int gap = 10;
-    const int lfoH = 136;  // the LFO stack (knob + toggle below) is a touch taller
-    const int sideH = (area.getHeight() - 2 * gap - lfoH) / 2;  // Filter and Master split the rest
-    {  // FILTER in three groups: voices (V1/V2/V3) | modes (LP/BP/HP) | Cutoff+Reso.
-        auto box = area.removeFromTop(sideH);
+    const int H = kCtrlH, vg = 8, titleH = 22, sabove = 24;
+    const int twoRow = titleH + 2 * H + vg;  // Filter, Cutoff Modulation
+    const int ampH = titleH + H;             // Master
+    area.removeFromTop(sabove);
+    {  // FILTER. Row 1: V1 V2 V3 | LP BP HP | Cutoff(208). Row 2: External(208) |
+       // dead space | Resonance(208). Three 208px columns at x = 0, 232, 464.
+        auto box = area.removeFromTop(twoRow);
         filterGroup.setBounds(box);
-        auto c = innerBox(box);
-        const int gGap = 34, segW = 46, segGap = 8;
-        // Group 1: routing - the three voices plus the external input.
-        {
-            const int gw = 4 * segW + 3 * segGap;
-            auto g = c.removeFromLeft(gw).withSizeKeepingCentre(gw, 30);
-            for (auto& b : filtButtons) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
-            filtExtButton.setBounds(g.removeFromLeft(segW));
-        }
-        placeDivider(filtDiv1, c.removeFromLeft(gGap));
-        // Group 2: modes (LP/BP/HP).
-        {
-            const int gw = 3 * segW + 2 * segGap;
-            auto g = c.removeFromLeft(gw).withSizeKeepingCentre(gw, 30);
-            for (auto& b : modeButtons) { b.setBounds(g.removeFromLeft(segW)); g.removeFromLeft(segGap); }
-        }
-        placeDivider(filtDiv2, c.removeFromLeft(gGap));
-        knobInCol(colOf(c, 0, 2), cutoffKnob, cutoffLabel);  // Group 3: cutoff, reso
-        knobInCol(colOf(c, 1, 2), resKnob, resLabel);
+        auto c = box.withTrimmedTop(titleH);
+        auto r1 = c.removeFromTop(H);
+        c.removeFromTop(vg);
+        auto r2 = c.removeFromTop(H);
+        const int x = r1.getX(), sw = 64;
+        filtButtons[0].setBounds(x, r1.getY(), sw, H);        // V1
+        filtButtons[1].setBounds(x + 72, r1.getY(), sw, H);   // V2
+        filtButtons[2].setBounds(x + 144, r1.getY(), sw, H);  // V3
+        modeButtons[0].setBounds(x + 232, r1.getY(), sw, H);  // LP
+        modeButtons[1].setBounds(x + 304, r1.getY(), sw, H);  // BP
+        modeButtons[2].setBounds(x + 376, r1.getY(), sw, H);  // HP
+        cutoffKnob.setBounds(x + 464, r1.getY(), 208, H);
+        filtExtButton.setBounds(x, r2.getY(), 208, H);        // External (dead space in col 2)
+        resKnob.setBounds(x + 464, r2.getY(), 208, H);
     }
-    area.removeFromTop(gap);
+    area.removeFromTop(sabove);
     {  // CUTOFF MODULATION
-        auto cm = area.removeFromTop(lfoH);
+        auto cm = area.removeFromTop(twoRow);
         cutModGroup.setBounds(cm);
-        layoutLfo(cutLfoUi, innerBox(cm));
+        layoutLfo(cutLfoUi, cm.withTrimmedTop(titleH));
     }
-    area.removeFromTop(gap);
-    {  // MASTER: Volume, Latency and the Voice 3 output toggle, grouped centred.
-        auto box = area.removeFromTop(sideH);
+    area.removeFromTop(sabove);
+    {  // MASTER: Volume, Latency, Voice 3 Off, Init and Panic all on one line.
+        auto box = area.removeFromTop(ampH);
         masterGroup.setBounds(box);
-        const int knobW = 96, togW = 150, btnW = 80, gap = 20;
-        const int groupW = 2 * knobW + togW + 2 * btnW + 4 * gap;
-        auto g = innerBox(box).withSizeKeepingCentre(groupW, innerBox(box).getHeight());
-        knobInCol(g.removeFromLeft(knobW), volumeKnob, volumeLabel); g.removeFromLeft(gap);
-        knobInCol(g.removeFromLeft(knobW), latencyKnob, latencyLabel); g.removeFromLeft(gap);
-        voice3offButton.setBounds(g.removeFromLeft(togW).withSizeKeepingCentre(togW, 30)); g.removeFromLeft(gap);
-        initButton.setBounds(g.removeFromLeft(btnW).withSizeKeepingCentre(btnW, 30)); g.removeFromLeft(gap);
-        panicButton.setBounds(g.removeFromLeft(btnW).withSizeKeepingCentre(btnW, 30));
+        auto row = box.withTrimmedTop(titleH).removeFromTop(H);
+        const int volW = 130, latW = 130, tw = 110, bw = 88, g = 14;
+        auto r = row.withSizeKeepingCentre(volW + latW + tw + 2 * bw + 4 * g, H);
+        volumeKnob.setBounds(r.removeFromLeft(volW)); r.removeFromLeft(g);
+        latencyKnob.setBounds(r.removeFromLeft(latW)); r.removeFromLeft(g);
+        voice3offButton.setBounds(r.removeFromLeft(tw)); r.removeFromLeft(g);
+        initButton.setBounds(r.removeFromLeft(bw)); r.removeFromLeft(g);
+        panicButton.setBounds(r.removeFromLeft(bw));
     }
 }
 
 void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
-    {  // WAVETABLE config: On, Speed, Length, Loop spread across the width
-        auto box = area.removeFromTop(kRowBox);
+    const int H = kCtrlH, titleH = 22, sabove = 24;
+    area.removeFromTop(sabove);  // 24px above the WAVETABLE title (from the tabs)
+    {  // WAVETABLE config: On, Speed, Length, Loop. Box wraps title + one row tightly
+       // (no extra bottom padding) so STEPS sits a clean 24px below, like other sections.
+        auto box = area.removeFromTop(titleH + H);
         wtConfigGroup.setBounds(box);
-        auto c = innerBox(box);
+        auto c = box.withTrimmedTop(titleH);
         toggleInCol(colOf(c, 0, 4), wtOnButton);
         knobInCol(colOf(c, 1, 4), wtSpeedKnob, wtSpeedLabel);
         knobInCol(colOf(c, 2, 4), wtLengthKnob, wtLengthLabel);
         knobInCol(colOf(c, 3, 4), wtLoopKnob, wtLoopLabel);
     }
-    area.removeFromTop(10);
-    {  // STEPS: header + 8 rows. Columns: number, 4 waveforms, Sync, Ring, PW, Arp.
+    area.removeFromTop(sabove);  // 24px above the STEPS title
+    {  // STEPS. Each row (24px tall, 4px apart): loop+number (40), then seven 32px
+       // toggle boxes (Tri Saw Pul Noi Syn Rin Test) 24px apart, a 96px Pulse Width
+       // fader, and the arp stepper [-][value][+], filling the full 672px width.
         const int steps = AsidProcessor::kWtSteps;
-        wtStepsGroup.setBounds(area);  // fill the rest of the page
-        auto c = innerBox(area);
-        const int numW = 24, gap = 10, waveW = 60, togW = 46, pwW = 96, arpGap = 16, arpW = 88;
-        const int gridW = numW + gap + 4 * waveW + 2 * togW + pwW + arpGap + arpW;
-        c.removeFromLeft(juce::jmax(0, (c.getWidth() - gridW) / 2));  // centre the grid
-        // Column left-edge x for a given row (0..3 waveform, 4 sync, 5 ring, 6 pw, 7 arp).
-        auto colX = [&](juce::Rectangle<int> row, int col) {
-            int x = row.getX() + numW + gap;
-            for (int k = 0; k < col; ++k)
-                x += (k < 4 ? waveW : k < 6 ? togW : pwW);  // waveform | sync,ring | pw
-            if (col >= 7) x += arpGap;  // small gap before the arp stepper
-            return x;
-        };
+        wtStepsGroup.setBounds(area);
+        auto c = area.withTrimmedTop(18);  // below the STEPS title, full width
+        const int box = 32, pwW = 96;
+        // loop(8)+number(32) = 40, then seven 32px boxes 24px apart, so the row fills
+        // the full 672: the i-th toggle box starts at 64 + i*56.
+        auto cx = [](int i) { return 64 + i * 56; };
+        const int pwX = cx(7), arpX = pwX + pwW + 24;  // 456, 576
+        // Header row: labels are 52px wide (wider than the 32px box) and centred on
+        // each box, so a 3-char label ("Tri") fits by spilling into the 24px gaps.
+        // Columns are 56px apart, so neighbours never overlap.
         auto head = c.removeFromTop(16);
-        for (int w = 0; w < 4; ++w)
-            wtWaveHead[w].setBounds(colX(head, w), head.getY(), waveW, head.getHeight());
-        wtSyncHead.setBounds(colX(head, 4), head.getY(), togW, head.getHeight());
-        wtRingHead.setBounds(colX(head, 5), head.getY(), togW, head.getHeight());
-        wtPwHead.setBounds(colX(head, 6), head.getY(), pwW, head.getHeight());
-        wtArpHead.setBounds(colX(head, 7), head.getY(), arpW, head.getHeight());
-        c.removeFromTop(2);
-        const int rowH = juce::jmax(26, c.getHeight() / steps);  // spread rows over the height
-        auto cell = [](int x, int y, int w, int side) {
-            return juce::Rectangle<int>(x, y, w, 24).withSizeKeepingCentre(side, 24);
+        auto headAt = [&](juce::Label& lbl, int col) {
+            lbl.setBounds(cx(col) + box / 2 - 26, head.getY(), 52, head.getHeight());
         };
+        for (int w = 0; w < 4; ++w) headAt(wtWaveHead[w], w);
+        headAt(wtSyncHead, 4);
+        headAt(wtRingHead, 5);
+        headAt(wtTestHead, 6);
+        wtPwHead.setBounds(pwX, head.getY(), pwW, head.getHeight());
+        wtArpHead.setBounds(arpX, head.getY(), 96, head.getHeight());
+        c.removeFromTop(4);
+        const int H = 24, vg = 4;
         for (int i = 0; i < steps; ++i) {
-            auto full = c.removeFromTop(rowH);
-            auto line = full.withSizeKeepingCentre(full.getWidth(), 24);  // 24 band, centred vertically
+            if (i > 0) c.removeFromTop(vg);
+            auto line = c.removeFromTop(H);
             const int y = line.getY();
-            wtStepInd[i].setBounds(line.getX(), y, numW, 24);
-            for (int w = 0; w < 4; ++w) wtWaveTog[i][w].setBounds(cell(colX(line, w), y, waveW, 28));
-            wtSyncTog[i].setBounds(cell(colX(line, 4), y, togW, 28));
-            wtRingTog[i].setBounds(cell(colX(line, 5), y, togW, 28));
-            wtPwKnob[i].setBounds(colX(line, 6) + 4, y, pwW - 8, 24);  // horizontal fader
-            // Arp stepper: [-] value [+], segments overlapped 2px for single dividers.
-            const int ax = colX(line, 7), bw = 24;
-            wtArpDec[i].setBounds(ax, y, bw, 24);
-            wtArpInc[i].setBounds(ax + arpW - bw, y, bw, 24);
-            wtArpValue[i].setBounds(ax + bw - 2, y, arpW - 2 * bw + 4, 24);
+            wtStepInd[i].setBounds(0, y, 40, H);  // 8px loop box + 32px number
+            for (int w = 0; w < 4; ++w) wtWaveTog[i][w].setBounds(cx(w), y, box, H);
+            wtSyncTog[i].setBounds(cx(4), y, box, H);
+            wtRingTog[i].setBounds(cx(5), y, box, H);
+            wtTestTog[i].setBounds(cx(6), y, box, H);
+            wtPwKnob[i].setBounds(pwX, y, pwW, H);  // horizontal fader
+            const int bw = 24;                       // arp stepper: [-][value][+]
+            wtArpDec[i].setBounds(arpX, y, bw, H);
+            wtArpValue[i].setBounds(arpX + bw, y, 48, H);
+            wtArpInc[i].setBounds(arpX + bw + 48, y, bw, H);
         }
     }
 }

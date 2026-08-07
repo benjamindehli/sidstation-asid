@@ -161,6 +161,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtNoise" + s, 1}, "WT Noise " + n, false));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtSync" + s, 1}, "WT Sync " + n, false));
         layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtRing" + s, 1}, "WT Ring " + n, false));
+        layout.add(std::make_unique<juce::AudioParameterBool>(juce::ParameterID{"wtTest" + s, 1}, "WT Test " + n, false));
         layout.add(std::make_unique<juce::AudioParameterInt>(
             juce::ParameterID{"wtPw" + s, 1}, "WT Pulse Width " + n, 0, 4095, 2048));
         layout.add(std::make_unique<juce::AudioParameterInt>(
@@ -238,10 +239,10 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     if (!wtOwnsWave && (forceAll || sync != sent.sync)) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
     const int ring = paramInt("ring");
     if (!wtOwnsWave && (forceAll || ring != sent.ring)) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
-    // TEST bit is not driven by the wavetable (setWaveform/Sync/Ring preserve it), so
-    // it is safe to write any time. It holds the oscillator in reset while on.
+    // TEST bit holds the oscillator in reset while on. The wavetable can drive it
+    // per step, so skip the static write while the table owns the voice.
     const int test = paramInt("test");
-    if (forceAll || test != sent.test) { sent.test = test; flush(asidPlayer.setTest(voice, test != 0)); }
+    if (!wtOwnsWave && (forceAll || test != sent.test)) { sent.test = test; flush(asidPlayer.setTest(voice, test != 0)); }
     // Filter routing (3 shared voice bits) and resonance both live in register
     // 0x17. Routing and resonance are shared, so only the instance where the
     // value actually changed sends it (a synced-in echo is skipped).
@@ -368,7 +369,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // We do this on the switch-off edge, not merely on a note release: on release
     // the envelope is still sounding, so the table's last values play through it.
     // sent.*=-1 forces applyControlChanges to resend the oscillator settings.
-    if (lastWtOn && !wtOn) { sent.wave = sent.sync = sent.ring = sent.pw = -1; }
+    if (lastWtOn && !wtOn) { sent.wave = sent.sync = sent.ring = sent.pw = sent.test = -1; }
     lastWtOn = wtOn;
     wtOwnsWave = wtActive;
 
@@ -433,6 +434,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
             asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(step)));
             asidPlayer.setSync(voice, paramInt("wtSync" + ss) != 0);
             asidPlayer.setRing(voice, paramInt("wtRing" + ss) != 0);
+            asidPlayer.setTest(voice, paramInt("wtTest" + ss) != 0);
             asidPlayer.setPulseWidth(voice, paramInt("wtPw" + ss));
             addReg(base + 2);
             addReg(base + 3);

@@ -72,8 +72,20 @@ private:
     // Tempo Sync is on. Re-binds it to the matching parameter.
     void configureRateKnob(LfoControls&, bool synced);
 
-    static constexpr int kBorder = 16;     // C64 screen border
+    static constexpr int kBorder = 16;     // C64 screen border, left/right
+    static constexpr int kBorderY = 22;    // C64 screen border, top/bottom (centres the 496px screen)
+    static constexpr int kPad = 8;         // padding inside the dark screen, all sides
     static constexpr int kPresetBarH = 34; // dark preset bar above the 720x540 content
+
+    // The dark screen rectangle (kBg) and the padded area the controls live in.
+    juce::Rectangle<int> screenBox() const {
+        return getLocalBounds().withTrimmedTop(kPresetBarH).reduced(kBorder, kBorderY);
+    }
+    // 8px padding on the sides and bottom, but 5px on top: the content sits 3px
+    // higher so the top row's boxes land a flush 8px below the dark-screen edge.
+    juce::Rectangle<int> innerArea() const {
+        return screenBox().reduced(kPad, 0).withTrimmedTop(kPad - 3).withTrimmedBottom(kPad);
+    }
 
     SidLookAndFeel laf;  // declared first so it outlives every child that uses it
     // Neutral dark look for the preset bar controls, since they sit on the dark bar
@@ -157,7 +169,7 @@ private:
                 const float sat = (usedByOther[i] || i == hovered) ? 1.0f : 0.0f;
                 const auto c = colours[i];
                 g.setColour(on ? c : c.withMultipliedSaturation(0.5f * sat).withMultipliedBrightness(0.24f));
-                g.fillRect(cell.reduced(1));
+                g.fillRect(cell);  // flush: no gap between cells, right cell meets the padding
                 g.setColour(on ? juce::Colour(SidLookAndFeel::kBg)
                               : c.withMultipliedSaturation(0.85f * sat).withMultipliedBrightness(0.68f));
                 g.setFont(SidLookAndFeel::mono(15.0f, true));
@@ -196,7 +208,7 @@ private:
 
     juce::Label outLabel{{}, "MIDI Out"};
     juce::ComboBox outputBox;
-    juce::TextButton refreshButton{"Refresh"};
+    juce::TextButton refreshButton{"Scan"};
     // Tempo: an editable BPM field in standalone, a read-only host BPM in a DAW. A
     // hidden slider carries the APVTS "bpm" binding; bpmField is the visible number.
     juce::Label bpmLabel{{}, "BPM"};
@@ -220,30 +232,36 @@ private:
     std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
     // Per-step indicator: the step number, dim when the step is beyond the table
     // length, an accent outline at the loop point, and an accent fill while it plays.
+    // An 8px loop indicator (accent box at the loop-point step) followed by the
+    // step number box (accent fill while playing, dim beyond the table length).
     struct StepIndicator : juce::Component {
         int number = 1;
         bool active = false, loop = false, playing = false;
         juce::Colour accent{juce::Colour(SidLookAndFeel::kAccent)};
         void paint(juce::Graphics& g) override {
-            auto r = getLocalBounds().toFloat().reduced(1.0f);
-            if (playing) { g.setColour(accent); g.fillRect(r); }
-            else if (loop) { g.setColour(accent); g.drawRect(r, 2.0f); }
+            auto b = getLocalBounds();
+            auto loopR = b.removeFromLeft(8);  // loop indicator, then the number box
+            if (loop) { g.setColour(accent); g.fillRect(loopR); }
+            if (playing) { g.setColour(accent); g.fillRect(b); }
             g.setColour(playing ? juce::Colour(SidLookAndFeel::kBg)
                                 : juce::Colour(active ? SidLookAndFeel::kFg : SidLookAndFeel::kDim));
-            g.setFont(SidLookAndFeel::mono(13.0f, playing || loop));
-            g.drawText(juce::String(number), getLocalBounds(), juce::Justification::centred);
+            g.setFont(SidLookAndFeel::mono());
+            g.drawText(juce::String(number), b, juce::Justification::centred);
         }
     };
     StepIndicator wtStepInd[AsidProcessor::kWtSteps];
     // Per step, four combinable waveform toggles under shared column headers, plus
     // a header over the arp stepper column.
     juce::Label wtWaveHead[4];
-    juce::Label wtSyncHead{{}, "Sync"}, wtRingHead{{}, "Ring"}, wtPwHead{{}, "PW"}, wtArpHead{{}, "Arp"};
+    juce::Label wtSyncHead{{}, "Syn"}, wtRingHead{{}, "Rin"}, wtTestHead{{}, "Tst"},
+                wtPwHead{{}, "PW"}, wtArpHead{{}, "Arp"};
     juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
     std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
-    // Per-step Sync/Ring toggles and a small Pulse Width knob.
-    juce::ToggleButton wtSyncTog[AsidProcessor::kWtSteps], wtRingTog[AsidProcessor::kWtSteps];
-    std::unique_ptr<ButtonAtt> wtSyncAtt[AsidProcessor::kWtSteps], wtRingAtt[AsidProcessor::kWtSteps];
+    // Per-step Sync/Ring/Test toggles and a small Pulse Width knob.
+    juce::ToggleButton wtSyncTog[AsidProcessor::kWtSteps], wtRingTog[AsidProcessor::kWtSteps],
+                       wtTestTog[AsidProcessor::kWtSteps];
+    std::unique_ptr<ButtonAtt> wtSyncAtt[AsidProcessor::kWtSteps], wtRingAtt[AsidProcessor::kWtSteps],
+                               wtTestAtt[AsidProcessor::kWtSteps];
     juce::Slider wtPwKnob[AsidProcessor::kWtSteps];
     std::unique_ptr<SliderAtt> wtPwAtt[AsidProcessor::kWtSteps];
     // Arp stepper per step: a hidden slider holds the value (APVTS binding),
@@ -256,7 +274,7 @@ private:
     // Oscillator. The four SID waveforms combine, so they are checkboxes rather
     // than a single choice (noise stays exclusive, handled in updateEnablement).
     juce::Label waveLabel{{}, "Waveform"};
-    juce::ToggleButton waveTriButton{"Triangle"}, waveSawButton{"Sawtooth"},
+    juce::ToggleButton waveTriButton{"Tri"}, waveSawButton{"Saw"},
                        wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
     std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
     juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"}, testButton{"Test"};
@@ -268,17 +286,11 @@ private:
     // switches (a pair of toggle buttons each), stacked and grouped with glide time.
     juce::ToggleButton portaTrigBtns[2], portaTypeBtns[2];
 
-    // Faint vertical dividers between control groups (Tuning, Oscillator, Filter).
-    struct VDivider : juce::Component {
-        void paint(juce::Graphics& g) override {
-            g.setColour(juce::Colour(SidLookAndFeel::kFg).withAlpha(0.4f));
-            g.fillAll();
-        }
-    };
+    // Control groups are separated by spacing alone now (no divider lines), so this
+    // is an empty placeholder kept only so the layout's group gaps stay put.
+    struct VDivider : juce::Component {};
     VDivider tuningDiv1, tuningDiv2, oscDiv1, oscDiv2, filtDiv1, filtDiv2;
-    void placeDivider(VDivider& d, juce::Rectangle<int> gap) {
-        d.setBounds(gap.withSizeKeepingCentre(2, gap.getHeight()));
-    }
+    void placeDivider(VDivider&, juce::Rectangle<int>) {}
 
     // Amp envelope.
     juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob;
@@ -290,7 +302,7 @@ private:
     juce::Label filterActiveLabel{{}, "Filter"};
     juce::ToggleButton filtButtons[3];
     std::unique_ptr<ButtonAtt> filtAtts[3];
-    juce::ToggleButton filtExtButton{"Ext"};  // route the external audio input through the filter
+    juce::ToggleButton filtExtButton{"External"};  // route the external audio input through the filter
     std::unique_ptr<ButtonAtt> filtExtAtt;
     juce::Label filterModeLabel{{}, "Mode"};
     juce::ToggleButton modeButtons[3];  // LP, BP, HP
@@ -299,7 +311,7 @@ private:
     juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
     juce::Label cutoffLabel, resLabel, volumeLabel, latencyLabel;
     std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
-    juce::ToggleButton voice3offButton{"Voice 3 Silent"};  // V3 output off, used as mod source
+    juce::ToggleButton voice3offButton{"V3 Off"};  // V3 output off, used as mod source
     std::unique_ptr<ButtonAtt> voice3offAtt;
     juce::TextButton panicButton{"Panic"};  // all-notes-off for every voice
     juce::TextButton initButton{"Init"};    // reset this voice's sound to default
