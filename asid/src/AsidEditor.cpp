@@ -249,6 +249,52 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     tab(ampModTabBtn, 2);  // MODULATION
     tab(sharedTabBtn, 3);  // GLOBAL
 
+    // Preset bar: prev/next to browse, an editable menu (type a name to save under),
+    // and Save. Presets hold the voice's sound only (see AsidProcessor).
+    addAndMakeVisible(presetBox);
+    presetBox.setEditableText(true);
+    presetBox.setTextWhenNothingSelected("(unsaved)");
+    presetBox.onChange = [this] {
+        if (presetBox.getSelectedId() >= 1)  // a listed preset chosen (not just typed text)
+            proc.loadPreset(presetBox.getText());
+    };
+    addAndMakeVisible(presetPrevBtn);
+    presetPrevBtn.onClick = [this] { cyclePreset(-1); };
+    addAndMakeVisible(presetNextBtn);
+    presetNextBtn.onClick = [this] { cyclePreset(1); };
+    addAndMakeVisible(presetSaveBtn);
+    presetSaveBtn.onClick = [this] {
+        const auto name = presetBox.getText().trim();
+        if (name.isNotEmpty()) { proc.savePreset(name); refreshPresets(name); }
+    };
+    addAndMakeVisible(presetDeleteBtn);
+    presetDeleteBtn.onClick = [this] {
+        const auto name = presetBox.getText().trim();
+        if (proc.presetNames().contains(name)) { proc.deletePreset(name); refreshPresets(); }
+    };
+    // The bar sits on the dark strip outside the C64 screen, so give its controls a
+    // neutral look rather than the Commodore styling: an almost-grayscale palette
+    // with the same faint blue lean as the #191a1b background (each channel is
+    // green = red + 1, blue = red + 2).
+    auto greyTint = [](int r) {
+        return juce::Colour((juce::uint8)r, (juce::uint8)(r + 1), (juce::uint8)(r + 2));
+    };
+    barLnF.setColourScheme({
+        greyTint(25),   // window background: matches the bar
+        greyTint(30),   // widget background: button / combo fill
+        greyTint(26),   // menu background
+        greyTint(66),   // outline
+        greyTint(198),  // default text
+        greyTint(58),   // default fill (accent)
+        greyTint(236),  // highlighted text
+        greyTint(46),   // highlighted fill (hover / selection)
+        greyTint(198),  // menu text
+    });
+    for (auto* c : {&presetPrevBtn, &presetNextBtn, &presetSaveBtn, &presetDeleteBtn})
+        c->setLookAndFeel(&barLnF);
+    presetBox.setLookAndFeel(&barLnF);
+    refreshPresets(proc.currentPreset());
+
     // Group boxes go into their page first, so the frames sit behind the controls.
     auto group = [](juce::Component& page, juce::GroupComponent& g, const juce::String& t) {
         g.setText(t);
@@ -501,7 +547,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     refreshDevices();
     updateEnablement();
     setTab(0);
-    setSize(720, 540);  // 4:3, wide boxes stacked one per row
+    setSize(720, 574);  // extra height for the preset bar (pages keep their size)
     startTimerHz(10);  // drives updateEnablement (waveform / sustain / LFO gating)
 }
 
@@ -525,6 +571,23 @@ void AsidEditor::setTab(int t) {
     waveTabBtn.setToggleState(t == 1, juce::dontSendNotification);
     ampModTabBtn.setToggleState(t == 2, juce::dontSendNotification);
     sharedTabBtn.setToggleState(t == 3, juce::dontSendNotification);
+}
+
+void AsidEditor::refreshPresets(const juce::String& selectName) {
+    presetBox.clear(juce::dontSendNotification);
+    const auto names = proc.presetNames();
+    for (int i = 0; i < names.size(); ++i) presetBox.addItem(names[i], i + 1);
+    const int idx = names.indexOf(selectName);
+    if (idx >= 0) presetBox.setSelectedId(idx + 1, juce::dontSendNotification);
+    else if (selectName.isNotEmpty()) presetBox.setText(selectName, juce::dontSendNotification);
+}
+
+void AsidEditor::cyclePreset(int delta) {
+    const auto names = proc.presetNames();
+    if (names.isEmpty()) return;
+    int idx = names.indexOf(presetBox.getText());
+    idx = (idx < 0) ? 0 : (idx + delta + names.size()) % names.size();
+    presetBox.setSelectedId(idx + 1, juce::sendNotification);  // fires onChange -> loadPreset
 }
 
 void AsidEditor::updateEnablement() {
@@ -707,16 +770,23 @@ void AsidEditor::refreshDevices() {
 }
 
 void AsidEditor::paint(juce::Graphics& g) {
-    // C64 screen: the neutral light-blue border framing the darker screen. The
-    // per-voice colour lives in the accent (arcs, active buttons) and the voice
-    // switch (top right), which are components drawn over this.
-    g.fillAll(juce::Colour(SidLookAndFeel::kFg));
+    // Dark preset bar across the very top, matching the window title bar, above the
+    // untouched 720x540 content and its overlay.
+    g.setColour(juce::Colour(0xff191a1b));
+    g.fillRect(getLocalBounds().removeFromTop(kPresetBarH));
+
+    // C64 screen for the content region below the bar: the neutral light-blue border
+    // framing the darker screen. The per-voice colour lives in the accent (arcs,
+    // active buttons) and the voice switch (top right), drawn over this.
+    const auto content = getLocalBounds().withTrimmedTop(kPresetBarH);
+    g.setColour(juce::Colour(SidLookAndFeel::kFg));
+    g.fillRect(content);
     g.setColour(juce::Colour(SidLookAndFeel::kBg));
-    g.fillRect(getLocalBounds().reduced(kBorder));
+    g.fillRect(content.reduced(kBorder));
 
     // Top row: Dehli Musikk logo left, product title centred (the Label), and the
     // voice caption + switch right (components, positioned in resized()).
-    auto titleRow = getLocalBounds().reduced(kBorder + 6).removeFromTop(34);
+    auto titleRow = content.reduced(kBorder + 6).removeFromTop(34);
     if (logo != nullptr)
         logo->drawWithin(g, titleRow.removeFromLeft(150).reduced(0, 3).toFloat(),
                          juce::RectanglePlacement(juce::RectanglePlacement::xLeft
@@ -766,8 +836,17 @@ void AsidEditor::parentHierarchyChanged() {
 }
 
 void AsidEditor::resized() {
-    overlayComp.setBounds(getLocalBounds());  // full-window overlay, on top of everything
-    auto area = getLocalBounds().reduced(kBorder + 6);  // inside the C64 border
+    // Dark preset bar across the top, above the untouched 720x540 content region.
+    auto pbar = getLocalBounds().removeFromTop(kPresetBarH).reduced(kBorder + 6, 5);
+    presetPrevBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(4);
+    presetNextBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(10);
+    presetDeleteBtn.setBounds(pbar.removeFromRight(62)); pbar.removeFromRight(6);
+    presetSaveBtn.setBounds(pbar.removeFromRight(56)); pbar.removeFromRight(8);
+    presetBox.setBounds(pbar);
+
+    const auto content = getLocalBounds().withTrimmedTop(kPresetBarH);
+    overlayComp.setBounds(content);  // overlay stays on the 720x540 region, never stretched
+    auto area = content.reduced(kBorder + 6);  // inside the C64 border
     auto titleRow = area.removeFromTop(34);
     title.setBounds(titleRow);  // full width, text centred
     {   // Voice selector in the top-right: "VOICE" caption then the 3-cell switch.

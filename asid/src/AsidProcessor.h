@@ -69,6 +69,15 @@ public:
     // volume (they belong to every voice) and this instance's identity (asidVoice).
     void resetVoiceToDefault();
 
+    // Voice-sound presets (the same parameter set Init resets), stored as XML files
+    // in a user folder. Not the shared filter/volume, voice selection, or tempo.
+    juce::File presetsDir() const;
+    juce::StringArray presetNames() const;
+    void savePreset(const juce::String& name);
+    bool loadPreset(const juce::String& name);
+    void deletePreset(const juce::String& name);
+    juce::String currentPreset() const { return currentPresetName; }
+
 private:
     // One modulation stream per LFO target: its LFO, when it last sent, and the
     // last frame sent (to skip identical steps).
@@ -164,6 +173,12 @@ private:
     int lastModPlaying = 0;       // transport state last block in updateModulation, to spot a stop
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
     int lastReleaseGen = 0;       // shared watchdog release generation seen, to clear a stale note
+    juce::String currentPresetName;  // last saved/loaded preset, for the editor's display
+    // A voice-sound parameter (in a preset, and reset by Init): not a shared global,
+    // not the voice selection, not the tempo.
+    static bool isVoiceSoundParam(const juce::String& id) {
+        return !AsidShared::isShared(id) && id != "asidVoice" && id != "bpm";
+    }
 
     ModStream pitchStream, pwStream, cutStream;  // only the .lfo of each is used now
     sidstation::WaveTablePlayer wtPlayer;

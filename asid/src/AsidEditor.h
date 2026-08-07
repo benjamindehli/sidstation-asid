@@ -40,6 +40,8 @@ private:
     void setupKnob(juce::Component& parent, juce::Slider&, juce::Label&, const juce::String& name,
                    const juce::String& paramId, std::unique_ptr<SliderAtt>&);
     void setTab(int t);                                // show one page, hide the others
+    void refreshPresets(const juce::String& selectName = {});  // rebuild the preset list
+    void cyclePreset(int delta);                       // step to the previous/next preset
     void layoutOscPage(juce::Rectangle<int> area);
     void layoutAmpModPage(juce::Rectangle<int> area);
     void layoutSharedPage(juce::Rectangle<int> area);
@@ -70,9 +72,13 @@ private:
     // Tempo Sync is on. Re-binds it to the matching parameter.
     void configureRateKnob(LfoControls&, bool synced);
 
-    static constexpr int kBorder = 16;  // C64 screen border
+    static constexpr int kBorder = 16;     // C64 screen border
+    static constexpr int kPresetBarH = 34; // dark preset bar above the 720x540 content
 
     SidLookAndFeel laf;  // declared first so it outlives every child that uses it
+    // Neutral dark look for the preset bar controls, since they sit on the dark bar
+    // outside the C64 screen and should not be Commodore-styled.
+    juce::LookAndFeel_V4 barLnF{juce::LookAndFeel_V4::getDarkColourScheme()};
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
     // The "in use" hint uses a BubbleMessageComponent (the same reliable popup the
@@ -172,6 +178,10 @@ private:
     juce::TextButton oscTabBtn{"VOICE"}, ampModTabBtn{"MODULATION"}, sharedTabBtn{"GLOBAL"}, waveTabBtn{"WAVETABLE"};
     juce::Component oscPage, ampModPage, sharedPage, wtPage;
     int currentTab = 0;
+
+    // Preset bar under the tabs: browse (prev/next + editable menu) and Save.
+    juce::ComboBox presetBox;
+    juce::TextButton presetPrevBtn{"<"}, presetNextBtn{">"}, presetSaveBtn{"Save"}, presetDeleteBtn{"Delete"};
 
     // MIDI load meter (bytes/sec vs the SidStation's ~3125 B/s ceiling).
     juce::Label midiLoadLabel{{}, "MIDI LOAD"};

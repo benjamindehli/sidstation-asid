@@ -534,16 +534,61 @@ bool AsidProcessor::voiceUsedByOthers(int v) const {
 }
 
 void AsidProcessor::resetVoiceToDefault() {
-    for (auto* p : getParameters()) {
-        auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p);
-        if (wid == nullptr) continue;
-        const auto& id = wid->paramID;
-        // Skip the shared globals (they belong to all voices), this instance's
-        // voice selection, and the tempo, so Init only resets the voice's own sound.
-        if (id == "asidVoice" || id == "bpm" || AsidShared::isShared(id)) continue;
-        if (apvts.getParameter(id) == nullptr) continue;
-        p->setValueNotifyingHost(p->getDefaultValue());
+    for (auto* p : getParameters())
+        if (auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p))
+            if (isVoiceSoundParam(wid->paramID) && apvts.getParameter(wid->paramID) != nullptr)
+                p->setValueNotifyingHost(p->getDefaultValue());
+}
+
+juce::File AsidProcessor::presetsDir() const {
+    auto dir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+                   .getChildFile("DehliMusikk").getChildFile("SidStation ASID").getChildFile("Presets");
+    if (!dir.isDirectory()) dir.createDirectory();
+    return dir;
+}
+
+juce::StringArray AsidProcessor::presetNames() const {
+    juce::StringArray names;
+    for (const auto& f : presetsDir().findChildFiles(juce::File::findFiles, false, "*.xml"))
+        names.add(f.getFileNameWithoutExtension());
+    names.sortNatural();
+    return names;
+}
+
+void AsidProcessor::savePreset(const juce::String& name) {
+    const auto clean = name.trim();
+    if (clean.isEmpty()) return;
+    juce::ValueTree tree("SidStationAsidPreset");
+    for (auto* p : getParameters())
+        if (auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p))
+            if (isVoiceSoundParam(wid->paramID) && apvts.getParameter(wid->paramID) != nullptr)
+                tree.setProperty(wid->paramID, paramFloat(wid->paramID), nullptr);  // raw value
+    if (auto xml = tree.createXml())
+        xml->writeTo(presetsDir().getChildFile(clean + ".xml"));
+    currentPresetName = clean;
+}
+
+bool AsidProcessor::loadPreset(const juce::String& name) {
+    const auto file = presetsDir().getChildFile(name.trim() + ".xml");
+    auto xml = juce::XmlDocument::parse(file);
+    if (xml == nullptr) return false;
+    const auto tree = juce::ValueTree::fromXml(*xml);
+    if (!tree.isValid()) return false;
+    resetVoiceToDefault();  // params absent from an older preset fall back to default
+    for (int i = 0; i < tree.getNumProperties(); ++i) {
+        const auto id = tree.getPropertyName(i).toString();
+        if (!isVoiceSoundParam(id)) continue;
+        if (auto* p = apvts.getParameter(id))
+            p->setValueNotifyingHost(p->convertTo0to1((float) tree.getProperty(id)));
     }
+    currentPresetName = name.trim();
+    return true;
+}
+
+void AsidProcessor::deletePreset(const juce::String& name) {
+    const auto file = presetsDir().getChildFile(name.trim() + ".xml");
+    if (file.existsAsFile()) file.moveToTrash();  // recoverable
+    if (currentPresetName == name.trim()) currentPresetName.clear();
 }
 
 
