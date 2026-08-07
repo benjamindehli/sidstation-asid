@@ -164,15 +164,21 @@ private:
             for (int i = 0; i < n; ++i) {
                 juce::Rectangle<int> cell(i * w, 0, (i == n - 1 ? getWidth() - i * w : w), getHeight());
                 const bool on = i == selected;
-                // Colour a cell when it is taken by another instance, or while hovering
-                // a free one; otherwise a free cell is monochrome (saturation off).
-                const float sat = (usedByOther[i] || i == hovered) ? 1.0f : 0.0f;
+                // A cell reveals its voice's hue when selected, taken by another
+                // instance, or hovered. Idle cells all use ONE fixed neutral, so
+                // unused voices look identical regardless of their accent's brightness.
+                const bool hue = on || usedByOther[i] || i == hovered;
                 const auto c = colours[i];
-                g.setColour(on ? c : c.withMultipliedSaturation(0.5f * sat).withMultipliedBrightness(0.24f));
+                juce::Colour fill, txt;
+                if (on)        { fill = c; txt = juce::Colour(SidLookAndFeel::kBg); }
+                else if (hue)  { fill = c.withMultipliedSaturation(0.5f).withMultipliedBrightness(0.30f);
+                                 txt  = c.withMultipliedSaturation(0.85f).withMultipliedBrightness(0.75f); }
+                else           { fill = juce::Colour(SidLookAndFeel::kBg).darker(0.55f);  // idle: uniform
+                                 txt  = juce::Colour(SidLookAndFeel::kDim); }
+                g.setColour(fill);
                 g.fillRect(cell);  // flush: no gap between cells, right cell meets the padding
-                g.setColour(on ? juce::Colour(SidLookAndFeel::kBg)
-                              : c.withMultipliedSaturation(0.85f * sat).withMultipliedBrightness(0.68f));
-                g.setFont(SidLookAndFeel::mono(15.0f, true));
+                g.setColour(txt);
+                g.setFont(SidLookAndFeel::mono());
                 g.drawText(juce::String(i + 1), cell, juce::Justification::centred);
             }
         }
