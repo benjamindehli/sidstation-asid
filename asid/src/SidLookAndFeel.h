@@ -302,10 +302,11 @@ public:
         auto r = b.getLocalBounds().toFloat();
         const bool on = b.getToggleState();
         // Hover tints with the muted accent (selected or not); pressed flashes full
-        // accent; an active tab is a solid light-blue fill; otherwise a field.
+        // accent; an active tab fills with the accent too, matching selected toggles;
+        // otherwise a field.
         if (down && b.isEnabled())      g.setColour(accent);
         else if (over && b.isEnabled()) g.setColour(mutedAccent());
-        else if (on)                    g.setColour(juce::Colour(kFg));
+        else if (on)                    g.setColour(accent);
         else                            g.setColour(fieldFill());
         g.fillRect(r);
     }
