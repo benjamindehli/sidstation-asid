@@ -22,7 +22,7 @@ Per voice:
 - ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range.
 - Hard sync, ring modulation, and the raw TEST bit.
 - Portamento, with a legato or always trigger and a smooth or stepped glide.
-- An eight step wavetable, each step with its own waveform, sync, ring, pulse width and arpeggio offset, plus speed, length and a loop point.
+- An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus speed, length and a loop point.
 - Three LFOs (pitch, pulse width, cutoff) with several shapes, a free Hz or host tempo synced rate, depth, mod wheel scaling, and a fade in delay.
 
 Shared across the three voices, since the chip has one of each:
@@ -32,15 +32,44 @@ Shared across the three voices, since the chip has one of each:
 
 Around the sound:
 
-- Per voice colour coding, and one instance per voice so two windows cannot fight over the same voice.
-- A tempo readout (the host tempo in a DAW, or set by hand in Standalone), a Panic that releases every voice, and an Init that resets a voice to its default sound.
+- A Commodore 64 styled pixel interface, with per voice colour coding and one instance per voice so two windows cannot fight over the same voice.
+- Voice sound presets saved to disk, so a patch can be saved, browsed and recalled independently of any DAW project, alongside an Init that resets a voice to its default sound.
+- A tempo readout (the host tempo in a DAW, or set by hand in Standalone), and a Panic that releases every voice.
 - A MIDI load meter, since the SidStation shares one slow MIDI port across all three voices.
+
+## The four tabs
+
+The dark strip along the top is the same on every tab. It carries the MIDI output picker with a Scan button, the tempo and the clock rate, a MIDI load meter, the voice selector, and the preset bar (browse with the arrows or the menu, then Init, Save and Delete).
+
+### Voice
+
+![The Voice tab](docs/voice.png)
+
+Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger (Legato or Always) and type (Smooth or Step) switches. Amp Envelope is the ADSR.
+
+### Wavetable
+
+![The Wavetable tab](docs/wavetable.png)
+
+An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform (Tri, Saw, Pulse, Noise), Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.
+
+### Modulation
+
+![The Modulation tab](docs/modulation.png)
+
+Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape (Off turns it off), a rate that is either free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.
+
+### Global
+
+![The Global tab](docs/global.png)
+
+The settings the SID shares across all three voices. Filter has per voice routing (V1, V2, V3), the external input, the combinable LP, BP and HP modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.
 
 ## Status
 
 - SidStation ASID is the furthest along and is usable for playing the three voices.
 - SidStation Editor (patch editing over CC, and the librarian) is earlier and less exercised.
-- Presets, so a voice patch can be saved and recalled outside a DAW project, are not in yet.
+- Voice sound presets (save, browse, delete) are in. Factory starter presets are not yet.
 - Developed and tested against OS 1.11 R34 hardware on macOS. Windows and Linux are not exercised.
 
 ## Layout
