@@ -95,6 +95,8 @@ void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label
     juce::ignoreUnused(l);                        // caption is now inside the bar
     parent.addAndMakeVisible(s);
     att = std::make_unique<SliderAtt>(state, paramId, s);
+    if (auto* p = state.getParameter(paramId))    // double-click resets to the default
+        s.setDoubleClickReturnValue(true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
 }
 
 void AsidEditor::setupSwitch(juce::ToggleButton& segA, juce::ToggleButton& segB,
@@ -491,6 +493,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtPwKnob[i].addMouseListener(&sliderHover, false);
         wtPage.addAndMakeVisible(wtPwKnob[i]);
         wtPwAtt[i] = std::make_unique<SliderAtt>(state, "wtPw" + juce::String(i), wtPwKnob[i]);
+        if (auto* p = state.getParameter("wtPw" + juce::String(i)))  // double-click resets to default
+            wtPwKnob[i].setDoubleClickReturnValue(true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
         // Hidden slider: the value model / APVTS binding. UI is the field + buttons.
         wtPage.addChildComponent(wtArpSlider[i]);
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
