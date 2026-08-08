@@ -50,3 +50,26 @@ target_link_libraries(SidStationAsid PRIVATE
     juce::juce_recommended_config_flags
     juce::juce_recommended_lto_flags
     juce::juce_recommended_warning_flags)
+
+# JUCE-linked tests (opt in with -DSID_BUILD_TESTS=ON). A console app that builds
+# the processor and editor and exercises the parameter layout, plugin state
+# round-trip, and preset save/load. The pure protocol logic is tested in core.
+option(SID_BUILD_TESTS "Build the JUCE-linked SidStation ASID tests" OFF)
+if(SID_BUILD_TESTS)
+    juce_add_console_app(SidStationAsidTests PRODUCT_NAME "SidStation ASID Tests")
+    target_sources(SidStationAsidTests PRIVATE
+        tests/StateTests.cpp
+        src/AsidProcessor.cpp
+        src/AsidEditor.cpp
+        ../common/MidiHub.cpp)
+    target_include_directories(SidStationAsidTests PRIVATE ../common src)
+    target_compile_definitions(SidStationAsidTests PRIVATE
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0)
+    target_link_libraries(SidStationAsidTests PRIVATE
+        sidstation_core
+        SidStationAsidAssets
+        juce::juce_audio_utils
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_warning_flags)
+endif()
