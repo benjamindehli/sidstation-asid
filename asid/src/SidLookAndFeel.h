@@ -1,12 +1,10 @@
 // A Commodore 64 flavoured look for the ASID editor: the classic blue screen,
-// light-blue foreground, blocky knobs and toggles, and a monospaced (terminal)
-// typeface. This only overrides drawing, never behaviour, so it drops on and off
-// cleanly. The SID heritage of the SidStation is the point.
+// light-blue foreground, blocky value bars and toggles, and a monospaced
+// (terminal) typeface. This only overrides drawing, never behaviour, so it drops
+// on and off cleanly. The SID heritage of the SidStation is the point.
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-
-#include <cmath>
 
 #include "BinaryData.h"  // embedded SidStationC64.ttf (the PETSCII pixel font)
 
@@ -83,54 +81,6 @@ public:
     juce::Font getComboBoxFont(juce::ComboBox&) override { return mono(14.0f); }
     juce::Font getPopupMenuFont() override { return mono(14.0f); }
     juce::Font getTextButtonFont(juce::TextButton&, int) override { return mono(14.0f); }
-
-    // Pixel knob: a ring of square "LED" ticks lit up to the value, a square body
-    // block, and a bright square marker at the value angle. All squares (snapped to
-    // whole pixels), so it reads at the same resolution as the font, not smooth.
-    void drawRotarySlider(juce::Graphics& g, int x, int y, int w, int h,
-                          float pos, float startAngle, float endAngle, juce::Slider& s) override {
-        const bool on = s.isEnabled();
-        auto area = juce::Rectangle<int>(x, y, w, h).toFloat().reduced(3.0f);
-        const float size = juce::jmin(area.getWidth(), area.getHeight());
-        const auto c = area.getCentre();
-        const float radius = size * 0.5f;
-
-        // A "sidBipolar" control (centre default, e.g. tune / pulse width) lights
-        // out from the 12-o'clock centre; others fill from the start.
-        const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
-        const float ctr = bipolar ? 0.5f : 0.0f;
-
-        // Draw a whole-pixel square centred on a point.
-        auto pixelSquare = [&g](juce::Point<float> p, float side) {
-            g.fillRect(juce::Rectangle<int>((int) std::round(p.x - side * 0.5f),
-                                            (int) std::round(p.y - side * 0.5f),
-                                            (int) side, (int) side));
-        };
-
-        const int ticks = 11;
-        const float tickSide = juce::jmax(4.0f, std::floor(size * 0.14f));
-        const float ringR = radius - tickSide * 0.5f;
-        const auto litCol = on ? accent : juce::Colour(kDim);
-        const auto dimCol = juce::Colour(kBg).darker(0.45f);
-        for (int i = 0; i < ticks; ++i) {
-            const float f = (float) i / (ticks - 1);
-            const float ang = startAngle + f * (endAngle - startAngle);
-            const juce::Point<float> p(c.x + std::sin(ang) * ringR, c.y - std::cos(ang) * ringR);
-            const bool lit = f >= juce::jmin(ctr, pos) && f <= juce::jmax(ctr, pos);
-            g.setColour(lit ? litCol : dimCol);
-            pixelSquare(p, tickSide);
-        }
-
-        // Body block and the value marker riding its edge at the value angle.
-        const float bodySide = std::floor(size * 0.42f);
-        g.setColour(on ? fieldFill() : juce::Colour(kDim).darker(0.3f));
-        pixelSquare(c, bodySide);
-        const float ang = startAngle + pos * (endAngle - startAngle);
-        const juce::Point<float> marker(c.x + std::sin(ang) * (bodySide * 0.5f),
-                                        c.y - std::cos(ang) * (bodySide * 0.5f));
-        g.setColour(juce::Colour(on ? kHot : kDim));
-        pixelSquare(marker, tickSide);
-    }
 
     // Value bar: the whole control is one field-height block. The unfilled part is
     // a field (dark, kFg text) and the filled part is the accent (kBg text), so it
@@ -347,27 +297,5 @@ public:
         g.setColour(juce::Colour(kHot));
         g.drawText(text, juce::Rectangle<float>(6.0f, 0.0f, w - 12.0f, titleH).getSmallestIntegerContainer(),
                    juce::Justification::centredLeft, false);
-    }
-
-    // Tabs (used by the Editor's TabbedComponent) get the same look as the value
-    // bars / toggles: active = accent fill with dark text, hover = muted accent,
-    // otherwise a field. The ASID plugin uses its own tab buttons, so this only
-    // affects the Editor.
-    juce::Font getTabButtonFont(juce::TabBarButton&, float) override { return mono(); }
-    int getTabButtonBestWidth(juce::TabBarButton& b, int) override {
-        return b.getButtonText().length() * 16 + 24;  // mono is ~16px/char
-    }
-    void drawTabbedButtonBarBackground(juce::TabbedButtonBar&, juce::Graphics& g) override {
-        g.fillAll(juce::Colour(kBg));
-    }
-    void drawTabButton(juce::TabBarButton& b, juce::Graphics& g, bool over, bool down) override {
-        juce::ignoreUnused(down);
-        const bool active = b.isFrontTab();
-        auto r = b.getActiveArea();
-        g.setColour(active ? accent : over ? mutedAccent() : fieldFill());
-        g.fillRect(r);
-        g.setColour(juce::Colour(active ? kBg : over ? kHot : kFg));
-        g.setFont(mono());
-        g.drawText(b.getButtonText(), r, juce::Justification::centred, false);
     }
 };
