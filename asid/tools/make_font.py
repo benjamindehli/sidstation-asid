@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build asid/assets/SidStationC64.ttf from the PETSCII 8x8 bitmap sheet.
 
-The sheet (temp/characters.png) is 16 glyphs wide x 8 tall, each an 8x8 cell,
-black-on-white, in C64 screen-code order:
+The sheet (asid/tools/characters.png) is 16 glyphs wide x 8 tall, each an 8x8
+cell, black-on-white, in C64 screen-code order:
   0 = '@', 1..26 = 'A'..'Z', 27 = '[', 29 = ']', 32..63 == ASCII 32..63.
 Each lit pixel becomes a filled square; horizontal runs are merged per row to
 keep the contour count down. Lowercase is aliased to the uppercase glyphs (this
@@ -18,9 +18,10 @@ import os
 from PIL import Image
 from fontTools.fontBuilder import FontBuilder
 from fontTools.pens.ttGlyphPen import TTGlyphPen
+from fontTools.ttLib import TTFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SHEET = os.path.join(ROOT, "temp", "characters.png")
+SHEET = os.path.join(ROOT, "asid", "tools", "characters.png")
 OUT = os.path.join(ROOT, "asid", "assets", "SidStationC64.ttf")
 
 PX = 100                 # font units per source pixel
@@ -134,6 +135,14 @@ def main():
                usWinAscent=ASCENT, usWinDescent=DESCENT)
     fb.setupPost()
     fb.save(OUT)
+
+    # Fixed head timestamps so regenerating an unchanged sheet is byte-stable
+    # (fontTools otherwise stamps the current time, churning the committed TTF).
+    out = TTFont(OUT)
+    out.recalcTimestamp = False
+    out["head"].created = 0
+    out["head"].modified = 0
+    out.save(OUT)
     print(f"wrote {OUT}: {len(order)} glyphs, {len(cmap)} codepoints")
 
 
