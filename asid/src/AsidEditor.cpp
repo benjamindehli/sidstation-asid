@@ -447,7 +447,10 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     voice3offAtt = std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
     sharedPage.addAndMakeVisible(panicButton);
     panicButton.onClick = [this] { proc.panic(); };
-    sharedPage.addAndMakeVisible(initButton);
+    // Init resets the current patch, so it lives in the preset bar (top) with the
+    // other patch actions, styled like them (neutral dark, outside the C64 screen).
+    addAndMakeVisible(initButton);
+    initButton.setLookAndFeel(&barLnF);
     initButton.onClick = [this] { proc.resetVoiceToDefault(); };
 
     // ---- WAVE page: wavetable config and the per-step rows ----
@@ -531,7 +534,8 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     hints.add(filtExtButton, "Route the SidStation's external audio input through the filter.");
     hints.add(voice3offButton, "Silence voice 3's output so it can drive ring/sync as a modulator.");
     hints.add(panicButton, "All-notes-off for every voice.");
-    hints.add(initButton, "Reset this voice's sound to the default patch.");
+    hints.add(initButton, "Reset this voice's sound to the default patch.",
+              juce::BubbleComponent::below);  // in the top bar, so the bubble points down
     for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
         // The PW LFO also needs the Pulse wave, so its "why greyed" reason differs.
         const juce::String lfoOff = (u == &pwLfoUi)
@@ -862,7 +866,8 @@ void AsidEditor::resized() {
     presetPrevBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(4);
     presetNextBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(10);
     presetDeleteBtn.setBounds(pbar.removeFromRight(62)); pbar.removeFromRight(6);
-    presetSaveBtn.setBounds(pbar.removeFromRight(56)); pbar.removeFromRight(8);
+    presetSaveBtn.setBounds(pbar.removeFromRight(56)); pbar.removeFromRight(6);
+    initButton.setBounds(pbar.removeFromRight(56)); pbar.removeFromRight(8);
     presetBox.setBounds(pbar);
 
     const auto content = getLocalBounds().withTrimmedTop(kPresetBarH);
@@ -1029,17 +1034,17 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
         layoutLfo(cutLfoUi, cm.withTrimmedTop(titleH));
     }
     area.removeFromTop(sabove);
-    {  // MASTER: Volume, Latency, Voice 3 Off, Init and Panic all on one line.
+    {  // MASTER: Volume, Latency, Voice 3 Off, Panic - four equal controls filling
+       // the width with 24px gaps (Init moved to the preset bar).
         auto box = area.removeFromTop(ampH);
         masterGroup.setBounds(box);
         auto row = box.withTrimmedTop(titleH).removeFromTop(H);
-        const int volW = 130, latW = 130, tw = 110, bw = 88, g = 14;
-        auto r = row.withSizeKeepingCentre(volW + latW + tw + 2 * bw + 4 * g, H);
-        volumeKnob.setBounds(r.removeFromLeft(volW)); r.removeFromLeft(g);
-        latencyKnob.setBounds(r.removeFromLeft(latW)); r.removeFromLeft(g);
-        voice3offButton.setBounds(r.removeFromLeft(tw)); r.removeFromLeft(g);
-        initButton.setBounds(r.removeFromLeft(bw)); r.removeFromLeft(g);
-        panicButton.setBounds(r.removeFromLeft(bw));
+        const int g = 24, cw = (row.getWidth() - 3 * g) / 4;
+        int cx = row.getX();
+        voice3offButton.setBounds(cx, row.getY(), cw, H); cx += cw + g;
+        volumeKnob.setBounds(cx, row.getY(), cw, H);      cx += cw + g;
+        latencyKnob.setBounds(cx, row.getY(), cw, H);     cx += cw + g;
+        panicButton.setBounds(cx, row.getY(), cw, H);
     }
 }
 
