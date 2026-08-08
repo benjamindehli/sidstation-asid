@@ -858,13 +858,18 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 juce::AudioProcessorEditor* AsidProcessor::createEditor() { return new AsidEditor(*this); }
 
 void AsidProcessor::getStateInformation(juce::MemoryBlock& destData) {
-    if (auto xml = apvts.copyState().createXml())
+    auto state = apvts.copyState();
+    state.setProperty("currentPreset", currentPresetName, nullptr);  // for the editor's display
+    if (auto xml = state.createXml())
         copyXmlToBinary(*xml, destData);
 }
 
 void AsidProcessor::setStateInformation(const void* data, int sizeInBytes) {
-    if (auto xml = getXmlFromBinary(data, sizeInBytes))
-        apvts.replaceState(juce::ValueTree::fromXml(*xml));
+    if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
+        auto tree = juce::ValueTree::fromXml(*xml);
+        currentPresetName = tree.getProperty("currentPreset", "").toString();
+        apvts.replaceState(tree);
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new AsidProcessor(); }
