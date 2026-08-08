@@ -20,6 +20,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(SID_COMPANY "DehliMusikk")
 set(SID_MANUFACTURER_CODE "Dhmk")
 
+# App icon shared by both Standalone apps (JUCE generates the .icns / .ico from it).
+# Guarded so the build still works when the file is absent. Passed to both
+# juce_add_plugin calls as ${SID_ICON}.
+set(SID_ICON "")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/asid/assets/AppIcon.png")
+    set(SID_ICON ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/asid/assets/AppIcon.png")
+endif()
+
 include(FetchContent)
 FetchContent_Declare(JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git

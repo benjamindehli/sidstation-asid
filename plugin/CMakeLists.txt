@@ -17,7 +17,8 @@ juce_add_plugin(SidStationEditor
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD   TRUE
     VST3_CATEGORIES           Instrument
-    AU_MAIN_TYPE              kAudioUnitType_MusicDevice)
+    AU_MAIN_TYPE              kAudioUnitType_MusicDevice
+    ${SID_ICON})
 
 target_sources(SidStationEditor PRIVATE
     src/PluginProcessor.cpp
