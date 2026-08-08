@@ -137,6 +137,11 @@ public:
     // reads exactly like an off/on button split at the value. The slider's name is
     // drawn inside, two-toned across the split. A "sidBipolar" bar fills out from
     // the centre. Value-while-dragging still shows in the popup bubble.
+    // No thumb margin: the value bars have no thumb and are drawn/hit full width, so
+    // a click maps linearly across the whole bar and matches the hover preview (the
+    // default margin made a drag near the ends run slightly ahead of the cursor).
+    int getSliderThumbRadius(juce::Slider&) override { return 0; }
+
     void drawLinearSlider(juce::Graphics& g, int, int, int, int, float, float, float,
                           juce::Slider::SliderStyle, juce::Slider& s) override {
         const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
