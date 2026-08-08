@@ -126,16 +126,14 @@ private:
     // combine (bits OR together), but noise locks the others on the 6581, so when
     // noise is on it wins alone. 0 = no waveform (a silent voice).
     int waveBits() const {
-        if (paramInt("waveNoise")) return 0x80;  // noise, exclusive
-        return (paramInt("waveTri") ? 0x10 : 0) | (paramInt("waveSaw") ? 0x20 : 0)
-             | (paramInt("wavePulse") ? 0x40 : 0);
+        return sidstation::sid::waveformBits(paramInt("waveTri"), paramInt("waveSaw"),
+                                             paramInt("wavePulse"), paramInt("waveNoise"));
     }
     // Same, for one wavetable step's four toggles (noise exclusive).
     int wtStepWaveBits(int step) const {
         const juce::String s(step);
-        if (paramInt("wtNoise" + s)) return 0x80;
-        return (paramInt("wtTri" + s) ? 0x10 : 0) | (paramInt("wtSaw" + s) ? 0x20 : 0)
-             | (paramInt("wtPulse" + s) ? 0x40 : 0);
+        return sidstation::sid::waveformBits(paramInt("wtTri" + s), paramInt("wtSaw" + s),
+                                             paramInt("wtPulse" + s), paramInt("wtNoise" + s));
     }
     float paramFloat(const char* id) const;
     float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }

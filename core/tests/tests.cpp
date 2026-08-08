@@ -606,6 +606,21 @@ static void testWaveTable() {
     CHECK(!wt.active(), "stop halts the wavetable");
 }
 
+static void testWaveformBits() {
+    using namespace sid;
+    // Bits OR together.
+    CHECK(waveformBits(false, false, false, false) == 0, "no waveform selected is silent");
+    CHECK(waveformBits(true, false, false, false) == kTriangle, "triangle only");
+    CHECK(waveformBits(false, true, false, false) == kSaw, "saw only");
+    CHECK(waveformBits(false, false, true, false) == kPulse, "pulse only");
+    CHECK(waveformBits(true, true, false, false) == (kTriangle | kSaw), "triangle + saw combine");
+    CHECK(waveformBits(true, true, true, false) == (kTriangle | kSaw | kPulse), "tri + saw + pulse combine");
+    // Noise is exclusive: it wins alone, whatever else is set.
+    CHECK(waveformBits(false, false, false, true) == kNoise, "noise only");
+    CHECK(waveformBits(true, true, true, true) == kNoise, "noise locks out the other waveforms");
+    CHECK(waveformBits(true, false, false, true) == kNoise, "noise beats triangle");
+}
+
 int main() {
     testDirectProgramFraming();
     testParamAddresses();
@@ -621,6 +636,7 @@ int main() {
     testAsidPlayer();
     testLfo();
     testWaveTable();
+    testWaveformBits();
 
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;

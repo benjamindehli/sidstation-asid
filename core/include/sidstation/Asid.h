@@ -31,6 +31,14 @@ constexpr Byte kFilt1 = 0x01, kFilt2 = 0x02, kFilt3 = 0x04, kFiltExt = 0x08;
 // Filter mode bits (register 0x18 high nibble).
 constexpr Byte kLowPass = 0x10, kBandPass = 0x20, kHighPass = 0x40, kVoice3Off = 0x80;
 
+// Combine the four waveform toggles into the control-register waveform bits. The
+// bits OR together, but on the 6581 noise silences/locks the others, so noise is
+// exclusive. Returns 0 (a silent voice) when nothing is selected.
+inline Byte waveformBits(bool triangle, bool saw, bool pulse, bool noise) {
+    if (noise) return kNoise;
+    return static_cast<Byte>((triangle ? kTriangle : 0) | (saw ? kSaw : 0) | (pulse ? kPulse : 0));
+}
+
 // PAL 6581 clock, used for the note-to-frequency conversion.
 constexpr double kClockPal = 985248.0;
 constexpr double kClockNtsc = 1022727.0;
