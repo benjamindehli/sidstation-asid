@@ -523,17 +523,44 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     hints.add(testButton, "Holds the oscillator in reset - silences the voice (SID TEST bit).",
               juce::BubbleComponent::above);
     hints.add(syncButton, "Hard-sync this oscillator to the previous voice's.",
+              "Disabled: hard sync has no effect on a noise-only voice.",
               juce::BubbleComponent::above);
-    hints.add(ringButton, "Ring-modulate with the previous voice (needs the Triangle wave).",
+    hints.add(ringButton, "Ring-modulate this oscillator with the previous voice.",
+              "Disabled: ring mod needs the Triangle wave (and not Noise).",
               juce::BubbleComponent::above);
     hints.add(filtExtButton, "Route the SidStation's external audio input through the filter.");
     hints.add(voice3offButton, "Silence voice 3's output so it can drive ring/sync as a modulator.");
     hints.add(panicButton, "All-notes-off for every voice.");
     hints.add(initButton, "Reset this voice's sound to the default patch.");
     for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
-        hints.add(u->syncButton, "Lock the rate to the host tempo (Rate becomes a note division).");
-        hints.add(u->wheelButton, "The mod wheel scales the depth (Depth becomes the maximum).");
+        // The PW LFO also needs the Pulse wave, so its "why greyed" reason differs.
+        const juce::String lfoOff = (u == &pwLfoUi)
+            ? "Disabled: turn Pulse Width Modulation on (the Pulse wave must be on)."
+            : "Disabled: turn this LFO on (choose a Shape) first.";
+        hints.add(u->syncButton, "Lock the rate to the host tempo (Rate becomes a note division).", lfoOff);
+        hints.add(u->wheelButton, "The mod wheel scales the depth (Depth becomes the maximum).", lfoOff);
+        hints.add(u->rateKnob, {}, lfoOff);    // disabled-only hint
+        hints.add(u->depthKnob, {}, lfoOff);
+        hints.add(u->delayKnob, {}, lfoOff);
     }
+    hints.add(pwLfoUi.shapeBox, {}, "Disabled: the Pulse wave must be on to modulate its width.");
+    hints.add(decayKnob, {}, "Disabled: decay does nothing at full Sustain (15).");
+    hints.add(pwKnob, "Pulse wave duty cycle (width).",
+              "Disabled: turn the Pulse wave on to set its width.");
+    // Waveforms combine, but Noise is exclusive and greys the others out. Tri and
+    // Pulse are hard against the left edge, so their bubbles go to the right.
+    const juce::String noiseOff = "Disabled: turn Noise off to use this waveform.";
+    const int right = juce::BubbleComponent::right;
+    hints.add(waveTriButton, {}, noiseOff, right);
+    hints.add(waveSawButton, {}, noiseOff);
+    hints.add(wavePulseButton, {}, noiseOff, right);
+    // Glide switches sit in the rightmost column, so their bubbles go to the left.
+    const juce::String glideOff = "Disabled: set a Glide time above zero first.";
+    const int left = juce::BubbleComponent::left;
+    hints.add(portaTrigBtns[0], "Glide only between overlapping (legato) notes.", glideOff, left);
+    hints.add(portaTrigBtns[1], "Glide on every note.", glideOff, left);
+    hints.add(portaTypeBtns[0], "Smooth, continuous pitch glide.", glideOff, left);
+    hints.add(portaTypeBtns[1], "Glide in semitone steps.", glideOff, left);
 
     refreshDevices();
     updateEnablement();

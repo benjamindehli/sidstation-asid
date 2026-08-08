@@ -132,22 +132,36 @@ private:
                                      | juce::BubbleComponent::left | juce::BubbleComponent::right;
         juce::BubbleMessageComponent bubble;
         juce::Component* host = nullptr;
-        std::map<juce::Component*, juce::String> text;
-        std::map<juce::Component*, int> place;
+        struct Entry { juce::String enabled, disabled; int place; };
+        std::map<juce::Component*, Entry> entries;
+        // Enabled-only hint (says what the control does).
         void add(juce::Component& c, const juce::String& t, int placement = anySide) {
-            text[&c] = t;
-            place[&c] = placement;
-            c.addMouseListener(this, false);
+            entries[&c] = {t, {}, placement};
+            c.addMouseListener(this, true);  // true: also fires over child components (e.g. a combo's label)
+        }
+        // Separate messages: what it does when enabled, why it is greyed when disabled.
+        void add(juce::Component& c, const juce::String& enabledText,
+                 const juce::String& disabledText, int placement = anySide) {
+            entries[&c] = {enabledText, disabledText, placement};
+            c.addMouseListener(this, true);
         }
         void mouseEnter(const juce::MouseEvent& e) override {
-            auto it = text.find(e.eventComponent);
-            if (it == text.end() || host == nullptr) return;
-            juce::AttributedString msg(it->second);
+            // The event may come from a child (a combo's text label), so walk up to
+            // the registered control.
+            juce::Component* c = e.eventComponent;
+            auto it = entries.end();
+            for (; c != nullptr; c = c->getParentComponent())
+                if ((it = entries.find(c)) != entries.end()) break;
+            if (it == entries.end() || host == nullptr) return;
+            const bool dis = !c->isEnabled();
+            const juce::String& t = (dis && it->second.disabled.isNotEmpty()) ? it->second.disabled
+                                                                              : it->second.enabled;
+            if (t.isEmpty()) return;
+            juce::AttributedString msg(t);
             msg.setColour(juce::Colour(SidLookAndFeel::kHot));
             msg.setJustification(juce::Justification::centred);
-            bubble.setAllowedPlacement(place[e.eventComponent]);
-            bubble.showAt(host->getLocalArea(e.eventComponent, e.eventComponent->getLocalBounds()),
-                          msg, 0, false, false);
+            bubble.setAllowedPlacement(it->second.place);
+            bubble.showAt(host->getLocalArea(c, c->getLocalBounds()), msg, 0, false, false);
         }
         void mouseExit(const juce::MouseEvent&) override { bubble.setVisible(false); }
     };
