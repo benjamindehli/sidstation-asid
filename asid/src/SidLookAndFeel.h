@@ -235,27 +235,27 @@ public:
     // Toggle drawn as a labelled button: it fills with the accent colour when on
     // (inverting its text), like the tab buttons, so on/off controls have the same
     // weight as everything else. "sidHighlight" marks the instance's own filter
-    // voice with a brighter fill. An empty label gives a plain on/off cell (the
-    // wavetable step matrix).
+    // voice, shown with accent-coloured text on the normal field (no extra fill
+    // shade). An empty label gives a plain on/off cell (the wavetable step matrix).
     void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down) override {
         const bool on = b.getToggleState();
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
         auto r = b.getLocalBounds().toFloat();
         // Hover (either state) tints with the muted accent; pressed flashes full
-        // accent; otherwise on = accent, off = field (own-voice a touch brighter).
+        // accent; otherwise on = accent, off = field.
         const bool bright = en && (down || (on && !over));  // shows the full accent
         if (!en)        g.setColour(disabledFill());  // greyed, whether on or off
         else if (down)  g.setColour(accent);
         else if (over)  g.setColour(mutedAccent());
         else if (on)    g.setColour(accent);
-        else if (hi)    g.setColour(fieldFill().brighter(0.45f));
         else            g.setColour(fieldFill());
         g.fillRect(r);
         if (b.getButtonText().isNotEmpty()) {
-            // Faint text on a disabled control; dark over the bright accent fills;
-            // else light (white on hover / own-voice, foreground otherwise).
-            g.setColour(juce::Colour(!en ? kDim : bright ? kBg : (over || hi) ? kHot : kFg));
+            // Faint on disabled; dark over the bright accent fill; white on hover;
+            // accent for the own filter voice (off); foreground otherwise.
+            g.setColour(!en ? juce::Colour(kDim) : bright ? juce::Colour(kBg)
+                      : over ? juce::Colour(kHot) : hi ? accent : juce::Colour(kFg));
             g.setFont(mono());
             g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
                              juce::Justification::centred, 1, 1.0f);
