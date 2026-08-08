@@ -146,10 +146,10 @@ public:
         const int x = bar.getX(), y = bar.getY(), w = bar.getWidth(), h = bar.getHeight();
         const auto name = s.getName();
 
-        // Disabled: a flat faint bar with just the dim name (no accent/muted fill,
+        // Disabled: a flat greyed bar with just the dim name (no accent/muted fill,
         // which would otherwise hide the text behind a same-tone block).
         if (!s.isEnabled()) {
-            g.setColour(juce::Colour(kBg).darker(0.35f));
+            g.setColour(disabledFill());
             g.fillRect(bar);
             if (name.isNotEmpty()) {
                 g.setFont(mono());
@@ -221,6 +221,12 @@ public:
     }
     juce::Colour mutedAccent() const { return muted(accent); }
 
+    // Disabled controls: a desaturated, recessed fill clearly greyer than the
+    // (saturated) field, so a greyed control is obvious even when it is "off".
+    static juce::Colour disabledFill() {
+        return juce::Colour(kBg).withMultipliedSaturation(0.35f).darker(0.5f);
+    }
+
     // Toggle drawn as a labelled button: it fills with the accent colour when on
     // (inverting its text), like the tab buttons, so on/off controls have the same
     // weight as everything else. "sidHighlight" marks the instance's own filter
@@ -234,7 +240,7 @@ public:
         // Hover (either state) tints with the muted accent; pressed flashes full
         // accent; otherwise on = accent, off = field (own-voice a touch brighter).
         const bool bright = en && (down || (on && !over));  // shows the full accent
-        if (!en)        g.setColour(on ? juce::Colour(kDim) : fieldFill());
+        if (!en)        g.setColour(disabledFill());  // greyed, whether on or off
         else if (down)  g.setColour(accent);
         else if (over)  g.setColour(mutedAccent());
         else if (on)    g.setColour(accent);
@@ -242,10 +248,9 @@ public:
         else            g.setColour(fieldFill());
         g.fillRect(r);
         if (b.getButtonText().isNotEmpty()) {
-            // Dark text over the coloured fills (full accent, or the dim on-fill of a
-            // disabled-but-on button); dim over a disabled-off field; else light.
-            const bool darkText = bright || (!en && on);
-            g.setColour(juce::Colour(darkText ? kBg : !en ? kDim : (over || hi) ? kHot : kFg));
+            // Faint text on a disabled control; dark over the bright accent fills;
+            // else light (white on hover / own-voice, foreground otherwise).
+            g.setColour(juce::Colour(!en ? kDim : bright ? kBg : (over || hi) ? kHot : kFg));
             g.setFont(mono());
             g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
                              juce::Justification::centred, 1, 1.0f);
@@ -264,7 +269,7 @@ public:
                            || static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
         const float alpha = l.isEnabled() ? 1.0f : 0.5f;
         if (field) {
-            g.setColour(bg.isTransparent() ? fieldFill() : bg);
+            g.setColour(bg.isTransparent() ? (l.isEnabled() ? fieldFill() : disabledFill()) : bg);
             g.fillRect(bounds);
         }
         if (!l.isBeingEdited()) {
@@ -287,7 +292,7 @@ public:
 
     void drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) override {
         auto r = juce::Rectangle<float>(0, 0, (float) w, (float) h);
-        g.setColour(fieldFill());
+        g.setColour(box.isEnabled() ? fieldFill() : disabledFill());
         g.fillRect(r);
         // A blocky down chevron.
         const float cx = w - 12.0f, cy = h * 0.5f;
@@ -304,8 +309,9 @@ public:
         // Hover tints with the muted accent (selected or not); pressed flashes full
         // accent; an active tab fills with the accent too, matching selected toggles;
         // otherwise a field.
-        if (down && b.isEnabled())      g.setColour(accent);
-        else if (over && b.isEnabled()) g.setColour(mutedAccent());
+        if (!b.isEnabled())             g.setColour(disabledFill());
+        else if (down)                  g.setColour(accent);
+        else if (over)                  g.setColour(mutedAccent());
         else if (on)                    g.setColour(accent);
         else                            g.setColour(fieldFill());
         g.fillRect(r);
