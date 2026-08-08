@@ -1,7 +1,7 @@
 # SidStation ASID plugin - VST3 / AU / Standalone.
 #
 # Three-voice play by direct SID register control over ASID. JUCE is fetched by
-# the root CMakeLists, and the company identity is shared from there.
+# the root CMakeLists, along with the shared company identity.
 
 juce_add_plugin(SidStationAsid
     PRODUCT_NAME              "SidStation ASID"
@@ -33,9 +33,9 @@ juce_add_binary_data(SidStationAsidAssets
 target_sources(SidStationAsid PRIVATE
     src/AsidProcessor.cpp
     src/AsidEditor.cpp
-    ../common/MidiHub.cpp)
+    src/MidiHub.cpp)
 
-target_include_directories(SidStationAsid PRIVATE ../common src)
+target_include_directories(SidStationAsid PRIVATE src)
 
 target_compile_definitions(SidStationAsid PUBLIC
     JUCE_WEB_BROWSER=0
@@ -61,8 +61,8 @@ if(SID_BUILD_TESTS)
         tests/StateTests.cpp
         src/AsidProcessor.cpp
         src/AsidEditor.cpp
-        ../common/MidiHub.cpp)
-    target_include_directories(SidStationAsidTests PRIVATE ../common src)
+        src/MidiHub.cpp)
+    target_include_directories(SidStationAsidTests PRIVATE src)
     target_compile_definitions(SidStationAsidTests PRIVATE
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0)

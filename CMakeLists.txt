@@ -1,10 +1,9 @@
-# Top-level build for the DehliMusikk SidStation plugins.
+# Top-level build for the DehliMusikk SidStation ASID plugin.
 #
 #   cmake -B build -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build
 #
-# Builds two plugins that share the core protocol library and the MIDI layer:
-#   plugin/  SidStation Editor  (patch editing over CC, and the librarian)
+# Builds on top of the core protocol library:
 #   asid/    SidStation ASID    (three-voice play, direct SID register control)
 #
 # Author: Benjamin Dehli. Company: DehliMusikk.
@@ -15,14 +14,14 @@ project(DehliMusikkSidStation VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Shared plugin identity. The company name is what groups both plugins under
-# DehliMusikk in a DAW's plugin list, and both share one manufacturer code.
+# Plugin identity. The company name groups the plugin under DehliMusikk in a
+# DAW's plugin list.
 set(SID_COMPANY "DehliMusikk")
 set(SID_MANUFACTURER_CODE "Dhmk")
 
-# App icon shared by both Standalone apps (JUCE generates the .icns / .ico from it).
-# Guarded so the build still works when the file is absent. Passed to both
-# juce_add_plugin calls as ${SID_ICON}.
+# App icon for the Standalone app (JUCE generates the .icns / .ico from it).
+# Guarded so the build still works when the file is absent. Passed to
+# juce_add_plugin as ${SID_ICON}.
 set(SID_ICON "")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/asid/assets/AppIcon.png")
     set(SID_ICON ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/asid/assets/AppIcon.png")
@@ -36,5 +35,4 @@ FetchContent_Declare(JUCE
 FetchContent_MakeAvailable(JUCE)
 
 add_subdirectory(core)
-add_subdirectory(plugin)
 add_subdirectory(asid)

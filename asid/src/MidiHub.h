@@ -1,8 +1,8 @@
-// MidiHub - direct MIDI device access, shared by both plugins.
+// MidiHub - direct MIDI device access.
 //
-// Rather than relying on the DAW to route MIDI, a plugin opens the USB-MIDI
+// Rather than relying on the DAW to route MIDI, the plugin opens the USB-MIDI
 // interface itself. This gives identical behaviour in any DAW and in Standalone,
-// which is what a hardware editor and the ASID player both need.
+// which is what the ASID player needs.
 //
 // Immediate sends may come from the audio thread; timed sends (sendScheduled,
 // sendPaced) hand off to JUCE's MIDI background thread. Incoming SysEx is decoded

@@ -1,18 +1,16 @@
-# SidStation plugins
+# SidStation ASID
 
-Two cross platform plugins (VST3, AU, Standalone) for the Elektron SidStation, the MOS6581 SID desktop synth.
+A cross platform plugin (VST3, AU, Standalone) for the Elektron SidStation, the MOS6581 SID desktop synth.
 
 macOS first.
 
 > **Under development.** This is a work in progress, not a finished release. Things are still changing, features are incomplete, and you should expect rough edges and breaking changes. Use it to experiment, not in anything you rely on.
 
-## The two plugins
+## What it is
 
-SidStation Editor manages and edits patches. It exposes the patch parameters as automatable controls and sends changes to the unit as MIDI Control Change. It also has a patch librarian that reads patches off the unit and stores them as .syx files. This is the "manage my sounds" tool.
+SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the "play the three voices" tool that the SidStation makes awkward on its own, and the reason it exists: there are plenty of patch editors for the SidStation already, but nothing that lets you sequence its three voices independently.
 
-SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the "play the three voices" tool that the SidStation makes awkward on its own.
-
-They share one code base. The `core` library holds the protocol, and `common` holds the MIDI device layer.
+The `core` library holds the protocol, and `common` holds the MIDI device layer.
 
 ## What SidStation ASID does today
 
@@ -67,8 +65,7 @@ The settings the SID shares across all three voices. Filter has per voice routin
 
 ## Status
 
-- SidStation ASID is the furthest along and is usable for playing the three voices.
-- SidStation Editor (patch editing over CC, and the librarian) is earlier and less exercised.
+- Usable for playing the three voices.
 - Voice sound presets (save, browse, delete) are in. Factory starter presets are not yet.
 - Developed and tested against OS 1.11 R34 hardware on macOS. Windows and Linux are not exercised.
 
@@ -77,21 +74,19 @@ The settings the SID shares across all three voices. Filter has per voice routin
 | Directory | What it is                                                                                                       |
 | --------- | ---------------------------------------------------------------------------------------------------------------- |
 | `core/`   | Framework agnostic C++17 library for the SidStation MIDI, SysEx and ASID protocols. No dependencies. Unit tested.|
-| `common/` | The shared MIDI device layer (MidiHub), used by both plugins.                                                    |
-| `plugin/` | SidStation Editor (patch editing over CC, and the librarian).                                                    |
-| `asid/`   | SidStation ASID (three voice play).                                                                              |
+| `asid/`   | SidStation ASID plugin (three voice play), including its JUCE UI and MIDI device layer.                          |
 | `probe/`  | A standalone CLI for validating the protocol against real hardware.                                              |
 
 ## Build
 
-Both plugins, via CMake and JUCE:
+Via CMake and JUCE:
 
 ```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-JUCE is fetched automatically by the root CMakeLists and shared by both plugins. With copy after build on, the AU and VST3 land in your user plugin folders, and the two Standalone apps are the quickest way to test.
+JUCE is fetched automatically by the root CMakeLists. With copy after build on, the AU and VST3 land in your user plugin folders, and the Standalone app is the quickest way to test.
 
 To run the core library tests without JUCE:
 
@@ -101,4 +96,4 @@ cd core && make test
 
 ## Hardware notes
 
-Most of the hard lessons about talking to a real unit are recorded in `core/README.md`, including the important one: on the OS 1.11 R34 firmware, the SysEx Direct Program path is dead, so the editor drives the unit over CC, and ASID is how the three voice play works.
+Most of the hard lessons about talking to a real unit are recorded in `core/README.md`, including the important one: on the OS 1.11 R34 firmware, the SysEx Direct Program path is dead, which is why ASID (streaming raw SID registers) is how the three voice play works.

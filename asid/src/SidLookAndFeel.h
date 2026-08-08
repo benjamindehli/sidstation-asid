@@ -348,4 +348,26 @@ public:
         g.drawText(text, juce::Rectangle<float>(6.0f, 0.0f, w - 12.0f, titleH).getSmallestIntegerContainer(),
                    juce::Justification::centredLeft, false);
     }
+
+    // Tabs (used by the Editor's TabbedComponent) get the same look as the value
+    // bars / toggles: active = accent fill with dark text, hover = muted accent,
+    // otherwise a field. The ASID plugin uses its own tab buttons, so this only
+    // affects the Editor.
+    juce::Font getTabButtonFont(juce::TabBarButton&, float) override { return mono(); }
+    int getTabButtonBestWidth(juce::TabBarButton& b, int) override {
+        return b.getButtonText().length() * 16 + 24;  // mono is ~16px/char
+    }
+    void drawTabbedButtonBarBackground(juce::TabbedButtonBar&, juce::Graphics& g) override {
+        g.fillAll(juce::Colour(kBg));
+    }
+    void drawTabButton(juce::TabBarButton& b, juce::Graphics& g, bool over, bool down) override {
+        juce::ignoreUnused(down);
+        const bool active = b.isFrontTab();
+        auto r = b.getActiveArea();
+        g.setColour(active ? accent : over ? mutedAccent() : fieldFill());
+        g.fillRect(r);
+        g.setColour(juce::Colour(active ? kBg : over ? kHot : kFg));
+        g.setFont(mono());
+        g.drawText(b.getButtonText(), r, juce::Justification::centred, false);
+    }
 };
