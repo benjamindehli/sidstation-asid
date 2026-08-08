@@ -860,6 +860,10 @@ juce::AudioProcessorEditor* AsidProcessor::createEditor() { return new AsidEdito
 void AsidProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts.copyState();
     state.setProperty("currentPreset", currentPresetName, nullptr);  // for the editor's display
+    // The MIDI output is shared by all instances, so every instance stores the same
+    // device; the name is a fallback for when an identifier changes between sessions.
+    state.setProperty("midiOut", midi().outputIdentifier(), nullptr);
+    state.setProperty("midiOutName", midi().outputName(), nullptr);
     if (auto xml = state.createXml())
         copyXmlToBinary(*xml, destData);
 }
@@ -869,6 +873,16 @@ void AsidProcessor::setStateInformation(const void* data, int sizeInBytes) {
         auto tree = juce::ValueTree::fromXml(*xml);
         currentPresetName = tree.getProperty("currentPreset", "").toString();
         apvts.replaceState(tree);
+
+        // Reopen the saved MIDI output unless the shared hub already has it open
+        // (another instance restored it first). Try the identifier, then the name.
+        const auto outId = tree.getProperty("midiOut", "").toString();
+        const auto outName = tree.getProperty("midiOutName", "").toString();
+        if (outId.isNotEmpty() && midi().outputIdentifier() != outId) {
+            const bool ok = midi().openOutputByIdentifier(outId)
+                         || (outName.isNotEmpty() && midi().openOutputMatching(outName));
+            if (ok) AsidShared::get().outGeneration.fetch_add(1);  // make instances re-push
+        }
     }
 }
 
