@@ -363,7 +363,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     addAndMakeVisible(midiLoadLabel);
     addAndMakeVisible(modRateLabel);
     addAndMakeVisible(modRateBox);
-    for (const char* r : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"})
+    for (const char* r : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "HiFi 100 Hz"})
         modRateBox.addItem(r, modRateBox.getNumItems() + 1);
     modRateAtt = std::make_unique<ComboAtt>(state, "modRate", modRateBox);
 

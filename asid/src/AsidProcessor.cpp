@@ -18,7 +18,7 @@ double modIntervalForRate(int idx) {
         case 0: return 40.0;             // Eco 25 Hz
         case 1: return 20.0;             // PAL 50 Hz
         case 2: return 1000.0 / 60.0;    // NTSC 60 Hz
-        case 3: return 10.0;             // Smooth 100 Hz
+        case 3: return 10.0;             // HiFi 100 Hz
     }
     return 20.0;
 }
@@ -137,7 +137,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     // frame, so the frame rate stays within what the SidStation applies per SID
     // frame. PAL 50 Hz is the native SID rate; Smooth over-sends and can drop.
     layout.add(std::make_unique<Choice>(juce::ParameterID{"modRate", 1}, "Mod Rate",
-        juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "Smooth 100 Hz"}, 1));
+        juce::StringArray{"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "HiFi 100 Hz"}, 1));
 
     // Tempo the BPM-synced LFOs lock to when there is no host transport (standalone,
     // or a host that reports no tempo). In a DAW the host BPM is used instead and
