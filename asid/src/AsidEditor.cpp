@@ -91,6 +91,7 @@ void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label
     s.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);  // value shown in a popup bubble instead
     s.setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
     s.setName(name);                              // drawn inside the bar
+    s.addMouseListener(&sliderHover, false);      // repaint on move for the hover preview
     juce::ignoreUnused(l);                        // caption is now inside the bar
     parent.addAndMakeVisible(s);
     att = std::make_unique<SliderAtt>(state, paramId, s);
@@ -484,6 +485,7 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtPwKnob[i].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
         wtPwKnob[i].setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
         wtPwKnob[i].getProperties().set("sidBipolar", true);  // fill from the centre default
+        wtPwKnob[i].addMouseListener(&sliderHover, false);
         wtPage.addAndMakeVisible(wtPwKnob[i]);
         wtPwAtt[i] = std::make_unique<SliderAtt>(state, "wtPw" + juce::String(i), wtPwKnob[i]);
         // Hidden slider: the value model / APVTS binding. UI is the field + buttons.

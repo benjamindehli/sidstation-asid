@@ -139,32 +139,67 @@ public:
     // the centre. Value-while-dragging still shows in the popup bubble.
     void drawLinearSlider(juce::Graphics& g, int, int, int, int, float, float, float,
                           juce::Slider::SliderStyle, juce::Slider& s) override {
-        const bool on = s.isEnabled();
         const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
         // Fill the whole component (JUCE insets the linear-slider track by a thumb
         // margin; we want the bar flush with the buttons and toggles beside it).
         const auto bar = s.getLocalBounds();
         const int x = bar.getX(), y = bar.getY(), w = bar.getWidth(), h = bar.getHeight();
-        const float frac = (float) s.valueToProportionOfLength(s.getValue());
-        const float ctr = bipolar ? 0.5f : 0.0f;
-        const int fx0 = x + juce::roundToInt(w * juce::jmin(ctr, frac));
-        const int fx1 = x + juce::roundToInt(w * juce::jmax(ctr, frac));
-        const auto filled = juce::Rectangle<int>(fx0, y, fx1 - fx0, h);
-
-        g.setColour(on ? fieldFill() : juce::Colour(kDim).darker(0.3f));  // unfilled (off) part
-        g.fillRect(bar);
-        g.setColour(on ? accent : juce::Colour(kDim));                    // filled (on) part
-        g.fillRect(filled);
-
         const auto name = s.getName();
+
+        // Disabled: a flat faint bar with just the dim name (no accent/muted fill,
+        // which would otherwise hide the text behind a same-tone block).
+        if (!s.isEnabled()) {
+            g.setColour(juce::Colour(kBg).darker(0.35f));
+            g.fillRect(bar);
+            if (name.isNotEmpty()) {
+                g.setFont(mono());
+                g.setColour(juce::Colour(kDim));
+                g.drawText(name, bar.reduced(4, 0), juce::Justification::centred, false);
+            }
+            return;
+        }
+
+        const float frac = (float) s.valueToProportionOfLength(s.getValue());
+        const int originX = x + (bipolar ? w / 2 : 0);        // where the fill grows from
+        const int curX = x + juce::roundToInt(w * frac);      // current value edge
+
+        // Hover preview: the muted accent shows the change a click would make. The
+        // accent is the current fill (origin -> value). On the SAME side of centre
+        // the muted region is the delta between the value and the cursor; on the
+        // OPPOSITE side (bipolar) it grows from the centre to the cursor instead.
+        auto span = [&](int a, int b) {
+            return juce::Rectangle<int>(juce::jmin(a, b), y, juce::jmax(a, b) - juce::jmin(a, b), h);
+        };
+        int accLo = juce::jmin(originX, curX), accHi = juce::jmax(originX, curX);
+        int mutLo = 0, mutHi = 0;
+        if (s.isMouseOver()) {
+            const int mx = juce::jlimit(x, x + w, s.getMouseXYRelative().getX());
+            if ((curX >= originX) == (mx >= originX)) {  // same side of centre
+                const bool valNearer = (juce::jmax(curX, originX) - juce::jmin(curX, originX))
+                                     <= (juce::jmax(mx, originX) - juce::jmin(mx, originX));
+                const int nearX = valNearer ? curX : mx, farX = valNearer ? mx : curX;
+                accLo = juce::jmin(originX, nearX); accHi = juce::jmax(originX, nearX);
+                mutLo = juce::jmin(nearX, farX);    mutHi = juce::jmax(nearX, farX);
+            } else {  // opposite side: muted grows from the centre to the cursor
+                mutLo = juce::jmin(originX, mx);    mutHi = juce::jmax(originX, mx);
+            }
+        }
+        const auto accented = span(accLo, accHi);  // bright accent (also the two-tone text region)
+
+        g.setColour(fieldFill());
+        g.fillRect(bar);
+        g.setColour(accent);
+        g.fillRect(accented);
+        if (mutHi > mutLo) { g.setColour(mutedAccent()); g.fillRect(span(mutLo, mutHi)); }  // the delta
+
         if (name.isNotEmpty()) {
             g.setFont(mono());
             const auto txt = bar.reduced(4, 0);
-            g.setColour(juce::Colour(on ? kFg : kDim));  // text over the unfilled part
+            g.setColour(juce::Colour(kFg));  // text over the unfilled / muted part
             g.drawText(name, txt, juce::Justification::centred, false);
-            juce::Graphics::ScopedSaveState clip(g);     // over the filled part: inverted
-            g.reduceClipRegion(filled);
-            g.setColour(juce::Colour(on ? kBg : kDim).withMultipliedAlpha(on ? 1.0f : 0.6f));
+            juce::Graphics::ScopedSaveState clip(g);  // over the bright accent part: inverted
+            g.reduceClipRegion(accented);
+            g.setColour(juce::Colour(kBg));
             g.drawText(name, txt, juce::Justification::centred, false);
         }
     }
@@ -178,6 +213,14 @@ public:
     // darker fill for every field, input and button. Active states use the accent.
     static juce::Colour fieldFill() { return juce::Colour(kBg).darker(0.42f); }
 
+    // The "muted accent": a dimmed, desaturated accent used for the in-use (not
+    // selected) voice, for button hover, and for the slider hover preview. One
+    // formula so all three read as the same colour.
+    static juce::Colour muted(juce::Colour c) {
+        return c.withMultipliedSaturation(0.6f).withMultipliedBrightness(0.5f);
+    }
+    juce::Colour mutedAccent() const { return muted(accent); }
+
     // Toggle drawn as a labelled button: it fills with the accent colour when on
     // (inverting its text), like the tab buttons, so on/off controls have the same
     // weight as everything else. "sidHighlight" marks the instance's own filter
@@ -188,12 +231,21 @@ public:
         const bool en = b.isEnabled();
         const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
         auto r = b.getLocalBounds().toFloat();
-        if (on)      g.setColour(en ? accent : juce::Colour(kDim));  // accent when active
-        else if (hi) g.setColour(fieldFill().brighter(0.45f));       // own filter voice
-        else         g.setColour(fieldFill().brighter(down ? 0.20f : (over ? 0.10f : 0.0f)));
+        // Hover (either state) tints with the muted accent; pressed flashes full
+        // accent; otherwise on = accent, off = field (own-voice a touch brighter).
+        const bool bright = en && (down || (on && !over));  // shows the full accent
+        if (!en)        g.setColour(on ? juce::Colour(kDim) : fieldFill());
+        else if (down)  g.setColour(accent);
+        else if (over)  g.setColour(mutedAccent());
+        else if (on)    g.setColour(accent);
+        else if (hi)    g.setColour(fieldFill().brighter(0.45f));
+        else            g.setColour(fieldFill());
         g.fillRect(r);
         if (b.getButtonText().isNotEmpty()) {
-            g.setColour(juce::Colour(on ? kBg : (hi ? kHot : (en ? kFg : kDim))));
+            // Dark text over the coloured fills (full accent, or the dim on-fill of a
+            // disabled-but-on button); dim over a disabled-off field; else light.
+            const bool darkText = bright || (!en && on);
+            g.setColour(juce::Colour(darkText ? kBg : !en ? kDim : (over || hi) ? kHot : kFg));
             g.setFont(mono());
             g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
                              juce::Justification::centred, 1, 1.0f);
@@ -248,22 +300,26 @@ public:
     void drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour&,
                               bool over, bool down) override {
         auto r = b.getLocalBounds().toFloat();
-        // A toggled-on button (an active tab) inverts to a solid light-blue fill.
-        if (b.getToggleState())
-            g.setColour(juce::Colour(kFg));
-        else
-            g.setColour(fieldFill().brighter(down ? 0.20f : (over ? 0.10f : 0.0f)));
+        const bool on = b.getToggleState();
+        // Hover tints with the muted accent (selected or not); pressed flashes full
+        // accent; an active tab is a solid light-blue fill; otherwise a field.
+        if (down && b.isEnabled())      g.setColour(accent);
+        else if (over && b.isEnabled()) g.setColour(mutedAccent());
+        else if (on)                    g.setColour(juce::Colour(kFg));
+        else                            g.setColour(fieldFill());
         g.fillRect(r);
     }
 
     // Text buttons (tabs, Init, Panic, the arp steppers) draw their own label so it
     // uses the pixel font and fills the button width (the default inset clipped the
-    // one-character steppers to an ellipsis).
-    void drawButtonText(juce::Graphics& g, juce::TextButton& b, bool, bool) override {
+    // one-character steppers to an ellipsis). Hover text is white so it stays
+    // readable on the muted-accent hover fill.
+    void drawButtonText(juce::Graphics& g, juce::TextButton& b, bool over, bool down) override {
         const bool on = b.getToggleState();
         g.setFont(mono());
-        g.setColour(b.findColour(on ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId)
-                        .withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.5f));
+        auto col = (over || down) ? juce::Colour(kHot)
+                 : b.findColour(on ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId);
+        g.setColour(col.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.5f));
         g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(3, 0),
                          juce::Justification::centred, 1, 1.0f);
     }

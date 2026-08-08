@@ -91,6 +91,14 @@ private:
     // Neutral dark look for the preset bar controls, since they sit on the dark bar
     // outside the C64 screen and should not be Commodore-styled.
     juce::LookAndFeel_V4 barLnF{juce::LookAndFeel_V4::getDarkColourScheme()};
+    // Repaints a value-bar slider as the mouse moves over it, so its hover preview
+    // (the muted delta at the would-be-click value) tracks the cursor.
+    struct SliderHover : juce::MouseListener {
+        void mouseMove (const juce::MouseEvent& e) override { if (e.eventComponent) e.eventComponent->repaint(); }
+        void mouseEnter(const juce::MouseEvent& e) override { if (e.eventComponent) e.eventComponent->repaint(); }
+        void mouseExit (const juce::MouseEvent& e) override { if (e.eventComponent) e.eventComponent->repaint(); }
+    };
+    SliderHover sliderHover;
     AsidProcessor& proc;
     juce::AudioProcessorValueTreeState& state;
     // The "in use" hint uses a BubbleMessageComponent (the same reliable popup the
@@ -171,8 +179,8 @@ private:
                 const auto c = colours[i];
                 juce::Colour fill, txt;
                 if (on)        { fill = c; txt = juce::Colour(SidLookAndFeel::kBg); }
-                else if (hue)  { fill = c.withMultipliedSaturation(0.5f).withMultipliedBrightness(0.30f);
-                                 txt  = c.withMultipliedSaturation(0.85f).withMultipliedBrightness(0.75f); }
+                else if (hue)  { fill = SidLookAndFeel::muted(c);            // in use / hover
+                                 txt  = juce::Colour(SidLookAndFeel::kHot); }
                 else           { fill = juce::Colour(SidLookAndFeel::kBg).darker(0.55f);  // idle: uniform
                                  txt  = juce::Colour(SidLookAndFeel::kDim); }
                 g.setColour(fill);
