@@ -3,6 +3,14 @@
 # Three-voice play by direct SID register control over ASID. JUCE is fetched by
 # the root CMakeLists, and the company identity is shared from there.
 
+# App icon (Standalone .app on macOS, .ico on Windows). Save a square PNG - ideally
+# 1024x1024 with transparency - as assets/AppIcon.png; JUCE generates the platform
+# icon. Guarded so the build still works if the file is not present.
+set(SID_ICON "")
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/AppIcon.png")
+    set(SID_ICON ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/assets/AppIcon.png")
+endif()
+
 juce_add_plugin(SidStationAsid
     PRODUCT_NAME              "SidStation ASID"
     COMPANY_NAME              "${SID_COMPANY}"
@@ -17,7 +25,8 @@ juce_add_plugin(SidStationAsid
     EDITOR_WANTS_KEYBOARD_FOCUS TRUE
     COPY_PLUGIN_AFTER_BUILD   TRUE
     VST3_CATEGORIES           Instrument
-    AU_MAIN_TYPE              kAudioUnitType_MusicDevice)
+    AU_MAIN_TYPE              kAudioUnitType_MusicDevice
+    ${SID_ICON})
 
 # Embed assets so they ship inside the plugin binary: the Dehli Musikk logo, plus
 # any decorative overlay PNGs present (Overlay.png shared, OverlayVoice1..3.png per
