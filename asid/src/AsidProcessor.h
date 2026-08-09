@@ -78,6 +78,10 @@ public:
     void deletePreset(const juce::String& name);
     juce::String currentPreset() const { return currentPresetName; }
 
+    // Editor UI preference (persisted with the plugin state): show hover hints.
+    bool showTooltips() const { return tooltipsOn; }
+    void setShowTooltips(bool on) { tooltipsOn = on; }
+
 private:
     // One modulation stream per LFO target: its LFO, when it last sent, and the
     // last frame sent (to skip identical steps).
@@ -172,6 +176,7 @@ private:
     double lastPlayheadMs = 0.0;  // playhead last block, to spot a jump
     int lastReleaseGen = 0;       // shared watchdog release generation seen, to clear a stale note
     juce::String currentPresetName;  // last saved/loaded preset, for the editor's display
+    bool tooltipsOn = true;          // editor "Tips" toggle, persisted in plugin state
     // A voice-sound parameter (in a preset, and reset by Init): not a shared global,
     // not the voice selection, not the tempo.
     static bool isVoiceSoundParam(const juce::String& id) {

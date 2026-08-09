@@ -860,6 +860,7 @@ juce::AudioProcessorEditor* AsidProcessor::createEditor() { return new AsidEdito
 void AsidProcessor::getStateInformation(juce::MemoryBlock& destData) {
     auto state = apvts.copyState();
     state.setProperty("currentPreset", currentPresetName, nullptr);  // for the editor's display
+    state.setProperty("showTooltips", tooltipsOn, nullptr);          // editor "Tips" toggle
     // The MIDI output is shared by all instances, so every instance stores the same
     // device; the name is a fallback for when an identifier changes between sessions.
     state.setProperty("midiOut", midi().outputIdentifier(), nullptr);
@@ -872,6 +873,7 @@ void AsidProcessor::setStateInformation(const void* data, int sizeInBytes) {
     if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
         auto tree = juce::ValueTree::fromXml(*xml);
         currentPresetName = tree.getProperty("currentPreset", "").toString();
+        tooltipsOn = (bool) tree.getProperty("showTooltips", true);
         apvts.replaceState(tree);
 
         // Reopen the saved MIDI output unless the shared hub already has it open

@@ -220,6 +220,17 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         const auto name = presetBox.getText().trim();
         if (proc.presetNames().contains(name)) { proc.deletePreset(name); refreshPresets(); }
     };
+    // "Tips" toggle at the start of the bar: turns the hover hints on and off (the
+    // value popups a slider shows while turning are separate and stay). Default on.
+    addAndMakeVisible(tooltipToggle);
+    tooltipToggle.setClickingTogglesState(true);
+    tooltipToggle.setToggleState(proc.showTooltips(), juce::dontSendNotification);
+    hints.active = proc.showTooltips();
+    tooltipToggle.onClick = [this] {
+        hints.active = tooltipToggle.getToggleState();
+        proc.setShowTooltips(hints.active);                  // persist with the plugin state
+        if (!hints.active) hints.bubble.setVisible(false);  // dismiss any showing hint
+    };
     // The bar sits on the dark strip outside the C64 screen, so give its controls a
     // neutral look rather than the Commodore styling: an almost-grayscale palette
     // with the same faint blue lean as the #191a1b background (each channel is
@@ -238,9 +249,12 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         greyTint(46),   // highlighted fill (hover / selection)
         greyTint(198),  // menu text
     });
-    for (auto* c : {&presetPrevBtn, &presetNextBtn, &presetSaveBtn, &presetDeleteBtn})
+    for (auto* c : {&presetPrevBtn, &presetNextBtn, &presetSaveBtn, &presetDeleteBtn, &tooltipToggle})
         c->setLookAndFeel(&barLnF);
     presetBox.setLookAndFeel(&barLnF);
+    // A clearly brighter fill so the "Tips" on-state is obvious in the grey bar.
+    tooltipToggle.setColour(juce::TextButton::buttonOnColourId, greyTint(140));
+    tooltipToggle.setColour(juce::TextButton::textColourOnId, greyTint(20));
     refreshPresets(proc.currentPreset());
 
     // Group boxes go into their page first, so the frames sit behind the controls.
@@ -846,6 +860,7 @@ void AsidEditor::parentHierarchyChanged() {
 void AsidEditor::resized() {
     // Dark preset bar across the top, above the untouched 720x540 content region.
     auto pbar = getLocalBounds().removeFromTop(kPresetBarH).reduced(kBorder + 6, 5);
+    tooltipToggle.setBounds(pbar.removeFromLeft(44)); pbar.removeFromLeft(12);
     presetPrevBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(4);
     presetNextBtn.setBounds(pbar.removeFromLeft(28)); pbar.removeFromLeft(10);
     presetDeleteBtn.setBounds(pbar.removeFromRight(62)); pbar.removeFromRight(6);

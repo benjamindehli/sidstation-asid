@@ -132,6 +132,7 @@ private:
                                      | juce::BubbleComponent::left | juce::BubbleComponent::right;
         juce::BubbleMessageComponent bubble;
         juce::Component* host = nullptr;
+        bool active = true;  // the preset-bar "Tips" toggle; off = suppress hover hints
         struct Entry { juce::String enabled, disabled; int place; };
         std::map<juce::Component*, Entry> entries;
         // Enabled-only hint (says what the control does).
@@ -146,6 +147,7 @@ private:
             c.addMouseListener(this, true);
         }
         void mouseEnter(const juce::MouseEvent& e) override {
+            if (!active) return;  // hints turned off from the preset bar
             // The event may come from a child (a combo's text label), so walk up to
             // the registered control.
             juce::Component* c = e.eventComponent;
@@ -225,6 +227,7 @@ private:
     // Preset bar under the tabs: browse (prev/next + editable menu) and Save.
     juce::ComboBox presetBox;
     juce::TextButton presetPrevBtn{"<"}, presetNextBtn{">"}, presetSaveBtn{"Save"}, presetDeleteBtn{"Delete"};
+    juce::TextButton tooltipToggle{"Tips"};  // preset-bar toggle for the hover hints
 
     // MIDI load meter (bytes/sec vs the SidStation's ~3125 B/s ceiling).
     juce::Label midiLoadLabel{{}, "MIDI LOAD"};
