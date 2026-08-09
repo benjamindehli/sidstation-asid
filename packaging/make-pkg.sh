@@ -57,17 +57,17 @@ resources="$work/resources"
 mkdir -p "$resources"
 cp "$ROOT/LICENSE" "$resources/LICENSE.txt"
 
-sign=()
+# Sign the product when an installer identity is given, otherwise build an
+# unsigned package (an if/else avoids expanding an empty array, which errors
+# under `set -u` on the macOS system bash 3.2).
 if [ -n "${INSTALLER_IDENTITY:-}" ]; then
-    sign=(--sign "$INSTALLER_IDENTITY")
+    productbuild --distribution "$work/distribution.xml" --package-path "$work" \
+        --resources "$resources" --sign "$INSTALLER_IDENTITY" "$OUT"
+else
+    echo "make-pkg: no INSTALLER_IDENTITY set, building an UNSIGNED package" >&2
+    productbuild --distribution "$work/distribution.xml" --package-path "$work" \
+        --resources "$resources" "$OUT"
 fi
-
-productbuild \
-    --distribution "$work/distribution.xml" \
-    --package-path "$work" \
-    --resources "$resources" \
-    "${sign[@]}" \
-    "$OUT"
 
 test -f "$OUT" || { echo "make-pkg: productbuild did not create $OUT" >&2; exit 1; }
 echo "Built $OUT"
