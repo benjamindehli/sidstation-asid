@@ -276,6 +276,7 @@ section h2 {
     margin: 0 0 8px;
 }
 .lead { color: var(--fg); max-width: 760px; }
+.lead.spaced { margin-top: 26px; }
 
 /* Feature cards */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 34px; }
@@ -299,6 +300,14 @@ section h2 {
 }
 
 .alt { background: var(--screen); }
+
+/* Install */
+.steps { max-width: 760px; margin: 26px 0 0; padding-left: 20px; }
+.steps li { margin-bottom: 14px; }
+.paths { margin: 26px 0 0; border-collapse: collapse; font-size: 15px; }
+.paths th, .paths td { text-align: left; padding: 7px 22px 7px 0; border-bottom: 1px solid var(--dim); }
+.paths th { font-family: "SidStationC64", monospace; text-transform: uppercase; color: var(--hot); font-size: 13px; font-weight: normal; }
+.paths td code { color: #ddd9ff; }
 
 /* Build */
 pre {
@@ -336,7 +345,7 @@ footer a { color: var(--fg); }
             <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
             <a class="btn ghost" href="#what">What it is</a>
         </div>
-        <p class="fineprint">macOS 10.15 or later. Apple Silicon and Intel. Signed and notarized.</p>
+        <p class="fineprint">macOS 10.15 or later. Apple Silicon and Intel. Signed and notarized. <a href="#install">Install steps</a>.</p>
     </div>
 </header>
 
@@ -344,7 +353,6 @@ footer a { color: var(--fg); }
     <div class="wrap">
         <h2>What it is</h2>
         <p class="lead">SidStation ASID streams raw SID registers over the ASID protocol instead of sending MIDI CC, so every register is reachable and each voice gets its own pitch and gate. One instance drives one voice. Put an instance on each of three DAW tracks, pick a voice per track, and the three voices become three monosynths you can sequence apart. Getting that out of the SidStation on its own is awkward.</p>
-        <p class="lead">Put the unit in ASID mode from the front panel before playing.</p>
     </div>
 </section>
 
@@ -414,7 +422,28 @@ footer a { color: var(--fg); }
     </div>
 </section>
 
-<section class="alt">
+<section class="alt" id="install">
+    <div class="wrap">
+        <h2>Install</h2>
+        <p class="lead">macOS 10.15 or later, Apple Silicon or Intel. The package is signed and notarized, so it opens without a Gatekeeper warning.</p>
+        <ol class="steps">
+            <li>Download the DMG from <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a> and open it.</li>
+            <li>Run the installer inside. It asks for your admin password, since the plugins go in the system plugin folders.</li>
+            <li>Restart your DAW. Logic revalidates the AU on the next launch, which takes a moment the first time.</li>
+            <li>Connect the SidStation over MIDI and put it in ASID mode from the front panel.</li>
+            <li>In the plugin, hit Scan and pick the SidStation as the MIDI output.</li>
+        </ol>
+        <table class="paths">
+            <tr><th>What</th><th>Goes to</th></tr>
+            <tr><td>AU</td><td><code>/Library/Audio/Plug-Ins/Components</code></td></tr>
+            <tr><td>VST3</td><td><code>/Library/Audio/Plug-Ins/VST3</code></td></tr>
+            <tr><td>Standalone</td><td><code>/Applications</code></td></tr>
+        </table>
+        <p class="lead spaced">One instance drives one voice, so load three instances on three tracks and set each to a different voice.</p>
+    </div>
+</section>
+
+<section>
     <div class="wrap">
         <h2>Build from source</h2>
         <p class="lead">The project builds via CMake, and JUCE is fetched automatically by the root CMakeLists. With copy after build on, the AU and VST3 land in your user plugin folders, and the Standalone app is the quickest way to test.</p>
