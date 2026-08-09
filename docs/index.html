@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SidStation ASID</title>
+<meta name="description" content="A cross platform plugin that plays the three SID voices of the Elektron SidStation directly, one voice per instance.">
+<style>
+@font-face {
+    font-family: "SidStationC64";
+    src: url("SidStationC64.ttf") format("truetype");
+    font-display: swap;
+}
+
+:root {
+    --bg: #2e2a63;
+    --screen: #463ea4;
+    --panel: #383382;
+    --fg: #b7b3ee;
+    --dim: #6461bd;
+    --hot: #ffffff;
+    --teal: #3cb8a6;
+    --red: #e0655f;
+    --sand: #d9a441;
+}
+
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+.pixel {
+    font-family: "SidStationC64", "Courier New", monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    color: var(--hot);
+}
+
+a { color: var(--teal); }
+a:hover { color: var(--hot); }
+
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+/* Hero */
+.hero {
+    background: var(--screen);
+    border-bottom: 4px solid var(--bg);
+    padding: 88px 0 72px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+.hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        to bottom, rgba(0,0,0,0.06) 0 2px, rgba(0,0,0,0) 2px 4px);
+    pointer-events: none;
+}
+.hero h1 {
+    font-family: "SidStationC64", "Courier New", monospace;
+    text-transform: uppercase;
+    color: var(--hot);
+    font-size: clamp(34px, 7vw, 66px);
+    letter-spacing: 0.03em;
+    margin: 0 0 10px;
+    text-shadow: 0 3px 0 rgba(0,0,0,0.25);
+}
+.hero .tag { color: #ddd9ff; font-size: clamp(16px, 2.4vw, 21px); margin: 0 auto 30px; max-width: 620px; }
+.badges { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 30px; }
+.badge {
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    font-size: 12px;
+    color: var(--fg);
+    border: 2px solid var(--dim);
+    padding: 5px 10px;
+    letter-spacing: 0.05em;
+}
+
+.btn {
+    display: inline-block;
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    padding: 13px 22px;
+    text-decoration: none;
+    border: 2px solid var(--teal);
+    color: var(--bg);
+    background: var(--teal);
+    margin: 6px;
+}
+.btn:hover { background: var(--hot); border-color: var(--hot); color: var(--bg); }
+.btn.ghost { background: transparent; color: var(--fg); border-color: var(--dim); }
+.btn.ghost:hover { color: var(--hot); border-color: var(--hot); background: transparent; }
+
+/* Sections */
+section { padding: 62px 0; }
+section h2 {
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    color: var(--hot);
+    font-size: clamp(22px, 4vw, 32px);
+    margin: 0 0 8px;
+}
+.lead { color: var(--fg); max-width: 760px; }
+
+.note {
+    background: var(--panel);
+    border-left: 4px solid var(--sand);
+    padding: 16px 20px;
+    margin: 30px auto 0;
+    max-width: 760px;
+    color: #cfcbf3;
+}
+
+/* Feature cards */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 34px; }
+.card { background: var(--panel); padding: 22px 24px; border-top: 4px solid var(--teal); }
+.card:nth-child(2) { border-top-color: var(--red); }
+.card:nth-child(3) { border-top-color: var(--sand); }
+.card h3 { font-family: "SidStationC64", monospace; text-transform: uppercase; color: var(--hot); font-size: 15px; margin: 0 0 14px; }
+.card ul { margin: 0; padding-left: 18px; }
+.card li { margin-bottom: 9px; }
+
+/* Tabs / screenshots */
+.shot { margin-top: 46px; }
+.shot h3 { font-family: "SidStationC64", monospace; text-transform: uppercase; color: var(--hot); font-size: 18px; margin: 0 0 6px; }
+.shot p { margin: 0 0 16px; max-width: 820px; }
+.shot img {
+    width: 100%;
+    height: auto;
+    display: block;
+    border: 3px solid var(--panel);
+    background: var(--screen);
+}
+
+.alt { background: var(--screen); }
+.alt::selection { background: var(--teal); }
+
+/* Build */
+pre {
+    background: #221f4d;
+    color: #d7d3ff;
+    padding: 18px 20px;
+    overflow-x: auto;
+    border-left: 4px solid var(--teal);
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15px;
+    line-height: 1.55;
+}
+code { font-family: "SF Mono", Menlo, Consolas, monospace; }
+
+/* Footer */
+footer { background: var(--bg); border-top: 4px solid var(--panel); padding: 40px 0; text-align: center; color: var(--dim); font-size: 15px; }
+footer .pixel { font-size: 14px; color: var(--fg); }
+footer a { color: var(--fg); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+    <div class="wrap">
+        <h1>SidStation ASID</h1>
+        <p class="tag">Play the three SID voices of the Elektron SidStation directly, one voice per instance.</p>
+        <div class="badges">
+            <span class="badge">VST3</span>
+            <span class="badge">AU</span>
+            <span class="badge">Standalone</span>
+            <span class="badge">macOS first</span>
+        </div>
+        <div>
+            <a class="btn" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
+            <a class="btn ghost" href="#what">How it works</a>
+        </div>
+    </div>
+</header>
+
+<section id="what">
+    <div class="wrap">
+        <h2>What it is</h2>
+        <p class="lead">SidStation ASID drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the tool for playing the three voices that the SidStation makes awkward on its own, and the reason it exists. There are plenty of patch editors for the SidStation already, but nothing that lets you sequence its three voices independently.</p>
+        <div class="note">
+            <strong>Under development.</strong> This is a work in progress, not a finished release. Things are still changing, features are incomplete, and you should expect rough edges and breaking changes. Use it to experiment, not in anything you rely on.
+        </div>
+    </div>
+</section>
+
+<section class="alt">
+    <div class="wrap">
+        <h2>What it does today</h2>
+        <div class="cards">
+            <div class="card">
+                <h3>Per voice</h3>
+                <ul>
+                    <li>The four SID waveforms, combinable, with noise exclusive as on the real chip.</li>
+                    <li>ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range.</li>
+                    <li>Hard sync, ring modulation, and the raw TEST bit.</li>
+                    <li>Portamento, with a legato or always trigger and a smooth or stepped glide.</li>
+                    <li>An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus speed, length and a loop point.</li>
+                    <li>Three LFOs on pitch, pulse width and cutoff, with several shapes, a free Hz or host tempo synced rate, depth, mod wheel scaling, and a fade in delay.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Shared across voices</h3>
+                <ul>
+                    <li>The filter, since the chip has one: cutoff, resonance, per voice routing, external input, and combinable low, band and high pass modes.</li>
+                    <li>Master volume, and a switch to silence voice 3 so it can serve as a pure modulation source for ring and sync.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3>Around the sound</h3>
+                <ul>
+                    <li>A Commodore 64 styled pixel interface, with per voice colour coding and one instance per voice so two windows cannot fight over the same voice.</li>
+                    <li>Voice sound presets saved to disk, so a patch can be saved, browsed and recalled independently of any DAW project, alongside an Init that resets a voice.</li>
+                    <li>A tempo readout, host tempo in a DAW or set by hand in Standalone, and a Panic that releases every voice.</li>
+                    <li>A MIDI load meter, since the SidStation shares one slow MIDI port across all three voices.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section>
+    <div class="wrap">
+        <h2>The four tabs</h2>
+        <p class="lead">The dark strip along the top is the same on every tab. It carries the MIDI output picker with a Scan button, the tempo and the clock rate, a MIDI load meter, the voice selector, and the preset bar.</p>
+
+        <div class="shot">
+            <h3>Voice</h3>
+            <p>Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger and type switches. Amp Envelope is the ADSR.</p>
+            <img src="voice.png" alt="The Voice tab" loading="lazy">
+        </div>
+
+        <div class="shot">
+            <h3>Wavetable</h3>
+            <p>An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform, Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.</p>
+            <img src="wavetable.png" alt="The Wavetable tab" loading="lazy">
+        </div>
+
+        <div class="shot">
+            <h3>Modulation</h3>
+            <p>Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is either free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.</p>
+            <img src="modulation.png" alt="The Modulation tab" loading="lazy">
+        </div>
+
+        <div class="shot">
+            <h3>Global</h3>
+            <p>The settings the SID shares across all three voices. Filter has per voice routing, the external input, the combinable low, band and high pass modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.</p>
+            <img src="global.png" alt="The Global tab" loading="lazy">
+        </div>
+    </div>
+</section>
+
+<section class="alt">
+    <div class="wrap">
+        <h2>Build it</h2>
+        <p class="lead">The project builds via CMake, and JUCE is fetched automatically by the root CMakeLists. With copy after build on, the AU and VST3 land in your user plugin folders, and the Standalone app is the quickest way to test.</p>
+        <pre>git clone https://github.com/benjamindehli/sidstation-asid.git
+cd sidstation-asid
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build</pre>
+        <p class="lead">Developed and tested against OS 1.11 R34 hardware on macOS. Windows and Linux are not exercised yet. Enter ASID mode on the unit front panel before playing.</p>
+    </div>
+</section>
+
+<footer>
+    <div class="wrap">
+        <p class="pixel">DehliMusikk</p>
+        <p>SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>.</p>
+    </div>
+</footer>
+
+</body>
+</html>
