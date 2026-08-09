@@ -164,6 +164,9 @@ private:
             bubble.showAt(host->getLocalArea(c, c->getLocalBounds()), msg, 0, false, false);
         }
         void mouseExit(const juce::MouseEvent&) override { bubble.setVisible(false); }
+        // Hide the hint as soon as a drag or click starts, so it does not overlap
+        // the value popup a slider shows while turning.
+        void mouseDown(const juce::MouseEvent&) override { bubble.setVisible(false); }
     };
     Hints hints;
     juce::Label title{{}, "SidStation ASID"};
