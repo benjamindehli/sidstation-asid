@@ -39,25 +39,25 @@ The dark strip along the top is the same on every tab. It holds the MIDI output 
 
 ### Voice
 
-![The Voice tab](docs/voice.webp)
+![The Voice tab](docs/sidstation-asid-voice-tab.webp)
 
 Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger (Legato or Always) and type (Smooth or Step) switches. Amp Envelope is the ADSR.
 
 ### Wavetable
 
-![The Wavetable tab](docs/wavetable.webp)
+![The Wavetable tab](docs/sidstation-asid-wavetable-tab.webp)
 
 An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform (Tri, Saw, Pulse, Noise), Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.
 
 ### Modulation
 
-![The Modulation tab](docs/modulation.webp)
+![The Modulation tab](docs/sidstation-asid-modulation-tab.webp)
 
 Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay. Set the shape to Off and the LFO stops.
 
 ### Global
 
-![The Global tab](docs/global.webp)
+![The Global tab](docs/sidstation-asid-global-tab.webp)
 
 The settings the SID shares across all three voices. Filter has per voice routing (V1, V2, V3), the external input, the combinable LP, BP and HP modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.
 
