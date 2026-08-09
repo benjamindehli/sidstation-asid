@@ -62,7 +62,7 @@
             "description": "SidStation ASID is a free, open source plugin (VST3, AU and Standalone) that plays the three SID voices of the Elektron SidStation directly over the ASID protocol. It streams raw MOS6581 SID registers, giving independent pitch, gate, waveform, ADSR, filter and wavetable control of each voice, one instance per voice.",
             "applicationCategory": "MultimediaApplication",
             "applicationSubCategory": "Audio plugin",
-            "operatingSystem": "macOS",
+            "operatingSystem": "macOS, Windows, Linux",
             "softwareVersion": "1.0.0",
             "datePublished": "2026-08-09",
             "dateModified": "2026-08-09",
@@ -308,6 +308,7 @@ section h2 {
 .paths th, .paths td { text-align: left; padding: 7px 22px 7px 0; border-bottom: 1px solid var(--dim); }
 .paths th { font-family: "SidStationC64", monospace; text-transform: uppercase; color: var(--hot); font-size: 13px; font-weight: normal; }
 .paths td code { color: #ddd9ff; }
+#install h3 { font-family: "SidStationC64", monospace; text-transform: uppercase; color: var(--hot); font-size: 18px; margin: 34px 0 6px; }
 
 /* Build */
 pre {
@@ -345,7 +346,7 @@ footer a { color: var(--fg); }
             <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
             <a class="btn ghost" href="#what">What it is</a>
         </div>
-        <p class="fineprint">macOS 10.15 or later. Apple Silicon and Intel. Signed and notarized. <a href="#install">Install steps</a>.</p>
+        <p class="fineprint">macOS, Windows and Linux. The macOS build is signed and notarized. <a href="#install">Install steps</a>.</p>
     </div>
 </header>
 
@@ -425,9 +426,12 @@ footer a { color: var(--fg); }
 <section class="alt" id="install">
     <div class="wrap">
         <h2>Install</h2>
+        <p class="lead">Builds for macOS, Windows and Linux are on <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a>. The macOS build is signed and notarized. The Windows and Linux builds are provided but not yet hardware-tested.</p>
+
+        <h3>macOS</h3>
         <p class="lead">macOS 10.15 or later, Apple Silicon or Intel. The package is signed and notarized, so it opens without a Gatekeeper warning.</p>
         <ol class="steps">
-            <li>Download the DMG from <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a> and open it.</li>
+            <li>Download the DMG from the latest release and open it.</li>
             <li>Run the installer inside. It asks for your admin password, since the plugins go in the system plugin folders.</li>
             <li>Restart your DAW. Logic revalidates the AU on the next launch, which takes a moment the first time.</li>
             <li>Connect the SidStation over MIDI and put it in ASID mode from the front panel.</li>
@@ -439,6 +443,22 @@ footer a { color: var(--fg); }
             <tr><td>VST3</td><td><code>/Library/Audio/Plug-Ins/VST3</code></td></tr>
             <tr><td>Standalone</td><td><code>/Applications</code></td></tr>
         </table>
+
+        <h3>Windows</h3>
+        <ol class="steps">
+            <li>Download the setup .exe from the latest release and run it. It is unsigned, so SmartScreen may warn: choose More info, then Run anyway.</li>
+            <li>The installer places the VST3 in <code>Common Files\VST3</code> and the Standalone in <code>Program Files</code>.</li>
+            <li>Restart your DAW so it picks up the new VST3.</li>
+            <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
+        </ol>
+
+        <h3>Linux</h3>
+        <ol class="steps">
+            <li>Download the .tar.gz from the latest release and extract it.</li>
+            <li>Copy <code>SidStation ASID.vst3</code> into <code>~/.vst3</code> (or <code>/usr/lib/vst3</code> for all users), and run the Standalone from the extracted folder.</li>
+            <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
+        </ol>
+
         <p class="lead spaced">One instance drives one voice, so load three instances on three tracks and set each to a different voice.</p>
     </div>
 </section>
@@ -451,7 +471,7 @@ footer a { color: var(--fg); }
 cd sidstation-asid
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build</pre>
-        <p class="lead">Developed and tested against OS 1.11 R34 hardware on macOS. Windows and Linux are untested.</p>
+        <p class="lead">Developed and tested against OS 1.11 R34 hardware on macOS. The Windows and Linux builds compile and package but are not yet hardware-tested.</p>
     </div>
 </section>
 
