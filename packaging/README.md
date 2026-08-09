@@ -57,7 +57,7 @@ With the artefacts built (`cmake --build build` after configuring Release), you
 can produce the `.pkg` by hand:
 
 ```sh
-packaging/make-pkg.sh 0.1.0 build/asid/SidStationAsid_artefacts/Release "SidStation ASID.pkg"
+packaging/make-pkg.sh 0.1.0 build/asid/SidStationAsid_artefacts/Release SidStation-ASID-0.1.0.pkg
 ```
 
 Set `INSTALLER_IDENTITY` first to sign it.

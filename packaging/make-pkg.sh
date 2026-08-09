@@ -69,4 +69,5 @@ productbuild \
     "${sign[@]}" \
     "$OUT"
 
+test -f "$OUT" || { echo "make-pkg: productbuild did not create $OUT" >&2; exit 1; }
 echo "Built $OUT"

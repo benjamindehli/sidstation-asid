@@ -89,13 +89,17 @@ jobs:
             codesign --verify --strict "$b"
           done
 
+      # The .pkg and .dmg file names are space-free (the bundles inside keep their
+      # proper "SidStation ASID" names); paths are recomputed per step from the
+      # version so a space in a filename can never trip up a later tool.
       - name: Build the installer package
         env:
           INSTALLER_IDENTITY: ${{ secrets.MACOS_INSTALLER_IDENTITY }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
           mkdir -p build/dist
-          bash packaging/make-pkg.sh "$V" "$ART" "build/dist/$NAME.pkg"
+          PKG="build/dist/SidStation-ASID-${{ steps.ver.outputs.version }}.pkg"
+          bash packaging/make-pkg.sh "${{ steps.ver.outputs.version }}" "$ART" "$PKG"
+          ls -la build/dist
 
       - name: Notarize and staple the package
         if: env.HAVE_SIGNING == 'true'
@@ -105,14 +109,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          bash packaging/notarize.sh "build/dist/$NAME.pkg"
-          xcrun stapler staple "build/dist/$NAME.pkg"
+          PKG="build/dist/SidStation-ASID-${{ steps.ver.outputs.version }}.pkg"
+          bash packaging/notarize.sh "$PKG"
+          xcrun stapler staple "$PKG"
 
       - name: Build the DMG
         run: |
           V="${{ steps.ver.outputs.version }}"
+          PKG="build/dist/SidStation-ASID-$V.pkg"
           mkdir -p build/dmgroot
-          cp "build/dist/$NAME.pkg" "build/dmgroot/"
+          cp "$PKG" "build/dmgroot/$NAME.pkg"   # nice spaced name inside the mounted DMG
           hdiutil create -volname "$NAME $V" -srcfolder build/dmgroot \
             -ov -format UDZO "build/dist/SidStation-ASID-$V.dmg"
 
@@ -125,8 +131,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          V="${{ steps.ver.outputs.version }}"
-          DMG="build/dist/SidStation-ASID-$V.dmg"
+          DMG="build/dist/SidStation-ASID-${{ steps.ver.outputs.version }}.dmg"
           codesign --force --timestamp --sign "$IDENTITY" "$DMG"
           bash packaging/notarize.sh "$DMG"
           xcrun stapler staple "$DMG"
