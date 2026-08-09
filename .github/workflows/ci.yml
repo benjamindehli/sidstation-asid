@@ -19,12 +19,6 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v5
-      # FetchContent clones JUCE into build/_deps; cache it so reruns skip the clone.
-      - name: Cache JUCE
-        uses: actions/cache@v4
-        with:
-          path: build/_deps
-          key: juce-8.0.15-${{ runner.os }}
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DSID_BUILD_TESTS=ON
       # Builds the console test app, which compiles the full processor and editor
@@ -33,9 +27,10 @@ jobs:
         run: cmake --build build --target SidStationAsidTests --config Release
       - name: Run JUCE-linked tests
         run: |
-          # Locate the built executable by its artefacts folder rather than its
-          # product name (JUCE puts it under <target>_artefacts/<config>/).
-          bin=$(find build -type f -path "*SidStationAsidTests_artefacts*" ! -path "*.dSYM*" | head -1)
+          # Locate the built executable inside the target's artefacts folder: an
+          # executable file, not the JuceLibraryCode helper files or the .dSYM.
+          bin=$(find build -type f -perm +111 -path "*SidStationAsidTests_artefacts*" \
+                  ! -path "*JuceLibraryCode*" ! -path "*.dSYM*" | head -1)
           if [ -z "$bin" ]; then
             echo "::error::Test executable not found under build/"
             find build -path "*artefacts*" -print
