@@ -65,13 +65,15 @@ static void testPresetRoundTrip() {
     a.presetsDir().getChildFile(name + ".xml").deleteFile();  // clean start
 
     setNorm(a, "attack", 0.9f);
+    const float saved = norm(a, "attack");  // actual stored value (attack is a 0..15 int, so 0.9 snaps)
     a.savePreset(name);
     CHECK(a.currentPreset() == name, "current preset name is set after save");
     CHECK(a.presetNames().contains(name), "saved preset appears in the list");
 
     setNorm(a, "attack", 0.1f);
+    CHECK(!approx(norm(a, "attack"), saved), "value changed before load");
     CHECK(a.loadPreset(name), "loadPreset succeeds");
-    CHECK(approx(norm(a, "attack"), 0.9f), "preset restores the saved value");
+    CHECK(approx(norm(a, "attack"), saved), "preset restores the saved value");
 
     a.presetsDir().getChildFile(name + ".xml").deleteFile();  // cleanup
     CHECK(!a.presetNames().contains(name), "preset removed after cleanup");
