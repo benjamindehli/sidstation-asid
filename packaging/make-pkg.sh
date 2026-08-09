@@ -7,6 +7,12 @@
 # <artefacts-dir> is the JUCE Release artefacts folder, i.e. it contains
 # AU/, VST3/ and Standalone/ subfolders. If INSTALLER_IDENTITY is set in the
 # environment (a "Developer ID Installer" identity), the product is signed.
+#
+# The AU, VST3 and Standalone all share one CFBundleIdentifier. The macOS
+# installer keys bundle handling on that id, so a single package holding all
+# three collapses them into one and installs only some. To avoid that, each
+# bundle goes in its own component package (distinct package id + install
+# location), and productbuild combines them.
 set -euo pipefail
 
 VERSION="${1:?usage: make-pkg.sh <version> <artefacts-dir> <output.pkg>}"
@@ -14,40 +20,34 @@ ART="${2:?missing artefacts dir}"
 OUT="${3:?missing output path}"
 
 NAME="SidStation ASID"
-IDENTIFIER="com.dehlimusikk.sidstationasid"
+IDBASE="com.dehlimusikk.sidstationasid"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"  # repo root (for the LICENSE)
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Lay the three bundles out at their real install destinations under a staging
-# root, then build one component package rooted at "/".
-staging="$work/staging"
-mkdir -p "$staging/Library/Audio/Plug-Ins/Components" \
-         "$staging/Library/Audio/Plug-Ins/VST3" \
-         "$staging/Applications"
-cp -R "$ART/AU/$NAME.component"   "$staging/Library/Audio/Plug-Ins/Components/"
-cp -R "$ART/VST3/$NAME.vst3"      "$staging/Library/Audio/Plug-Ins/VST3/"
-cp -R "$ART/Standalone/$NAME.app" "$staging/Applications/"
+# Build one component package for a single bundle, non-relocatable, installing to
+# a fixed location. Args: <bundle path> <install location> <pkg id> <out pkg>.
+build_component() {
+    local src="$1" loc="$2" id="$3" out="$4"
+    local root="$work/root-$id"
+    mkdir -p "$root"
+    cp -R "$src" "$root/"
+    local plist="$work/plist-$id.plist"
+    pkgbuild --analyze --root "$root" "$plist" >/dev/null
+    local i=0
+    while /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$plist" 2>/dev/null; do
+        i=$((i + 1))
+    done
+    pkgbuild --root "$root" --component-plist "$plist" \
+        --identifier "$id" --version "$VERSION" --install-location "$loc" "$out"
+}
 
-# pkgbuild marks bundles relocatable by default, so the installer would drop the
-# app/plugins wherever it finds an existing copy instead of the paths above.
-# Analyse the components and force BundleIsRelocatable=false on every one.
-plist="$work/components.plist"
-pkgbuild --analyze --root "$staging" "$plist"
-i=0
-while /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$plist" 2>/dev/null; do
-    i=$((i + 1))
-done
+build_component "$ART/AU/$NAME.component"   "/Library/Audio/Plug-Ins/Components" "$IDBASE.au"   "$work/au.pkg"
+build_component "$ART/VST3/$NAME.vst3"      "/Library/Audio/Plug-Ins/VST3"       "$IDBASE.vst3" "$work/vst3.pkg"
+build_component "$ART/Standalone/$NAME.app" "/Applications"                      "$IDBASE.app"  "$work/app.pkg"
 
-pkgbuild --root "$staging" \
-    --component-plist "$plist" \
-    --identifier "$IDENTIFIER" \
-    --version "$VERSION" \
-    --install-location "/" \
-    "$work/component.pkg"
-
-# Wrap it in a product archive so the installer shows a title and the licence.
+# Combine the three into a product archive that shows a title and the licence.
 cat > "$work/distribution.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
@@ -57,10 +57,14 @@ cat > "$work/distribution.xml" <<XML
     <choices-outline>
         <line choice="default"/>
     </choices-outline>
-    <choice id="default">
-        <pkg-ref id="$IDENTIFIER"/>
+    <choice id="default" title="SidStation ASID">
+        <pkg-ref id="$IDBASE.au"/>
+        <pkg-ref id="$IDBASE.vst3"/>
+        <pkg-ref id="$IDBASE.app"/>
     </choice>
-    <pkg-ref id="$IDENTIFIER" version="$VERSION" onConclusion="none">component.pkg</pkg-ref>
+    <pkg-ref id="$IDBASE.au" version="$VERSION">au.pkg</pkg-ref>
+    <pkg-ref id="$IDBASE.vst3" version="$VERSION">vst3.pkg</pkg-ref>
+    <pkg-ref id="$IDBASE.app" version="$VERSION">app.pkg</pkg-ref>
 </installer-gui-script>
 XML
 
