@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Stamp the released version and date into the docs site.
 
-Three values on the landing page go stale the moment a release goes out and
+Four values in the docs site go stale the moment a release goes out and
 nothing else keeps them honest:
   docs/index.html   the JSON-LD softwareVersion and dateModified
   docs/sitemap.xml  the lastmod
+  docs/llms.txt     the "Current release is X.Y.Z (date)" line
 
 Version defaults to CMakeLists.txt, the same place the release workflow reads
 it, so the page can never claim a version that was never built. Date defaults
@@ -28,6 +29,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CMAKE = os.path.join(ROOT, "CMakeLists.txt")
 INDEX = os.path.join(ROOT, "docs", "index.html")
 SITEMAP = os.path.join(ROOT, "docs", "sitemap.xml")
+LLMS = os.path.join(ROOT, "docs", "llms.txt")
 
 
 def project_version():
@@ -75,6 +77,10 @@ def main():
         ]),
         (SITEMAP, [
             (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{date}\g<2>"),
+        ]),
+        (LLMS, [
+            (r"(Current release is )\d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)",
+             rf"\g<1>{version} ({date})"),
         ]),
     ]
 

@@ -29,7 +29,7 @@ Shared across the three voices, since the chip has one of each:
 Around the sound:
 
 - A Commodore 64 styled pixel interface, colour coded per voice.
-- Voice presets saved to disk, so a patch outlives the DAW project it was made in. Init puts a voice back to its default sound.
+- Voice presets saved to disk, so a sound outlives the DAW project it was made in. Init puts a voice back to its default sound.
 - A tempo readout (the host tempo in a DAW, or set by hand in Standalone), and a Panic that releases every voice.
 - A MIDI load meter, since the SidStation shares one slow MIDI port across all three voices.
 
