@@ -4,8 +4,6 @@ A cross platform plugin (VST3, AU, Standalone) for the Elektron SidStation, the 
 
 macOS first.
 
-> **Under development.** This is a work in progress, not a finished release. Things are still changing, features are incomplete, and you should expect rough edges and breaking changes. Use it to experiment, not in anything you rely on.
-
 ## What it is
 
 SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This turns the three voices into independent, sequenceable instruments, which the SidStation makes awkward on its own.

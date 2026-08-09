@@ -63,7 +63,7 @@
             "applicationCategory": "MultimediaApplication",
             "applicationSubCategory": "Audio plugin",
             "operatingSystem": "macOS",
-            "softwareVersion": "0.1.0",
+            "softwareVersion": "1.0.0",
             "downloadUrl": "https://github.com/benjamindehli/sidstation-asid",
             "softwareHelp": { "@id": "https://benjamindehli.github.io/sidstation-asid/" },
             "license": "https://www.gnu.org/licenses/gpl-3.0.html",
@@ -267,15 +267,6 @@ section h2 {
 }
 .lead { color: var(--fg); max-width: 760px; }
 
-.note {
-    background: var(--panel);
-    border-left: 4px solid var(--sand);
-    padding: 16px 20px;
-    margin: 30px auto 0;
-    max-width: 760px;
-    color: #cfcbf3;
-}
-
 /* Feature cards */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; margin-top: 34px; }
 .card { background: var(--panel); padding: 22px 24px; border-top: 4px solid var(--teal); }
@@ -332,9 +323,11 @@ footer a { color: var(--fg); }
             <span class="badge">macOS first</span>
         </div>
         <div>
-            <a class="btn" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
+            <a class="btn" href="https://github.com/benjamindehli/sidstation-asid/releases/latest">Download</a>
+            <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
             <a class="btn ghost" href="#what">How it works</a>
         </div>
+        <p style="color:#cbc7f2;font-size:13px;margin:16px 0 0;">macOS 10.15 or later. Apple Silicon and Intel. Signed and notarized.</p>
     </div>
 </header>
 
@@ -342,9 +335,6 @@ footer a { color: var(--fg); }
     <div class="wrap">
         <h2>What it is</h2>
         <p class="lead">SidStation ASID drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This turns the three voices into independent, sequenceable instruments, which the SidStation makes awkward on its own.</p>
-        <div class="note">
-            <strong>Under development.</strong> This is a work in progress, not a finished release. Things are still changing, features are incomplete, and you should expect rough edges and breaking changes. Use it to experiment, not in anything you rely on.
-        </div>
     </div>
 </section>
 
