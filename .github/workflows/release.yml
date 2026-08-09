@@ -172,3 +172,114 @@ jobs:
           git add docs/index.html docs/sitemap.xml
           git commit -m "Stamp the docs site for $TAG"
           git push origin main
+
+  linux:
+    name: Linux build (tarball)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version and check the tag
+        id: ver
+        run: |
+          V=$(grep -m1 -oE 'VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | awk '{print $2}')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            test "$TAG" = "v$V" \
+              || { echo "::error::release tag $TAG does not match CMake version v$V"; exit 1; }
+          fi
+
+      - name: Install JUCE build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libjack-jackd2-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev \
+            libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+
+      - name: Configure and build (VST3 + Standalone)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Package tarball
+        run: |
+          V="${{ steps.ver.outputs.version }}"
+          ART="build/asid/SidStationAsid_artefacts/Release"
+          stage="SidStation-ASID-$V-linux-x86_64"
+          mkdir -p "$stage"
+          cp -R "$ART/VST3/SidStation ASID.vst3" "$stage/"
+          cp "$ART/Standalone/SidStation ASID" "$stage/"
+          cp packaging/linux/INSTALL.txt "$stage/"
+          cp LICENSE "$stage/LICENSE.txt"
+          mkdir -p build/dist
+          tar -czf "build/dist/$stage.tar.gz" "$stage"
+          ls -la build/dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SidStation-ASID-linux
+          path: build/dist/SidStation-ASID-*-linux-*.tar.gz
+
+      - name: Attach the tarball to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" build/dist/SidStation-ASID-*-linux-*.tar.gz --clobber
+
+  windows:
+    name: Windows build (Inno Setup installer)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash  # Git Bash, so grep/cp/tar behave like the other jobs
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version and check the tag
+        id: ver
+        run: |
+          V=$(grep -m1 -oE 'VERSION [0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | awk '{print $2}')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+            test "$TAG" = "v$V" \
+              || { echo "::error::release tag $TAG does not match CMake version v$V"; exit 1; }
+          fi
+
+      - name: Configure and build (VST3 + Standalone)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+      - name: Stage artefacts
+        run: |
+          ART="build/asid/SidStationAsid_artefacts/Release"
+          mkdir -p build/winstage/VST3 build/winstage/Standalone
+          cp -R "$ART/VST3/SidStation ASID.vst3" build/winstage/VST3/
+          cp "$ART/Standalone/SidStation ASID.exe" build/winstage/Standalone/
+          cp LICENSE build/winstage/LICENSE.txt
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $V = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory -Force -Path build/dist | Out-Null
+          $stage = (Resolve-Path build/winstage).Path
+          $out = (Resolve-Path build/dist).Path
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$V" "/DSrcDir=$stage" "/DOutDir=$out" packaging\windows\installer.iss
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SidStation-ASID-windows
+          path: build/dist/SidStation-ASID-*-setup.exe
+
+      - name: Attach the installer to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" build/dist/SidStation-ASID-*-setup.exe --clobber

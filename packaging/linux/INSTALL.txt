@@ -1,0 +1,29 @@
+SidStation ASID for Linux
+=========================
+
+This archive contains:
+
+  SidStation ASID.vst3   the VST3 plugin (a folder bundle)
+  SidStation ASID        the standalone application
+
+Install the VST3
+----------------
+Copy the "SidStation ASID.vst3" folder into a VST3 location:
+
+  ~/.vst3            just for you
+  /usr/lib/vst3      all users (needs sudo)
+
+For example:
+
+  mkdir -p ~/.vst3
+  cp -r "SidStation ASID.vst3" ~/.vst3/
+
+Run the standalone
+------------------
+  chmod +x "SidStation ASID"
+  ./"SidStation ASID"
+
+Notes
+-----
+Enter ASID mode on the unit's front panel before playing.
+Built for x86_64. Requires ALSA. JACK is used if it is available.

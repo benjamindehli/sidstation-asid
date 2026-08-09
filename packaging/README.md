@@ -1,8 +1,21 @@
-# Releasing SidStation ASID (macOS)
+# Releasing SidStation ASID
 
-The `Release` workflow (`.github/workflows/release.yml`) builds a universal
-(arm64 + x86_64) macOS build, packages it as a `.pkg` installer inside a `.dmg`,
-signs and notarizes both, and attaches the `.dmg` to the GitHub release.
+The `Release` workflow (`.github/workflows/release.yml`) builds all three
+platforms and attaches their artifacts to the GitHub release:
+
+| Platform | Artifact | Signed |
+| --- | --- | --- |
+| macOS | `SidStation-ASID-x.y.z.dmg` (a `.pkg` inside a `.dmg`) | yes, signed and notarized |
+| Windows | `SidStation-ASID-x.y.z-setup.exe` (Inno Setup) | no |
+| Linux | `SidStation-ASID-x.y.z-linux-x86_64.tar.gz` | no |
+
+macOS is a universal (arm64 + x86_64) build. Windows and Linux build the VST3 and
+Standalone (AU is macOS only). The sections below cover the macOS signing setup;
+Windows and Linux need no secrets.
+
+## macOS
+
+The `.pkg` installs:
 
 The `.pkg` installs:
 
@@ -61,3 +74,20 @@ packaging/make-pkg.sh 0.1.0 build/asid/SidStationAsid_artefacts/Release SidStati
 ```
 
 Set `INSTALLER_IDENTITY` first to sign it.
+
+## Windows
+
+The Windows job builds the VST3 and Standalone, then compiles
+`packaging/windows/installer.iss` with Inno Setup into an unsigned
+`SidStation-ASID-x.y.z-setup.exe`. The installer puts the VST3 in the shared
+`Common Files\VST3` folder and the Standalone in `Program Files`. Because it is
+unsigned, Windows SmartScreen shows a warning on first run (choose "More info"
+then "Run anyway"). Adding code signing later means a `.pfx` certificate and a
+signing step around ISCC.
+
+## Linux
+
+The Linux job builds the VST3 and Standalone on Ubuntu and packs them, with an
+`INSTALL.txt` and the licence, into `SidStation-ASID-x.y.z-linux-x86_64.tar.gz`.
+There is no installer: the user copies the `.vst3` into `~/.vst3` and runs the
+Standalone, as described in `INSTALL.txt`.
