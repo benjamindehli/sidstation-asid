@@ -10,7 +10,7 @@ macOS first.
 
 SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the "play the three voices" tool that the SidStation makes awkward on its own, and the reason it exists: there are plenty of patch editors for the SidStation already, but nothing that lets you sequence its three voices independently.
 
-The `core` library holds the protocol, and `common` holds the MIDI device layer.
+The `core` library holds the protocol, and `asid/` holds the plugin and its MIDI device layer.
 
 ## What SidStation ASID does today
 
@@ -41,25 +41,25 @@ The dark strip along the top is the same on every tab. It carries the MIDI outpu
 
 ### Voice
 
-![The Voice tab](docs/voice.png)
+![The Voice tab](docs/voice.webp)
 
 Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger (Legato or Always) and type (Smooth or Step) switches. Amp Envelope is the ADSR.
 
 ### Wavetable
 
-![The Wavetable tab](docs/wavetable.png)
+![The Wavetable tab](docs/wavetable.webp)
 
 An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform (Tri, Saw, Pulse, Noise), Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.
 
 ### Modulation
 
-![The Modulation tab](docs/modulation.png)
+![The Modulation tab](docs/modulation.webp)
 
 Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape (Off turns it off), a rate that is either free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.
 
 ### Global
 
-![The Global tab](docs/global.png)
+![The Global tab](docs/global.webp)
 
 The settings the SID shares across all three voices. Filter has per voice routing (V1, V2, V3), the external input, the combinable LP, BP and HP modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.
 
