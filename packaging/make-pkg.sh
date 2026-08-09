@@ -30,7 +30,18 @@ cp -R "$ART/AU/$NAME.component"   "$staging/Library/Audio/Plug-Ins/Components/"
 cp -R "$ART/VST3/$NAME.vst3"      "$staging/Library/Audio/Plug-Ins/VST3/"
 cp -R "$ART/Standalone/$NAME.app" "$staging/Applications/"
 
+# pkgbuild marks bundles relocatable by default, so the installer would drop the
+# app/plugins wherever it finds an existing copy instead of the paths above.
+# Analyse the components and force BundleIsRelocatable=false on every one.
+plist="$work/components.plist"
+pkgbuild --analyze --root "$staging" "$plist"
+i=0
+while /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$plist" 2>/dev/null; do
+    i=$((i + 1))
+done
+
 pkgbuild --root "$staging" \
+    --component-plist "$plist" \
     --identifier "$IDENTIFIER" \
     --version "$VERSION" \
     --install-location "/" \
