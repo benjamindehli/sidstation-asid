@@ -10,7 +10,7 @@ jobs:
     name: Core protocol tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Build and run core tests
         run: make -C core test
 
@@ -18,7 +18,7 @@ jobs:
     name: Plugin build + JUCE-linked tests (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # FetchContent clones JUCE into build/_deps; cache it so reruns skip the clone.
       - name: Cache JUCE
         uses: actions/cache@v4
@@ -33,6 +33,13 @@ jobs:
         run: cmake --build build --target SidStationAsidTests --config Release
       - name: Run JUCE-linked tests
         run: |
-          bin=$(find build -type f -name "SidStation ASID Tests" | head -1)
-          echo "Running $bin"
+          # Locate the built executable by its artefacts folder rather than its
+          # product name (JUCE puts it under <target>_artefacts/<config>/).
+          bin=$(find build -type f -path "*SidStationAsidTests_artefacts*" ! -path "*.dSYM*" | head -1)
+          if [ -z "$bin" ]; then
+            echo "::error::Test executable not found under build/"
+            find build -path "*artefacts*" -print
+            exit 1
+          fi
+          echo "Running: $bin"
           "$bin"
