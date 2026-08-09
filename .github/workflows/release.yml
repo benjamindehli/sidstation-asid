@@ -147,3 +147,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" build/dist/SidStation-ASID-*.dmg --clobber
+
+      # The landing page advertises a version and a date in its structured data
+      # and its sitemap. Stamp them from the release that just shipped, so the
+      # site cannot drift from what is actually downloadable. Runs last: if the
+      # build or notarization failed there is nothing to advertise. The version
+      # is the one checked against the tag above, not whatever main says now.
+      - name: Stamp the docs site with the released version
+        if: github.event_name == 'release' && github.event.release.prerelease == false
+        env:
+          PUBLISHED_AT: ${{ github.event.release.published_at }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          python3 packaging/stamp-docs.py \
+            --version "${{ steps.ver.outputs.version }}" --date "${PUBLISHED_AT%%T*}"
+          if git diff --quiet -- docs; then
+            echo "docs already current, nothing to push"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html docs/sitemap.xml
+          git commit -m "Stamp the docs site for $TAG"
+          git push origin main
