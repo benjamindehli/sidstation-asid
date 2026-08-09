@@ -3,8 +3,156 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SidStation ASID</title>
-<meta name="description" content="A cross platform plugin that plays the three SID voices of the Elektron SidStation directly, one voice per instance.">
+<title>SidStation ASID: play the three SID voices of the Elektron SidStation</title>
+<meta name="description" content="A free, open source cross platform plugin (VST3, AU, Standalone) that plays the three SID voices of the Elektron SidStation directly over ASID, one voice per instance.">
+<meta name="keywords" content="SidStation, Elektron SidStation, ASID, SID, MOS6581, chiptune, VST3, AU, audio plugin, synthesizer, Commodore 64, C64, Dehli Musikk">
+<meta name="author" content="Benjamin Dehli">
+<meta name="robots" content="index, follow">
+<meta name="theme-color" content="#463ea4">
+<link rel="canonical" href="https://benjamindehli.github.io/sidstation-asid/">
+
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
+<link rel="preload" href="SidStationC64.ttf" as="font" type="font/ttf" crossorigin>
+
+<!-- Open Graph -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SidStation ASID">
+<meta property="og:title" content="SidStation ASID: play the three SID voices of the Elektron SidStation">
+<meta property="og:description" content="A free, open source cross platform plugin (VST3, AU, Standalone) that plays the three SID voices of the Elektron SidStation directly, one voice per instance.">
+<meta property="og:url" content="https://benjamindehli.github.io/sidstation-asid/">
+<meta property="og:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SidStation ASID, a plugin that plays the three SID voices of the Elektron SidStation">
+<meta property="og:locale" content="en_US">
+
+<!-- Twitter / X Card -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="SidStation ASID: play the three SID voices of the Elektron SidStation">
+<meta name="twitter:description" content="A free, open source cross platform plugin (VST3, AU, Standalone) that plays the three SID voices of the Elektron SidStation directly, one voice per instance.">
+<meta name="twitter:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.jpg">
+<meta name="twitter:site" content="@BenjaminDehli">
+<meta name="twitter:creator" content="@BenjaminDehli">
+
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@graph": [
+        {
+            "@type": "WebSite",
+            "@id": "https://benjamindehli.github.io/sidstation-asid/#website",
+            "name": "SidStation ASID",
+            "url": "https://benjamindehli.github.io/sidstation-asid/",
+            "description": "A free, open source cross platform plugin that plays the three SID voices of the Elektron SidStation directly over the ASID protocol.",
+            "inLanguage": "en",
+            "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+            "publisher": { "@id": "https://www.dehlimusikk.no/" },
+            "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+            "sameAs": ["https://github.com/benjamindehli/sidstation-asid"]
+        },
+        {
+            "@type": "SoftwareApplication",
+            "@id": "https://github.com/benjamindehli/sidstation-asid#software",
+            "name": "SidStation ASID",
+            "url": "https://benjamindehli.github.io/sidstation-asid/",
+            "description": "SidStation ASID is a free, open source plugin (VST3, AU and Standalone) that plays the three SID voices of the Elektron SidStation directly over the ASID protocol. It streams raw MOS6581 SID registers, giving independent pitch, gate, waveform, ADSR, filter and wavetable control of each voice, one instance per voice.",
+            "applicationCategory": "MultimediaApplication",
+            "applicationSubCategory": "Audio plugin",
+            "operatingSystem": "macOS",
+            "softwareVersion": "0.1.0",
+            "downloadUrl": "https://github.com/benjamindehli/sidstation-asid",
+            "softwareHelp": { "@id": "https://benjamindehli.github.io/sidstation-asid/" },
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+            "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+            "publisher": { "@id": "https://www.dehlimusikk.no/" },
+            "screenshot": "https://benjamindehli.github.io/sidstation-asid/voice.webp",
+            "keywords": "SidStation, Elektron SidStation, ASID, SID, MOS6581, chiptune, VST3, AU, synthesizer, Commodore 64",
+            "featureList": [
+                "Independent control of each of the three SID voices, one instance per voice",
+                "The four SID waveforms, combinable, with exclusive noise as on the real chip",
+                "ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range",
+                "Hard sync, ring modulation, and the raw TEST bit",
+                "Portamento with a legato or always trigger and a smooth or stepped glide",
+                "An eight step wavetable per voice, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset",
+                "Three LFOs per voice on pitch, pulse width and cutoff, free in Hz or synced to host tempo",
+                "Shared SID filter with per voice routing and combinable low, band and high pass modes",
+                "Voice sound presets saved to disk, with an Init and a Panic"
+            ],
+            "sameAs": "https://github.com/benjamindehli/sidstation-asid"
+        },
+        {
+            "@type": "Person",
+            "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+            "name": "Benjamin Dehli",
+            "url": "https://www.dehlimusikk.no/",
+            "description": "Benjamin Dehli is a keyboard player, composer and producer from Norway. Benjamin offers keyboard instrument tracks on recordings for artists and bands through his music business Dehli Musikk.",
+            "image": {
+                "@type": "ImageObject",
+                "url": "https://www.dehlimusikk.no/benjamin-dehli.jpg",
+                "contentUrl": "https://www.dehlimusikk.no/benjamin-dehli.jpg",
+                "license": "https://creativecommons.org/licenses/by/4.0/legalcode",
+                "acquireLicensePage": "https://www.dehlimusikk.no/#contact",
+                "copyrightNotice": "Benjamin Dehli",
+                "creditText": "Dehli Musikk",
+                "creator": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" }
+            },
+            "brand": { "@id": "https://www.dehlimusikk.no/" },
+            "worksFor": { "@id": "https://www.dehlimusikk.no/" },
+            "sameAs": [
+                "https://www.dehlimusikk.no/",
+                "https://store.dehlimusikk.no/",
+                "https://www.facebook.com/DehliMusikk/",
+                "https://x.com/BenjaminDehli",
+                "https://www.instagram.com/benjamindehli/",
+                "https://youtube.com/@BenjaminDehli",
+                "https://www.linkedin.com/in/benjamindehli/",
+                "https://vimeo.com/benjamindehli",
+                "https://flickr.com/photos/projectdehli/",
+                "https://benjamindehli.tumblr.com/",
+                "https://github.com/benjamindehli",
+                "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                "https://soundcloud.com/benjamin-dehli",
+                "https://ko-fi.com/benjamindehli",
+                "https://credits.muso.ai/profile/39f5096c-b6bd-41d0-9248-d959da8c4b81",
+                "https://credits.muso.ai/profile/120086b1-1215-4d5c-a61d-d992e0b2289e",
+                "https://www.discogs.com/artist/6942564-Benjamin-Dehli"
+            ]
+        },
+        {
+            "@type": "Organization",
+            "@id": "https://www.dehlimusikk.no/",
+            "name": "Dehli Musikk",
+            "url": "https://www.dehlimusikk.no/",
+            "description": "Dehli Musikk is a local music business based in Bø i Telemark, Norway. Founded by Benjamin Dehli in 2019, it offers keyboard instrument tracks on recordings for artists and bands.",
+            "foundingDate": "2019-10-01",
+            "founder": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://www.dehlimusikk.no/DehliMusikkLogo.png",
+                "contentUrl": "https://www.dehlimusikk.no/DehliMusikkLogo.png",
+                "license": "https://creativecommons.org/licenses/by/4.0/legalcode",
+                "acquireLicensePage": "https://www.dehlimusikk.no/#contact",
+                "copyrightNotice": "Benjamin Dehli",
+                "creditText": "Dehli Musikk",
+                "creator": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" }
+            },
+            "sameAs": [
+                "https://www.dehlimusikk.no/",
+                "https://store.dehlimusikk.no/",
+                "https://www.facebook.com/DehliMusikk/",
+                "https://x.com/BenjaminDehli",
+                "https://www.instagram.com/benjamindehli/",
+                "https://youtube.com/@BenjaminDehli",
+                "https://www.linkedin.com/in/benjamindehli/"
+            ]
+        }
+    ]
+}
+</script>
 <style>
 @font-face {
     font-family: "SidStationC64";
@@ -191,7 +339,7 @@ footer a { color: var(--fg); }
 <section id="what">
     <div class="wrap">
         <h2>What it is</h2>
-        <p class="lead">SidStation ASID drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the tool for playing the three voices that the SidStation makes awkward on its own, and the reason it exists. There are plenty of patch editors for the SidStation already, but nothing that lets you sequence its three voices independently.</p>
+        <p class="lead">SidStation ASID drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This turns the three voices into independent, sequenceable instruments, which the SidStation makes awkward on its own.</p>
         <div class="note">
             <strong>Under development.</strong> This is a work in progress, not a finished release. Things are still changing, features are incomplete, and you should expect rough edges and breaking changes. Use it to experiment, not in anything you rely on.
         </div>
@@ -241,25 +389,25 @@ footer a { color: var(--fg); }
         <div class="shot">
             <h3>Voice</h3>
             <p>Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger and type switches. Amp Envelope is the ADSR.</p>
-            <img src="voice.webp" alt="The Voice tab" loading="lazy">
+            <img src="voice.webp" alt="The Voice tab" width="1444" height="1204" loading="lazy">
         </div>
 
         <div class="shot">
             <h3>Wavetable</h3>
             <p>An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform, Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.</p>
-            <img src="wavetable.webp" alt="The Wavetable tab" loading="lazy">
+            <img src="wavetable.webp" alt="The Wavetable tab" width="1444" height="1204" loading="lazy">
         </div>
 
         <div class="shot">
             <h3>Modulation</h3>
             <p>Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is either free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.</p>
-            <img src="modulation.webp" alt="The Modulation tab" loading="lazy">
+            <img src="modulation.webp" alt="The Modulation tab" width="1444" height="1204" loading="lazy">
         </div>
 
         <div class="shot">
             <h3>Global</h3>
             <p>The settings the SID shares across all three voices. Filter has per voice routing, the external input, the combinable low, band and high pass modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.</p>
-            <img src="global.webp" alt="The Global tab" loading="lazy">
+            <img src="global.webp" alt="The Global tab" width="1444" height="1204" loading="lazy">
         </div>
     </div>
 </section>
@@ -278,8 +426,9 @@ cmake --build build</pre>
 
 <footer>
     <div class="wrap">
-        <p class="pixel">DehliMusikk</p>
+        <p class="pixel">Dehli Musikk</p>
         <p>SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>.</p>
+        <p>An independent project, not affiliated with, endorsed or supported by Elektron. SidStation and SID are trademarks of their respective owners.</p>
     </div>
 </footer>
 

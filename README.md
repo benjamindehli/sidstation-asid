@@ -8,7 +8,7 @@ macOS first.
 
 ## What it is
 
-SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This is the "play the three voices" tool that the SidStation makes awkward on its own, and the reason it exists: there are plenty of patch editors for the SidStation already, but nothing that lets you sequence its three voices independently.
+SidStation ASID plays the three SID voices directly. It drives the raw SID chip over the ASID protocol, so it gives independent control of each voice with its own pitch and gate, plus the things MIDI CC cannot reach. One instance drives one voice, so in a DAW you put an instance on each of three tracks and pick a voice per track. This turns the three voices into independent, sequenceable instruments, which the SidStation makes awkward on its own.
 
 The `core` library holds the protocol, and `asid/` holds the plugin and its MIDI device layer.
 

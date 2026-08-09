@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://benjamindehli.github.io/sidstation-asid/sitemap.xml
