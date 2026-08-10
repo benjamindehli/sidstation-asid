@@ -18,12 +18,12 @@ jobs:
     name: Formatting and lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -46,7 +46,7 @@ jobs:
     name: Core protocol tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Build and run core tests
         run: make -C core test
 
@@ -54,7 +54,7 @@ jobs:
     name: Plugin build + JUCE-linked tests (macOS)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Configure
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DSID_BUILD_TESTS=ON
       # Builds the console test app, which compiles the full processor and editor

@@ -33,7 +33,7 @@ jobs:
       ART: build/asid/SidStationAsid_artefacts/Release
       NAME: SidStation ASID
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Resolve version and check the tag
         id: ver
@@ -136,7 +136,7 @@ jobs:
           bash packaging/notarize.sh "$DMG"
           xcrun stapler staple "$DMG"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: SidStation-ASID-macos
           path: build/dist/SidStation-ASID-*.dmg
@@ -182,7 +182,7 @@ jobs:
     name: Linux build (tarball)
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Resolve version and check the tag
         id: ver
@@ -223,7 +223,7 @@ jobs:
           tar -czf "build/dist/$stage.tar.gz" "$stage"
           ls -la build/dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: SidStation-ASID-linux
           path: build/dist/SidStation-ASID-*-linux-*.tar.gz
@@ -242,7 +242,7 @@ jobs:
       run:
         shell: bash # Git Bash, so grep/cp/tar behave like the other jobs
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Resolve version and check the tag
         id: ver
@@ -277,7 +277,7 @@ jobs:
           $out = (Resolve-Path build/dist).Path
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DAppVersion=$V" "/DSrcDir=$stage" "/DOutDir=$out" packaging\windows\installer.iss
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: SidStation-ASID-windows
           path: build/dist/SidStation-ASID-*-setup.exe
