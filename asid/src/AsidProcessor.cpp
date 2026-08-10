@@ -170,28 +170,72 @@ juce::AudioProcessorValueTreeState::ParameterLayout AsidProcessor::makeLayout() 
     return layout;
 }
 
-int AsidProcessor::paramInt(const char* id) const {
-    if (auto* p = apvts.getRawParameterValue(id)) return static_cast<int>(std::lround(p->load()));
-    return 0;
+// Resolves every parameter the audio thread reads into a raw-value pointer, once.
+// All the juce::String work and map lookups happen here, on the message thread, at
+// construction. A jassert catches an id that does not exist, which would otherwise
+// leave that parameter silently reading 0 for the life of the instance.
+void AsidProcessor::buildParamPtrs() {
+    auto at = [this](const juce::String& id) {
+        auto* p = apvts.getRawParameterValue(id);
+        jassert(p != nullptr);  // id typo, or a parameter missing from makeLayout()
+        return p;
+    };
+
+    pp.asidVoice = at("asidVoice");
+    pp.waveTri = at("waveTri");   pp.waveSaw = at("waveSaw");
+    pp.wavePulse = at("wavePulse"); pp.waveNoise = at("waveNoise");
+    pp.attack = at("attack");     pp.decay = at("decay");
+    pp.sustain = at("sustain");   pp.release = at("release");
+    pp.pulseWidth = at("pulseWidth");
+    pp.coarse = at("coarse");     pp.fine = at("fine");
+    pp.pitchBendRange = at("pitchBendRange");
+    pp.portaTime = at("portaTime");
+    pp.portaTrigger = at("portaTrigger");
+    pp.portaType = at("portaType");
+    pp.sync = at("sync");         pp.ring = at("ring");         pp.test = at("test");
+    pp.filt1 = at("filt1");       pp.filt2 = at("filt2");
+    pp.filt3 = at("filt3");       pp.filtExt = at("filtExt");
+    pp.modeLP = at("modeLP");     pp.modeBP = at("modeBP");     pp.modeHP = at("modeHP");
+    pp.voice3off = at("voice3off");
+    pp.cutoff = at("cutoff");     pp.resonance = at("resonance"); pp.volume = at("volume");
+    pp.latency = at("latency");   pp.modRate = at("modRate");   pp.bpm = at("bpm");
+    pp.wtOn = at("wtOn");         pp.wtSpeed = at("wtSpeed");
+    pp.wtLength = at("wtLength"); pp.wtLoop = at("wtLoop");
+
+    // The three LFO targets share one parameter naming scheme, as do the wavetable
+    // steps, so build those by prefix instead of listing every id.
+    const char* lfoPrefix[3] = {"pitchLfo", "pwLfo", "cutLfo"};
+    ParamPtrs::Lfo* lfos[3] = {&pp.pitchLfo, &pp.pwLfo, &pp.cutLfo};
+    for (int i = 0; i < 3; ++i) {
+        const juce::String p(lfoPrefix[i]);
+        lfos[i]->on = at(p + "On");       lfos[i]->shape = at(p + "Shape");
+        lfos[i]->sync = at(p + "Sync");   lfos[i]->rate = at(p + "Rate");
+        lfos[i]->div = at(p + "Div");     lfos[i]->depth = at(p + "Depth");
+        lfos[i]->wheel = at(p + "Wheel"); lfos[i]->delay = at(p + "Delay");
+    }
+    for (int i = 0; i < kWtSteps; ++i) {
+        const juce::String n(i);
+        auto& s = pp.wt[i];
+        s.tri = at("wtTri" + n);     s.saw = at("wtSaw" + n);
+        s.pulse = at("wtPulse" + n); s.noise = at("wtNoise" + n);
+        s.sync = at("wtSync" + n);   s.ring = at("wtRing" + n);
+        s.test = at("wtTest" + n);   s.pw = at("wtPw" + n);
+        s.arp = at("wtArp" + n);
+    }
 }
 
-float AsidProcessor::paramFloat(const char* id) const {
-    if (auto* p = apvts.getRawParameterValue(id)) return p->load();
-    return 0.0f;
-}
-
-double AsidProcessor::lfoAmount(const char* prefix, double nowMs) const {
-    double amt = paramInt(juce::String(prefix) + "Depth") / 100.0;
-    if (paramInt(juce::String(prefix) + "Wheel")) amt *= modWheelValue / 127.0;  // wheel scales depth
-    const int delayMs = paramInt(juce::String(prefix) + "Delay");
+double AsidProcessor::lfoAmount(const ParamPtrs::Lfo& ids, double nowMs) const {
+    double amt = paramInt(ids.depth) / 100.0;
+    if (paramInt(ids.wheel)) amt *= modWheelValue / 127.0;  // wheel scales depth
+    const int delayMs = paramInt(ids.delay);
     if (delayMs > 0) amt *= juce::jlimit(0.0, 1.0, (nowMs - noteOnMs) / delayMs);  // fade in
     return amt;
 }
 
 void AsidProcessor::updatePitchOffset() {
     // Pitch wheel: 14-bit, centre 8192, mapped to +-pitchBendRange semitones.
-    const double bend = (pitchWheelValue - 8192) / 8192.0 * paramInt("pitchBendRange");
-    asidPlayer.setPitchOffset(paramInt("coarse") + paramInt("fine") / 100.0 + bend);
+    const double bend = (pitchWheelValue - 8192) / 8192.0 * paramInt(pp.pitchBendRange);
+    asidPlayer.setPitchOffset(paramInt(pp.coarse) + paramInt(pp.fine) / 100.0 + bend);
 }
 
 void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
@@ -211,8 +255,8 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         sent.wave = wave;
         flush(asidPlayer.setWaveform(voice, static_cast<Byte>(wave)));
     }
-    const int s = paramInt("sustain"), rel = paramInt("release");
-    const int a = paramInt("attack");
+    const int s = paramInt(pp.sustain), rel = paramInt(pp.release);
+    const int a = paramInt(pp.attack);
     // Notes go missing on the unit as decay and sustain rise, worst with both at 15.
     // Root cause unknown, and NOT established as a chip limitation: the SidStation's
     // own (non-ASID) mode plays high decay + sustain cleanly, so the fault may well be
@@ -223,7 +267,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     // send 0 and keep the failure out of the one case where it costs nothing. The
     // editor greys the knob to match but leaves the parameter alone, so the user's
     // value survives.
-    const int d = (s == 15) ? 0 : paramInt("decay");
+    const int d = (s == 15) ? 0 : paramInt(pp.decay);
     if (forceAll || a != sent.attack || d != sent.decay) {
         sent.attack = a; sent.decay = d;
         flush(asidPlayer.setAttackDecay(voice, a, d));
@@ -232,29 +276,29 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         sent.sustain = s; sent.release = rel;
         flush(asidPlayer.setSustainRelease(voice, s, rel));
     }
-    const int pw = paramInt("pulseWidth");
+    const int pw = paramInt(pp.pulseWidth);
     // Skip the static pulse width while the LFO or the wavetable drives it.
     if (!lfoOwnedPw && !wtOwnsWave && (forceAll || pw != sent.pw)) { sent.pw = pw; flush(asidPlayer.setPulseWidth(voice, pw)); }
-    const int coarse = paramInt("coarse"), fine = paramInt("fine"), bendRange = paramInt("pitchBendRange");
+    const int coarse = paramInt(pp.coarse), fine = paramInt(pp.fine), bendRange = paramInt(pp.pitchBendRange);
     if (forceAll || coarse != sent.coarse || fine != sent.fine || bendRange != sent.bendRange) {
         sent.coarse = coarse; sent.fine = fine; sent.bendRange = bendRange;
         updatePitchOffset();  // coarse + fine + current pitch-wheel bend
         flush(asidPlayer.setPitchMod(voice, 0.0));  // retune a held note (empty if none)
     }
     // Skip the static sync/ring while the wavetable drives them per step.
-    const int sync = paramInt("sync");
+    const int sync = paramInt(pp.sync);
     if (!wtOwnsWave && (forceAll || sync != sent.sync)) { sent.sync = sync; flush(asidPlayer.setSync(voice, sync != 0)); }
-    const int ring = paramInt("ring");
+    const int ring = paramInt(pp.ring);
     if (!wtOwnsWave && (forceAll || ring != sent.ring)) { sent.ring = ring; flush(asidPlayer.setRing(voice, ring != 0)); }
     // TEST bit holds the oscillator in reset while on. The wavetable can drive it
     // per step, so skip the static write while the table owns the voice.
-    const int test = paramInt("test");
+    const int test = paramInt(pp.test);
     if (!wtOwnsWave && (forceAll || test != sent.test)) { sent.test = test; flush(asidPlayer.setTest(voice, test != 0)); }
     // Filter routing (3 shared voice bits) and resonance both live in register
     // 0x17. Routing and resonance are shared, so only the instance where the
     // value actually changed sends it (a synced-in echo is skipped).
     const int routing = routingMask();
-    const int res = paramInt("resonance");
+    const int res = paramInt(pp.resonance);
     bool reg17dirty = false;
     // echo*.exchange(-1) consumes the one-shot echo: a synced-in value is skipped
     // once, but a later user edit to that same value is not wrongly suppressed.
@@ -272,7 +316,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
 
     // Shared filter and volume: only the instance that changed the value sends
     // it. The others share the one physical filter, so they stay off the wire.
-    const int cutoff = paramInt("cutoff");
+    const int cutoff = paramInt(pp.cutoff);
     if (forceAll || cutoff != sent.cutoff) {
         sent.cutoff = cutoff;
         // Skip while an LFO is sweeping the shared cutoff, or they fight.
@@ -289,7 +333,7 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
                                               | (mode & 8 ? sid::kVoice3Off : 0));
         if (forceAll || mode != echoMode.exchange(-1)) { flush(asidPlayer.setFilterMode(modeBits)); globalSent = true; }
     }
-    const int vol = paramInt("volume");
+    const int vol = paramInt(pp.volume);
     if (forceAll || vol != sent.volume) {
         sent.volume = vol;
         if (forceAll || vol != echoVolume.exchange(-1)) { flush(asidPlayer.setVolume(vol)); globalSent = true; }
@@ -302,15 +346,15 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
         flush(asidPlayer.settleFrame(voice));
 }
 
-double AsidProcessor::sampleLfo(sidstation::Lfo& lfo, const juce::String& prefix, double dt,
+double AsidProcessor::sampleLfo(sidstation::Lfo& lfo, const ParamPtrs::Lfo& ids, double dt,
                                bool playing, double ppq, double bpm) {
-    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt(prefix + "Shape"))));
-    if (paramInt(prefix + "Sync") != 0) {
-        const double beats = beatsForDivision(paramInt(prefix + "Div"));
+    lfo.setShape(static_cast<sidstation::LfoShape>(juce::jlimit(0, 6, paramInt(ids.shape))));
+    if (paramInt(ids.sync) != 0) {
+        const double beats = beatsForDivision(paramInt(ids.div));
         if (playing) lfo.setPhase(ppq / beats);          // locked to the song
         else lfo.advance(dt, (bpm / 60.0) / beats);      // free-run at the synced rate when stopped
     } else {
-        lfo.advance(dt, static_cast<double>(paramFloat(prefix + "Rate")));
+        lfo.advance(dt, static_cast<double>(paramFloat(ids.rate)));
     }
     return lfo.value();  // bipolar [-1, 1]
 }
@@ -339,7 +383,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // BPM param. Expose the host BPM to the editor: 0 means "none", so it shows an
     // editable field; a positive value is the fixed host tempo it displays read-only.
     const bool useParamBpm = wrapperType == wrapperType_Standalone || !hostHasBpm;
-    if (useParamBpm) bpm = static_cast<double>(paramInt("bpm"));
+    if (useParamBpm) bpm = static_cast<double>(paramInt(pp.bpm));
     hostBpmValue.store(useParamBpm ? 0.0 : bpm, std::memory_order_relaxed);
     // On the block where the transport just stopped, scheduleNotes releases the held
     // note. Streaming this voice's control register here would carry the still-high
@@ -351,10 +395,10 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // ahead-rendered track the pitch/PW stream never runs ahead of the note it
     // belongs to. Stopped: now. Playing: the block's playhead mapped to wall time.
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    double sendTimeMs = nowMs + static_cast<double>(paramInt("latency"));
+    double sendTimeMs = nowMs + static_cast<double>(paramInt(pp.latency));
     if (playing) {
         const double aligned = blockPlayheadMs - AsidShared::get().playOffset()
-                             + static_cast<double>(paramInt("latency"));
+                             + static_cast<double>(paramInt(pp.latency));
         const double ahead = aligned - nowMs;
         if (ahead >= -50.0 && ahead <= kMaxScheduleAheadMs) sendTimeMs = aligned;
     }
@@ -362,9 +406,9 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     const int curNote = asidPlayer.currentNoteOf(voice);
 
     // Ownership and active-state bookkeeping (every block, so hand-offs are prompt).
-    const bool wtOn = paramInt("wtOn") != 0;
+    const bool wtOn = paramInt(pp.wtOn) != 0;
     const bool wtActive = wtOn && curNote >= 0;
-    if (wtActive) wtPlayer.configure(paramInt("wtLength"), paramInt("wtLoop"), paramInt("wtSpeed"));
+    if (wtActive) wtPlayer.configure(paramInt(pp.wtLength), paramInt(pp.wtLoop), paramInt(pp.wtSpeed));
     else {
         wtPlayer.stop();
         wtArp = 0;
@@ -380,29 +424,29 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     lastWtOn = wtOn;
     wtOwnsWave = wtActive;
 
-    const int pwDepth = paramInt("pwLfoDepth");
+    const int pwDepth = paramInt(pp.pwLfo.depth);
     // PW mod only matters when the pulse waveform actually sounds (noise would
     // suppress it), and the wavetable takes over pulse width while it plays.
-    const bool pwOn = paramInt("pwLfoOn") && pwDepth > 0
-                      && paramInt("wavePulse") && !paramInt("waveNoise") && !wtActive;
+    const bool pwOn = paramInt(pp.pwLfo.on) && pwDepth > 0
+                      && paramInt(pp.wavePulse) && !paramInt(pp.waveNoise) && !wtActive;
     if (!pwOn && lfoOwnedPw) sent.pw = -1;
     lfoOwnedPw = pwOn;
 
-    const int cutDepth = paramInt("cutLfoDepth");
+    const int cutDepth = paramInt(pp.cutLfo.depth);
     // Only modulate the shared cutoff when at least one voice is actually routed
     // through the filter. With no voice filtered the cutoff changes nothing, so the
     // stream would be wasted MIDI bandwidth. Routing is shared, so any routed voice
     // (not just this instance's) counts.
     const bool filterInUse = routingMask() != 0;
-    if (paramInt("cutLfoOn") && cutDepth > 0 && filterInUse) AsidShared::get().claimCutoffMod(this);
+    if (paramInt(pp.cutLfo.on) && cutDepth > 0 && filterInUse) AsidShared::get().claimCutoffMod(this);
     else AsidShared::get().releaseCutoffMod(this);
     const bool cutOn = cutDepth > 0 && filterInUse && AsidShared::get().isCutoffModOwner(this);
     if (!cutOn && lfoOwnedCutoff) sent.cutoff = -1;
     lfoOwnedCutoff = cutOn;
 
-    const int portaTimeMs = paramInt("portaTime");
-    const int pitchDepth = paramInt("pitchLfoDepth");
-    const bool vibratoOn = paramInt("pitchLfoOn") && pitchDepth > 0;
+    const int portaTimeMs = paramInt(pp.portaTime);
+    const int pitchDepth = paramInt(pp.pitchLfo.depth);
+    const bool vibratoOn = paramInt(pp.pitchLfo.on) && pitchDepth > 0;
 
     bool gliding = false;
     if (curNote >= 0) {
@@ -420,7 +464,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // A frequency/pulse write must not land on a note-event block (that collision
     // is the stuck note). Idle when nothing modulates, zeroing the clock so the
     // next active tick starts with a fresh dt (else a resumed glide leaps).
-    const double interval = modIntervalForRate(paramInt("modRate"));
+    const double interval = modIntervalForRate(paramInt(pp.modRate));
     if (blockHasNotes || !anyMod || modStopTransition) { modTickMs = 0.0; return; }
     if (modTickMs > 0.0 && nowMs - modTickMs < interval) return;
     double dt = (modTickMs <= 0.0) ? interval : juce::jmin(nowMs - modTickMs, 4.0 * interval);
@@ -434,18 +478,18 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // Wavetable: apply the current step's waveform, then advance for the next tick
     // (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
     if (wtActive) {
-        if (const int step = wtPlayer.currentStep(); step >= 0) {
-            const juce::String ss(step);
+        if (const int step = wtPlayer.currentStep(); step >= 0 && step < kWtSteps) {
+            const auto& sp = pp.wt[step];
             // Waveform + Sync + Ring share the control register; Pulse Width has its
             // own. The wavetable drives all of them per step while it plays.
             asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(step)));
-            asidPlayer.setSync(voice, paramInt("wtSync" + ss) != 0);
-            asidPlayer.setRing(voice, paramInt("wtRing" + ss) != 0);
-            asidPlayer.setTest(voice, paramInt("wtTest" + ss) != 0);
-            asidPlayer.setPulseWidth(voice, paramInt("wtPw" + ss));
+            asidPlayer.setSync(voice, paramInt(sp.sync) != 0);
+            asidPlayer.setRing(voice, paramInt(sp.ring) != 0);
+            asidPlayer.setTest(voice, paramInt(sp.test) != 0);
+            asidPlayer.setPulseWidth(voice, paramInt(sp.pw));
             addReg(base + 2);
             addReg(base + 3);
-            wtArp = paramInt("wtArp" + ss);
+            wtArp = paramInt(sp.arp);
             wtStepDisplay.store(step, std::memory_order_relaxed);  // for the editor
         }
         wtPlayer.advanceFrame();
@@ -458,9 +502,10 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
             if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
             else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
         }
-        const double heard = (paramInt("portaType") == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
+        const double heard = (paramInt(pp.portaType) == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
         const double vibrato = vibratoOn
-            ? sampleLfo(pitchStream.lfo, "pitchLfo", dt, playing, ppq, bpm) * lfoAmount("pitchLfo", nowMs) * 12.0
+            ? sampleLfo(pitchStream.lfo, pp.pitchLfo, dt, playing, ppq, bpm)
+                  * lfoAmount(pp.pitchLfo, nowMs) * 12.0
             : 0.0;
         asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
         addReg(base + 0);
@@ -468,17 +513,17 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     }
 
     if (pwOn) {
-        const double v = sampleLfo(pwStream.lfo, "pwLfo", dt, playing, ppq, bpm);
+        const double v = sampleLfo(pwStream.lfo, pp.pwLfo, dt, playing, ppq, bpm);
         asidPlayer.setPulseWidth(voice, juce::jlimit(0, 4095,
-            paramInt("pulseWidth") + static_cast<int>(v * lfoAmount("pwLfo", nowMs) * 2047.0)));
+            paramInt(pp.pulseWidth) + static_cast<int>(v * lfoAmount(pp.pwLfo, nowMs) * 2047.0)));
         addReg(base + 2);
         addReg(base + 3);
     }
 
     if (cutOn) {
-        const double v = sampleLfo(cutStream.lfo, "cutLfo", dt, playing, ppq, bpm);
+        const double v = sampleLfo(cutStream.lfo, pp.cutLfo, dt, playing, ppq, bpm);
         asidPlayer.setCutoff(juce::jlimit(0, 2047,
-            paramInt("cutoff") + static_cast<int>(v * lfoAmount("cutLfo", nowMs) * 2047.0)));
+            paramInt(pp.cutoff) + static_cast<int>(v * lfoAmount(pp.cutLfo, nowMs) * 2047.0)));
         addReg(21);  // cutoff low/high (registers 21, 22)
         addReg(22);
     }
@@ -503,6 +548,7 @@ AsidProcessor::AsidProcessor()
     : juce::AudioProcessor(BusesProperties().withOutput(
           "Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "ASID", makeLayout()) {
+    buildParamPtrs();  // before anything reads a parameter
     for (const char* id : kSharedIds) apvts.addParameterListener(id, this);
     // Track this instance's voice so the editor can mark/block voices already in use.
     apvts.addParameterListener("asidVoice", this);
@@ -510,7 +556,7 @@ AsidProcessor::AsidProcessor()
     AsidShared::get().addClient(this);
     // Match the filter and volume of instances that are already open.
     if (AsidShared::get().hasData.load()) sharedUpdated();
-    AsidShared::get().setClientVoice(this, paramInt("asidVoice"));
+    AsidShared::get().setClientVoice(this, paramInt(pp.asidVoice));
 }
 
 AsidProcessor::~AsidProcessor() {
@@ -534,8 +580,8 @@ void AsidProcessor::parameterChanged(const juce::String& id, float value) {
     // Ignore an echo of a value we just synced in from another instance.
     if (static_cast<int>(std::lround(value)) == sh.valueFor(id)) return;
     // The user changed a shared control here: publish it to the other instances.
-    sh.publish(paramInt("cutoff"), paramInt("resonance"), modeMask(), routingMask(),
-               paramInt("volume"), paramInt("latency"), paramInt("modRate"), this);
+    sh.publish(paramInt(pp.cutoff), paramInt(pp.resonance), modeMask(), routingMask(),
+               paramInt(pp.volume), paramInt(pp.latency), paramInt(pp.modRate), this);
 }
 
 bool AsidProcessor::voiceUsedByOthers(int v) const {
@@ -567,11 +613,17 @@ juce::StringArray AsidProcessor::presetNames() const {
 bool AsidProcessor::savePreset(const juce::String& name) {
     const auto key = presetKey(name);
     if (key.isEmpty()) return false;
+    // Message thread, and it walks every parameter by id, so an APVTS lookup per
+    // parameter is fine here - unlike the audio thread, which uses the cached pointers.
+    auto rawById = [this](const juce::String& id) {
+        auto* v = apvts.getRawParameterValue(id);
+        return v != nullptr ? v->load() : 0.0f;
+    };
     juce::ValueTree tree("SidStationAsidPreset");
     for (auto* p : getParameters())
         if (auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p))
             if (isVoiceSoundParam(wid->paramID) && apvts.getParameter(wid->paramID) != nullptr)
-                tree.setProperty(wid->paramID, paramFloat(wid->paramID), nullptr);  // raw value
+                tree.setProperty(wid->paramID, rawById(wid->paramID), nullptr);  // raw value
     const auto xml = tree.createXml();
     // Only claim the preset once it is actually on disk, so a failed write does not
     // leave the editor displaying a name that nothing can load.
@@ -667,7 +719,7 @@ void AsidProcessor::addFrame(juce::MidiBuffer& out, const Bytes& frame, int samp
 void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voice) {
     const double sr = juce::jmax(1.0, getSampleRate());
     const double nowMs = juce::Time::getMillisecondCounterHiRes();
-    const double latencyMs = static_cast<double>(paramInt("latency"));
+    const double latencyMs = static_cast<double>(paramInt(pp.latency));
 
     // While the transport plays, align to a shared reference so every instance
     // and the DAW agree, even though Logic renders tracks at different times.
@@ -744,8 +796,8 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
             freshAttack = !wasHeld;  // nothing sounding = a real attack, not a legato overlap
             if (freshAttack) noteOnMs = nowMs;  // restart the LFO fade-in on a fresh attack
-            const bool always = paramInt("portaTrigger") == 1;  // 0 Legato, 1 Always
-            const bool glide = paramInt("portaTime") > 0 && glidePitch >= 0.0 && (always || wasHeld);
+            const bool always = paramInt(pp.portaTrigger) == 1;  // 0 Legato, 1 Always
+            const bool glide = paramInt(pp.portaTime) > 0 && glidePitch >= 0.0 && (always || wasHeld);
             if (glide) asidPlayer.setNextGlideStart(glidePitch);  // start at the held pitch
             else glidePitch = m.getNoteNumber();                  // jump straight to the note
 
@@ -754,7 +806,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             // there is no burst of the plain oscillator before the modulation
             // clock's first tick swaps the waveform in (that gap, and so the
             // burst, grows as the Mod Rate falls).
-            if (paramInt("wtOn"))
+            if (paramInt(pp.wtOn))
                 asidPlayer.setWaveform(voice, static_cast<sidstation::Byte>(wtStepWaveBits(0)));
         }
 
@@ -768,7 +820,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         // back by the drain window, and only kicks in when a recent release is
         // still ringing, so ordinary notes are untouched.
         if (freshAttack) {
-            const int rel = paramInt("release");
+            const int rel = paramInt(pp.release);
             if (rel > 0 && (target - lastGateOffMs) < sidReleaseMs(rel)) {
                 const auto hr = asidPlayer.hardRestartFrames(voice);
                 if (hr.size() == 2) {
@@ -796,7 +848,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             // so the stream slides back down to the held note on its own.
             const int fellBackTo = asidPlayer.currentNoteOf(voice);
             if (fellBackTo >= 0) {
-                if (paramInt("portaTime") == 0) glidePitch = fellBackTo;
+                if (paramInt(pp.portaTime) == 0) glidePitch = fellBackTo;
             } else {
                 lastGateOffMs = target;  // fully released; times the next attack's hard restart
             }
@@ -818,7 +870,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     juce::ScopedNoDenormals noDenormals;
 
     // This instance drives one SID voice. Set it before any note handling.
-    const int voice = paramInt("asidVoice");
+    const int voice = paramInt(pp.asidVoice);
     asidPlayer.setTargetVoice(voice);
 
     // If the shared watchdog released our voice while our processBlock was stalled

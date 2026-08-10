@@ -10,6 +10,9 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <atomic>
+#include <cmath>
+
 #include "AsidShared.h"
 #include "MidiHub.h"
 #include "sidstation/AsidVoicePlayer.h"
@@ -93,6 +96,50 @@ public:
     void setShowTooltips(bool on) { tooltipsOn = on; }
 
 private:
+    // Cached parameter pointers, resolved once at construction.
+    //
+    // The audio thread must not build a juce::String (it always heap-allocates) or
+    // walk the APVTS parameter map (a std::map<StringRef>, so string compares per
+    // lookup). The old paramInt("id") and paramInt(prefix + "Suffix") calls did both,
+    // roughly 30 allocations per modulation tick at up to 100 Hz once the wavetable
+    // and all three LFOs were live.
+    //
+    // Safe to hold: APVTS creates one heap ParameterAdapter per parameter during its
+    // own construction and never rebuilds them, and replaceState only swaps the
+    // ValueTree, so these stay valid across setStateInformation.
+    //
+    // Named members rather than an id-keyed table, so a mistake is a compile error
+    // instead of a parameter that silently reads 0 forever.
+    struct ParamPtrs {
+        using P = std::atomic<float>*;
+        P asidVoice{}, waveTri{}, waveSaw{}, wavePulse{}, waveNoise{};
+        P attack{}, decay{}, sustain{}, release{}, pulseWidth{};
+        P coarse{}, fine{}, pitchBendRange{};
+        P portaTime{}, portaTrigger{}, portaType{};
+        P sync{}, ring{}, test{};
+        P filt1{}, filt2{}, filt3{}, filtExt{};
+        P modeLP{}, modeBP{}, modeHP{}, voice3off{};
+        P cutoff{}, resonance{}, volume{};
+        P latency{}, modRate{}, bpm{};
+        P wtOn{}, wtSpeed{}, wtLength{}, wtLoop{};
+        // One block per LFO target and per wavetable step, so the hot paths index in
+        // rather than concatenating an id.
+        struct Lfo { P on{}, shape{}, sync{}, rate{}, div{}, depth{}, wheel{}, delay{}; };
+        Lfo pitchLfo, pwLfo, cutLfo;
+        struct Step { P tri{}, saw{}, pulse{}, noise{}, sync{}, ring{}, test{}, pw{}, arp{}; };
+        Step wt[kWtSteps];
+    };
+    ParamPtrs pp;
+    void buildParamPtrs();
+
+    // Read a cached parameter: no allocation, no lookup.
+    static int paramInt(const std::atomic<float>* p) {
+        return p != nullptr ? static_cast<int>(std::lround(p->load())) : 0;
+    }
+    static float paramFloat(const std::atomic<float>* p) {
+        return p != nullptr ? p->load() : 0.0f;
+    }
+
     // One modulation stream per LFO target: its LFO, when it last sent, and the
     // last frame sent (to skip identical steps).
     struct ModStream {
@@ -126,35 +173,32 @@ private:
     // frequency write does not collide with a note-off.
     void updateModulation(int voice, bool blockHasNotes);
     // Advances one LFO by dt and returns its bipolar value (no rate gate).
-    double sampleLfo(sidstation::Lfo&, const juce::String& prefix, double dt,
+    double sampleLfo(sidstation::Lfo&, const ParamPtrs::Lfo& ids, double dt,
                      bool playing, double ppq, double bpm);
-    int paramInt(const char* id) const;
-    int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
     // (bit0 LP, bit1 BP, bit2 HP, combinable).
     int routingMask() const {
-        return (paramInt("filt1") ? 1 : 0) | (paramInt("filt2") ? 2 : 0) | (paramInt("filt3") ? 4 : 0)
-             | (paramInt("filtExt") ? 8 : 0);  // bit 3: external input through the filter
+        return (paramInt(pp.filt1) ? 1 : 0) | (paramInt(pp.filt2) ? 2 : 0) | (paramInt(pp.filt3) ? 4 : 0)
+             | (paramInt(pp.filtExt) ? 8 : 0);  // bit 3: external input through the filter
     }
     int modeMask() const {
-        return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0)
-             | (paramInt("voice3off") ? 8 : 0);  // bit 3: voice 3 output off (silent mod source)
+        return (paramInt(pp.modeLP) ? 1 : 0) | (paramInt(pp.modeBP) ? 2 : 0) | (paramInt(pp.modeHP) ? 4 : 0)
+             | (paramInt(pp.voice3off) ? 8 : 0);  // bit 3: voice 3 output off (silent mod source)
     }
     // SID control-register waveform bits from the four toggles. The waveforms
     // combine (bits OR together), but noise locks the others on the 6581, so when
     // noise is on it wins alone. 0 = no waveform (a silent voice).
     int waveBits() const {
-        return sidstation::sid::waveformBits(paramInt("waveTri"), paramInt("waveSaw"),
-                                             paramInt("wavePulse"), paramInt("waveNoise"));
+        return sidstation::sid::waveformBits(paramInt(pp.waveTri), paramInt(pp.waveSaw),
+                                             paramInt(pp.wavePulse), paramInt(pp.waveNoise));
     }
     // Same, for one wavetable step's four toggles (noise exclusive).
     int wtStepWaveBits(int step) const {
-        const juce::String s(step);
-        return sidstation::sid::waveformBits(paramInt("wtTri" + s), paramInt("wtSaw" + s),
-                                             paramInt("wtPulse" + s), paramInt("wtNoise" + s));
+        if (step < 0 || step >= kWtSteps) return 0;
+        const auto& s = pp.wt[step];
+        return sidstation::sid::waveformBits(paramInt(s.tri), paramInt(s.saw),
+                                             paramInt(s.pulse), paramInt(s.noise));
     }
-    float paramFloat(const char* id) const;
-    float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }
 
     // Cross-instance sync of the shared filter and volume.
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -165,7 +209,7 @@ private:
     void updatePitchOffset();
     // Effective 0..1 modulation amount for an LFO: its depth, scaled by the mod
     // wheel when its Mod Wheel toggle is on, and ramped in over its fade-in delay.
-    double lfoAmount(const char* prefix, double nowMs) const;
+    double lfoAmount(const ParamPtrs::Lfo& ids, double nowMs) const;
     int pitchWheelValue = 8192;  // last MIDI pitch wheel value (14-bit, centre 8192)
     int modWheelValue = 0;       // last MIDI mod wheel (CC 1) value, 0..127
     double noteOnMs = -1.0e18;   // last note attack time (wall clock), for the LFO fade-in
