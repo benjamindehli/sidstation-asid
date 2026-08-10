@@ -99,6 +99,16 @@ a:hover {
 .topnav a[aria-current="page"] {
     color: var(--hot);
 }
+/* Second row on the home page only: jump links to its own sections, kept out of
+   the nav above so that one stays the same on every page as pages are added. */
+.topnav.onpage {
+    background: var(--panel);
+    border-bottom-width: 0;
+}
+/* --fg, not --muted: --muted is only safe on --bg, and would be 4.08 here. */
+.topnav.onpage a {
+    color: var(--fg);
+}
 
 /* Hero */
 .hero {

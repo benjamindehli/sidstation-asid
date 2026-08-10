@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>SidStation sound design: wavetables, LFOs and SID rules</title>
+        <meta
+            name="description"
+            content="How the eight step wavetable, the three LFOs and the presets work, plus the SID chip rules that decide which waveform, ring and sync combinations do anything."
+        />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="theme-color" content="#463ea4" />
+        <meta name="color-scheme" content="dark" />
+        <link rel="canonical" href="https://benjamindehli.github.io/sidstation-asid/sound-design/" />
+
+        <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="manifest" href="../site.webmanifest" />
+        <link rel="preload" href="../assets/fonts/SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="SidStation ASID" />
+        <meta property="og:title" content="SidStation sound design: wavetables, LFOs and SID rules" />
+        <meta
+            property="og:description"
+            content="How the eight step wavetable, the three LFOs and the presets work, plus the SID chip rules that decide which waveform, ring and sync combinations do anything."
+        />
+        <meta property="og:url" content="https://benjamindehli.github.io/sidstation-asid/sound-design/" />
+        <meta property="og:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:alt" content="SidStation ASID, a plugin that plays the three SID voices of the Elektron SidStation" />
+        <meta property="og:locale" content="en_US" />
+
+        <!-- Twitter / X Card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="SidStation sound design: wavetables, LFOs and SID rules" />
+        <meta
+            name="twitter:description"
+            content="How the eight step wavetable, the three LFOs and the presets work, plus the SID chip rules that decide which waveform, ring and sync combinations do anything."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta name="twitter:site" content="@BenjaminDehli" />
+        <meta name="twitter:creator" content="@BenjaminDehli" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "TechArticle",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/sound-design/#article",
+                        "headline": "SidStation sound design: wavetables, LFOs and SID rules",
+                        "description": "How the eight step wavetable, the three LFOs and the disk based presets work in SidStation ASID, and the MOS6581 rules that decide which combinations of waveform, ring modulation and hard sync actually do anything.",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/sound-design/",
+                        "inLanguage": "en",
+                        "datePublished": "2026-08-10",
+                        "dateModified": "2026-08-10",
+                        "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+                        "publisher": { "@id": "https://www.dehlimusikk.no/" },
+                        "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "keywords": "SID sound design, wavetable, chiptune arpeggio, ring modulation, hard sync, MOS6581, LFO, SidStation presets",
+                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                        "mainEntityOfPage": "https://benjamindehli.github.io/sidstation-asid/sound-design/"
+                    },
+                    {
+                        "@type": "Person",
+                        "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                        "name": "Benjamin Dehli",
+                        "url": "https://www.dehlimusikk.no/"
+                    },
+                    {
+                        "@type": "Organization",
+                        "@id": "https://www.dehlimusikk.no/",
+                        "name": "Dehli Musikk",
+                        "url": "https://www.dehlimusikk.no/"
+                    }
+                ]
+            }
+        </script>
+        <link rel="stylesheet" href="../css/docs.css" />
+    </head>
+    <body>
+        <nav class="topnav" aria-label="Pages">
+            <div class="wrap">
+                <a href="../">Overview</a>
+                <a href="../sound-design/" aria-current="page">Sound design</a>
+                <a href="../troubleshooting/">Troubleshooting</a>
+                <a href="../protocol/">Protocol notes</a>
+                <a href="../asid-timing/">ASID timing</a>
+            </div>
+        </nav>
+        <header class="hero">
+            <div class="wrap">
+                <h1>Sound design</h1>
+                <p class="tag">The wavetable, the three LFOs, and the chip rules that decide which combinations do anything at all.</p>
+                <div>
+                    <a class="btn ghost" href="../">Back to SidStation ASID</a>
+                    <a class="btn ghost" href="../#tabs">See the tabs</a>
+                </div>
+            </div>
+        </header>
+        <main>
+            <section id="chip-rules">
+                <div class="wrap">
+                    <h2>Chip rules that decide what works</h2>
+                    <p class="lead">
+                        Several combinations on the SID do nothing, and none of them tell you so. The plugin greys out a control when the chip would
+                        ignore it, which is worth knowing about as a set of rules rather than as a surprise.
+                    </p>
+                    <p class="lead">
+                        <strong>Noise is exclusive.</strong> The four waveforms otherwise combine freely, but noise silences the others on the real
+                        6581, so turning noise on takes the rest out.
+                    </p>
+                    <p class="lead">
+                        <strong>Ring modulation needs the triangle wave, and not noise.</strong> Ring mod on any other waveform does nothing. It
+                        modulates against the previous voice, so voice 1 rings against voice 3.
+                    </p>
+                    <p class="lead">
+                        <strong>Hard sync does nothing on a noise-only voice.</strong> Like ring mod, it syncs this oscillator to the previous
+                        voice's.
+                    </p>
+                    <p class="lead">
+                        <strong>Pulse width only matters with the pulse wave on.</strong> Obvious in isolation, easy to miss when the pulse wave is
+                        one of several combined.
+                    </p>
+                    <p class="lead">
+                        <strong>Decay does nothing at full sustain.</strong> At sustain 15 the envelope decays from peak to peak, so decay is
+                        inaudible. The plugin pins it to 0 there, which is sonically identical and has a useful side effect covered in
+                        <a href="../troubleshooting/#dropped-notes">troubleshooting</a>.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="wavetable">
+                <div class="wrap">
+                    <h2>The wavetable</h2>
+                    <p class="lead">
+                        The SID has no wavetable. This is the software technique the SidStation and the C64 trackers use: rewrite a voice's waveform,
+                        and its pitch offset, once per frame. The plugin clocks the table and writes the result, so the table lives here rather than
+                        in the chip.
+                    </p>
+                    <p class="lead">
+                        Eight steps, each carrying its own waveform selection, sync, ring, test bit, pulse width and an arpeggio offset in semitones.
+                        Three controls govern playback: <strong>Speed</strong> is frames per step, so 1 is a new step on every frame, roughly 50 per
+                        second at PAL. <strong>Length</strong> is how many steps play. <strong>Loop</strong> is the step it jumps back to after the
+                        last one, which is what separates a one-shot attack from a sustained texture.
+                    </p>
+                    <p class="lead">
+                        Two classic uses fall out of that. Put semitone offsets on successive steps at speed 1 and you get the C64 arpeggio, a chord
+                        implied by one voice cycling through its notes faster than the ear separates them. Or set a short length with the loop
+                        pointing past the first steps, so those steps become a transient: a couple of frames of noise or a different waveform at the
+                        front of the note, then a loop over the sustained part.
+                    </p>
+                    <p class="lead">
+                        The table restarts at step 0 on each note-on and stops on release. Switch it off and the oscillator's own waveform, sync, ring
+                        and pulse width controls take back over.
+                    </p>
+                </div>
+            </section>
+
+            <section id="lfos">
+                <div class="wrap">
+                    <h2>The three LFOs</h2>
+                    <p class="lead">
+                        One on pitch, one on pulse width, one on filter cutoff. The SID has no LFOs of its own, so these run in the plugin and are
+                        streamed to the chip as register writes.
+                    </p>
+                    <p class="lead">
+                        Shapes are sine, triangle, saw up, saw down, square, sample and hold, and random. The last two differ in a way worth knowing:
+                        sample and hold steps to a new random value each cycle and stays there, while random picks the same values but glides between
+                        them. Shape doubles as the on switch, so <strong>Off</strong> is in the same list.
+                    </p>
+                    <p class="lead">
+                        <strong>Rate</strong> is free running in Hz, or a stepped note division when Tempo Sync is on, in which case it locks to the
+                        host tempo and reads as 1/4 and so on. <strong>Delay</strong> fades the LFO in after a note starts, which is how you get
+                        vibrato that arrives on a held note rather than sitting on the attack. <strong>Mod Wheel</strong> hands control to the wheel,
+                        and Depth becomes the maximum it can reach rather than a fixed amount.
+                    </p>
+                    <p class="lead">
+                        The cutoff LFO is shared across the three voices, because the filter is. It also only streams when at least one voice is
+                        actually routed through the filter, so a cutoff LFO on an unrouted patch is silent by design rather than broken.
+                    </p>
+                    <p class="lead">
+                        All three run on one modulation clock, set by Mod Rate in the top strip. If the movement sounds like it is stepping rather
+                        than gliding, that is the clock rather than the LFO, and
+                        <a href="../troubleshooting/#modulation">the rate is the thing to change</a>.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="voice-three">
+                <div class="wrap">
+                    <h2>Voice 3 as a modulator</h2>
+                    <p class="lead">
+                        Since ring modulation and hard sync both take the previous voice as their source, a voice can be spent driving another rather
+                        than being heard. Voice 3 Off silences it for exactly that: it keeps running as a modulation source for voice 1's ring and
+                        sync while contributing nothing audible itself.
+                    </p>
+                    <p class="lead">That is the trade the chip forces. Three voices, and metallic ring modulated timbres cost you one of them.</p>
+                </div>
+            </section>
+
+            <section id="presets">
+                <div class="wrap">
+                    <h2>Presets are files</h2>
+                    <p class="lead">
+                        A preset is one voice's sound, saved to disk, outside both the DAW project and the unit's own patch memory. A sound made in
+                        one project is available in the next, and nothing is written to the SidStation.
+                    </p>
+                    <p class="lead">They live under your user application data folder, in DehliMusikk, SidStation ASID, Presets.</p>
+                    <p class="lead">
+                        What a preset holds is the voice sound: the oscillator, envelope, wavetable and LFO settings. It deliberately leaves out the
+                        things that are not part of a sound, which is the shared filter and master volume, the voice selection, and the tempo. Loading
+                        a preset on an instance therefore does not disturb the other two voices or move a track onto a different voice.
+                    </p>
+                    <p class="lead spaced">
+                        <strong>Init</strong> returns the voice to the default sound, which is the quickest way to stop fighting a patch and start
+                        again. Panic, next to it, is the unrelated escape hatch for a note left hanging.
+                    </p>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <div class="wrap">
+                <p class="pixel">Dehli Musikk</p>
+                <p>
+                    SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>, licensed under
+                    the <a href="https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE">GNU GPL v3</a>.
+                </p>
+                <p>
+                    An independent project, not affiliated with, endorsed or supported by Elektron. SidStation and SID are trademarks of their
+                    respective owners.
+                </p>
+            </div>
+        </footer>
+    </body>
+</html>
