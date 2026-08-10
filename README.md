@@ -92,6 +92,16 @@ To run the core library tests without JUCE:
 cd core && make test
 ```
 
+## Formatting
+
+Three languages, three formatters, one command:
+
+```sh
+make format
+```
+
+clang-format handles the C++ in stock LLVM style, Prettier the docs site and Markdown and workflow YAML, and Ruff formats and lints the Python tools. The first run installs them into `node_modules` and `.venv`, pinned so a local run and a CI run agree. CI runs `make format-check`, which is the same thing without writing.
+
 ## Hardware notes
 
 `core/README.md` records what came out of testing against a real unit. The one that shaped the whole plugin: on OS 1.11 R34 firmware the SysEx Direct Program path is dead, so streaming raw SID registers over ASID is the only way in.
