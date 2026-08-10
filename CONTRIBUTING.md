@@ -41,9 +41,9 @@ If your change touches `core/`, add a case to `core/tests/tests.cpp`. It is a de
 
 If your change touches the docs site, remember it is served as static files with no build step, so generated output has to be committed. `make images` after replacing a screenshot source, and `make links-check` after moving a page between directories.
 
-## Writing style in the docs
+## Writing the docs
 
-The docs avoid long dashes and semicolons, and lines are not hard wrapped. Say what is known and say what is not. Where a claim comes from testing on one unit, the text says so. That last point matters more than the punctuation: several things here look like protocol facts and are really observations from a single machine.
+Say what is known and say what is not. Where a claim comes from testing on one unit, the text says so. This matters more than it sounds: several things here look like protocol facts and are really observations from a single machine, and writing them as facts would mislead the next person who reads them.
 
 ## Hardware, and the risk of it
 
