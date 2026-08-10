@@ -259,6 +259,15 @@ private:
     bool wtOwnsWave = false;      // wavetable is driving the waveform register
     bool lastWtOn = false;        // wtOn last block, to catch the switch-off edge
     double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
+    // Release tail. The gate is low but the envelope is still fading, so the frequency
+    // stream has to keep running or the tail freezes at whatever pitch the vibrato last
+    // wrote - audibly detuned. Holds the pitch that was sounding and when the fade ends.
+    double releaseTailNote = -1.0;
+    double releaseTailUntilMs = -1.0e18;
+    // Bounds the tail so a 24-second release nibble cannot stream for 24 seconds on a
+    // MIDI port three voices share. Past this the tail freezes, which by then is far
+    // enough down the fade to be inaudible on any normal patch.
+    static constexpr double kMaxReleaseTailMs = 4000.0;
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send
 

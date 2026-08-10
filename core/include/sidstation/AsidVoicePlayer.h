@@ -81,6 +81,12 @@ public:
     // The stored pitch offset (coarse + fine tune) is always folded in too.
     Bytes setPitchMod(int voice, double semitones);
 
+    // Same write, but for an explicit fractional note rather than the sounding one, so
+    // the caller can keep the pitch stream running when no note is held - during a
+    // release tail, where the gate is already low but the envelope is still fading.
+    // Without this the tail freezes at whatever pitch the vibrato last wrote.
+    Bytes setPitchTo(int voice, double fractionalNote);
+
     // Coarse + fine tune, in semitones (fractional), applied to every note and to
     // pitch modulation. Set live; retune a held note with setPitchMod(voice, 0).
     void setPitchOffset(double semitones) { pitchOffset = semitones; }

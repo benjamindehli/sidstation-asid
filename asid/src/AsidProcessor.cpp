@@ -458,7 +458,12 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     // can't starve it and, as testing showed, so a glide plays correctly (it
     // depends on the continuous stream through its held portions, not just the
     // sliding part). Dropping this to modulating-only broke glide playback.
-    const bool pitchOn = curNote >= 0;
+    //
+    // It also keeps running through the release: the gate is low but the envelope is
+    // still fading, and stopping the stream there froze the tail at whatever pitch the
+    // vibrato last wrote, so a released note faded out detuned.
+    const bool releasing = curNote < 0 && releaseTailNote >= 0.0 && nowMs < releaseTailUntilMs;
+    const bool pitchOn = curNote >= 0 || releasing;
     const bool anyMod = pitchOn || pwOn || cutOn || wtActive;
 
     // A frequency/pulse write must not land on a note-event block (that collision
@@ -496,18 +501,25 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     }
 
     // Pitch: portamento glide + vibrato + wavetable arpeggio, one frequency value.
+    // Written as an absolute note so the release tail (no note held, so no curNote to
+    // offset from) can use the same path and keep its vibrato moving.
     if (pitchOn) {
-        if (gliding) {
-            const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;  // ms per octave
-            if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
-            else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
+        double soundingNote;
+        if (curNote >= 0) {
+            if (gliding) {
+                const double step = (12.0 / (portaTimeMs / 1000.0)) * dt;  // ms per octave
+                if (glidePitch < curNote) glidePitch = std::min(static_cast<double>(curNote), glidePitch + step);
+                else glidePitch = std::max(static_cast<double>(curNote), glidePitch - step);
+            }
+            soundingNote = (paramInt(pp.portaType) == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
+        } else {
+            soundingNote = releaseTailNote;  // fading: pitch is fixed, vibrato still moves
         }
-        const double heard = (paramInt(pp.portaType) == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
         const double vibrato = vibratoOn
             ? sampleLfo(pitchStream, pp.pitchLfo, dt, playing, ppq, bpm)
                   * lfoAmount(pp.pitchLfo, nowMs) * 12.0
             : 0.0;
-        asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
+        asidPlayer.setPitchTo(voice, soundingNote + vibrato + wtArp);
         addReg(base + 0);
         addReg(base + 1);
     }
@@ -765,6 +777,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         AsidShared::get().panicOnStop();
         glidePitch = -1.0;
         lastGateOffMs = nowMs;  // a forced release still leaves the ADSR counter parked
+        releaseTailUntilMs = -1.0e18;  // hard gate-off, so there is no fade to follow
     }
 
     for (const auto meta : midiMessages) {
@@ -793,6 +806,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         // overlap) is the legato test and must be read before noteOn retargets.
         bool freshAttack = false;
         if (on) {
+            releaseTailUntilMs = -1.0e18;  // a new note supersedes any fading tail
             const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
             freshAttack = !wasHeld;  // nothing sounding = a real attack, not a legato overlap
             if (freshAttack) noteOnMs = nowMs;  // restart the LFO fade-in on a fresh attack
@@ -863,6 +877,11 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
                 if (paramInt(pp.portaTime) == 0) glidePitch = fellBackTo;
             } else {
                 lastGateOffMs = target;  // fully released; times the next attack's hard restart
+                // Keep the frequency stream alive for the fade, at the pitch that was
+                // actually sounding, so the vibrato carries on through the release.
+                releaseTailNote = glidePitch;
+                releaseTailUntilMs = target + juce::jmin(sidReleaseMs(paramInt(pp.release)),
+                                                         kMaxReleaseTailMs);
             }
             // A note-off's gate-low needs a message behind it. Every sounding voice
             // streams its frequency and that stream stops on release, so there is
@@ -894,6 +913,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         if (asidPlayer.currentNoteOf(voice) >= 0) {
             asidPlayer.allNotesOff();
             glidePitch = -1.0;
+            releaseTailUntilMs = -1.0e18;
             // The watchdog gated the voice off behind our back, which leaves the ADSR
             // counter parked exactly as a normal release would. Record it, or the next
             // attack skips its hard restart and can come out silent.

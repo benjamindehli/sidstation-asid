@@ -220,12 +220,17 @@ Bytes AsidVoicePlayer::setResonanceRouting(int res0to15, int routingBits0to7) {
     return encodeAsidUpdate({{0x17, sidState.reg[23]}});
 }
 
-Bytes AsidVoicePlayer::setPitchMod(int voice, double semitones) {
-    if (voice < 0 || voice > 2 || currentNote[voice] < 0) return {};
-    sidState.setFrequency(voice, sidFrequency(currentNote[voice] + pitchOffset + semitones, clockHz));
+Bytes AsidVoicePlayer::setPitchTo(int voice, double fractionalNote) {
+    if (voice < 0 || voice > 2) return {};
+    sidState.setFrequency(voice, sidFrequency(fractionalNote + pitchOffset, clockHz));
     const int base = SidState::voiceBase(voice);
     return encodeAsidUpdate({{static_cast<Byte>(base + 0), sidState.reg[base + 0]},
                              {static_cast<Byte>(base + 1), sidState.reg[base + 1]}});
+}
+
+Bytes AsidVoicePlayer::setPitchMod(int voice, double semitones) {
+    if (voice < 0 || voice > 2 || currentNote[voice] < 0) return {};
+    return setPitchTo(voice, currentNote[voice] + semitones);
 }
 
 Bytes AsidVoicePlayer::setSync(int voice, bool on) {

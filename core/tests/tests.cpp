@@ -494,6 +494,40 @@ static void testAsidPlayer() {
           "the tune offset folds into pitch modulation too");
 }
 
+// setPitchTo writes a frequency for an explicit note with no note held, which is what
+// lets the release tail keep its vibrato instead of freezing detuned.
+static void testPitchTo() {
+    AsidVoicePlayer p;
+    CHECK(p.setPitchTo(-1, 69.0).empty(), "setPitchTo rejects a bad voice");
+    CHECK(p.currentNoteOf(0) < 0, "no note is sounding");
+    CHECK(p.setPitchMod(0, 0.0).empty(), "setPitchMod needs a sounding note");
+    CHECK(!p.setPitchTo(0, 69.0).empty(), "setPitchTo works with no note sounding");
+
+    const std::uint16_t a4 = sidFrequency(69.0);
+    CHECK(p.state().reg[0] == (a4 & 0xFF) && p.state().reg[1] == ((a4 >> 8) & 0xFF),
+          "setPitchTo lands A4 in the frequency registers");
+
+    // Fractional notes (a vibrato offset) resolve between semitones.
+    p.setPitchTo(0, 69.5);
+    const std::uint16_t half = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(half > a4 && half < sidFrequency(70.0), "a fractional note lands between semitones");
+
+    // Coarse/fine tune still folds in, exactly as setPitchMod does.
+    p.setPitchOffset(12.0);
+    p.setPitchTo(0, 69.0);
+    const std::uint16_t up = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(up > a4 * 1.9, "the stored pitch offset applies to setPitchTo too");
+
+    // And it agrees with setPitchMod for a sounding note.
+    p.setPitchOffset(0.0);
+    p.noteOn(0, 60, 100);
+    p.setPitchMod(0, 3.0);
+    const std::uint16_t viaMod = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    p.setPitchTo(0, 63.0);
+    const std::uint16_t viaTo = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(viaMod == viaTo, "setPitchMod(+3) matches setPitchTo(note + 3)");
+}
+
 // The hard restart is what dodges the 6581 ADSR delay bug: it must force the release
 // nibble to 0 with the gate held low so the envelope drains, WITHOUT disturbing the
 // stored registers, so the following note-on writes the player's real release back.
@@ -709,6 +743,7 @@ int main() {
     testVoiceEngine();
     testAsid();
     testAsidPlayer();
+    testPitchTo();
     testHardRestart();
     testLfo();
     testWaveTable();
