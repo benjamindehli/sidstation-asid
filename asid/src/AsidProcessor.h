@@ -10,6 +10,9 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <atomic>
+#include <cmath>
+
 #include "AsidShared.h"
 #include "MidiHub.h"
 #include "sidstation/AsidVoicePlayer.h"
@@ -73,23 +76,73 @@ public:
     // in a user folder. Not the shared filter/volume, voice selection, or tempo.
     juce::File presetsDir() const;
     juce::StringArray presetNames() const;
-    void savePreset(const juce::String& name);
+    // Returns false if the name is unusable or the file could not be written; the
+    // stored name is presetKey(name), which is what currentPreset() then reports.
+    bool savePreset(const juce::String& name);
     bool loadPreset(const juce::String& name);
     void deletePreset(const juce::String& name);
     juce::String currentPreset() const { return currentPresetName; }
+    // A preset is a file named <key>.xml, so the name has to be a legal filename.
+    // juce::File::getChildFile honours "../" and absolute paths, so an unsanitised
+    // name could write outside the presets folder and then never show up in the
+    // list. createLegalFileName drops the separators that make that reachable, and
+    // is idempotent, so applying it twice is harmless.
+    static juce::String presetKey(const juce::String& name) {
+        return juce::File::createLegalFileName(name.trim());
+    }
 
     // Editor UI preference (persisted with the plugin state): show hover hints.
     bool showTooltips() const { return tooltipsOn; }
     void setShowTooltips(bool on) { tooltipsOn = on; }
 
 private:
-    // One modulation stream per LFO target: its LFO, when it last sent, and the
-    // last frame sent (to skip identical steps).
-    struct ModStream {
-        sidstation::Lfo lfo;
-        double lastMs = 0.0;
-        sidstation::Bytes lastFrame;
+    // Cached parameter pointers, resolved once at construction.
+    //
+    // The audio thread must not build a juce::String (it always heap-allocates) or
+    // walk the APVTS parameter map (a std::map<StringRef>, so string compares per
+    // lookup). The old paramInt("id") and paramInt(prefix + "Suffix") calls did both,
+    // roughly 30 allocations per modulation tick at up to 100 Hz once the wavetable
+    // and all three LFOs were live.
+    //
+    // Safe to hold: APVTS creates one heap ParameterAdapter per parameter during its
+    // own construction and never rebuilds them, and replaceState only swaps the
+    // ValueTree, so these stay valid across setStateInformation.
+    //
+    // Named members rather than an id-keyed table, so a mistake is a compile error
+    // instead of a parameter that silently reads 0 forever.
+    struct ParamPtrs {
+        using P = std::atomic<float>*;
+        P asidVoice{}, waveTri{}, waveSaw{}, wavePulse{}, waveNoise{};
+        P attack{}, decay{}, sustain{}, release{}, pulseWidth{};
+        P coarse{}, fine{}, pitchBendRange{};
+        P portaTime{}, portaTrigger{}, portaType{};
+        P sync{}, ring{}, test{};
+        P filt1{}, filt2{}, filt3{}, filtExt{};
+        P modeLP{}, modeBP{}, modeHP{}, voice3off{};
+        P cutoff{}, resonance{}, volume{};
+        P latency{}, modRate{}, bpm{};
+        P wtOn{}, wtSpeed{}, wtLength{}, wtLoop{};
+        // One block per LFO target and per wavetable step, so the hot paths index in
+        // rather than concatenating an id.
+        struct Lfo { P on{}, shape{}, sync{}, rate{}, div{}, depth{}, wheel{}, delay{}; };
+        Lfo pitchLfo, pwLfo, cutLfo;
+        struct Step { P tri{}, saw{}, pulse{}, noise{}, sync{}, ring{}, test{}, pw{}, arp{}; };
+        Step wt[kWtSteps];
     };
+    ParamPtrs pp;
+    void buildParamPtrs();
+
+    // Read a cached parameter: no allocation, no lookup.
+    static int paramInt(const std::atomic<float>* p) {
+        return p != nullptr ? static_cast<int>(std::lround(p->load())) : 0;
+    }
+    static float paramFloat(const std::atomic<float>* p) {
+        return p != nullptr ? p->load() : 0.0f;
+    }
+
+    juce::File presetFile(const juce::String& name) const {
+        return presetsDir().getChildFile(presetKey(name) + ".xml");
+    }
 
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     // Sends one ASID frame to the device now (from processBlock). Used for the
@@ -112,35 +165,32 @@ private:
     // frequency write does not collide with a note-off.
     void updateModulation(int voice, bool blockHasNotes);
     // Advances one LFO by dt and returns its bipolar value (no rate gate).
-    double sampleLfo(sidstation::Lfo&, const juce::String& prefix, double dt,
+    double sampleLfo(sidstation::Lfo&, const ParamPtrs::Lfo& ids, double dt,
                      bool playing, double ppq, double bpm);
-    int paramInt(const char* id) const;
-    int paramInt(const juce::String& id) const { return paramInt(id.toRawUTF8()); }
     // 3-bit masks from the shared filter toggles: routing (voice 1/2/3) and mode
     // (bit0 LP, bit1 BP, bit2 HP, combinable).
     int routingMask() const {
-        return (paramInt("filt1") ? 1 : 0) | (paramInt("filt2") ? 2 : 0) | (paramInt("filt3") ? 4 : 0)
-             | (paramInt("filtExt") ? 8 : 0);  // bit 3: external input through the filter
+        return (paramInt(pp.filt1) ? 1 : 0) | (paramInt(pp.filt2) ? 2 : 0) | (paramInt(pp.filt3) ? 4 : 0)
+             | (paramInt(pp.filtExt) ? 8 : 0);  // bit 3: external input through the filter
     }
     int modeMask() const {
-        return (paramInt("modeLP") ? 1 : 0) | (paramInt("modeBP") ? 2 : 0) | (paramInt("modeHP") ? 4 : 0)
-             | (paramInt("voice3off") ? 8 : 0);  // bit 3: voice 3 output off (silent mod source)
+        return (paramInt(pp.modeLP) ? 1 : 0) | (paramInt(pp.modeBP) ? 2 : 0) | (paramInt(pp.modeHP) ? 4 : 0)
+             | (paramInt(pp.voice3off) ? 8 : 0);  // bit 3: voice 3 output off (silent mod source)
     }
     // SID control-register waveform bits from the four toggles. The waveforms
     // combine (bits OR together), but noise locks the others on the 6581, so when
     // noise is on it wins alone. 0 = no waveform (a silent voice).
     int waveBits() const {
-        return sidstation::sid::waveformBits(paramInt("waveTri"), paramInt("waveSaw"),
-                                             paramInt("wavePulse"), paramInt("waveNoise"));
+        return sidstation::sid::waveformBits(paramInt(pp.waveTri), paramInt(pp.waveSaw),
+                                             paramInt(pp.wavePulse), paramInt(pp.waveNoise));
     }
     // Same, for one wavetable step's four toggles (noise exclusive).
     int wtStepWaveBits(int step) const {
-        const juce::String s(step);
-        return sidstation::sid::waveformBits(paramInt("wtTri" + s), paramInt("wtSaw" + s),
-                                             paramInt("wtPulse" + s), paramInt("wtNoise" + s));
+        if (step < 0 || step >= kWtSteps) return 0;
+        const auto& s = pp.wt[step];
+        return sidstation::sid::waveformBits(paramInt(s.tri), paramInt(s.saw),
+                                             paramInt(s.pulse), paramInt(s.noise));
     }
-    float paramFloat(const char* id) const;
-    float paramFloat(const juce::String& id) const { return paramFloat(id.toRawUTF8()); }
 
     // Cross-instance sync of the shared filter and volume.
     void parameterChanged(const juce::String& parameterID, float newValue) override;
@@ -151,7 +201,7 @@ private:
     void updatePitchOffset();
     // Effective 0..1 modulation amount for an LFO: its depth, scaled by the mod
     // wheel when its Mod Wheel toggle is on, and ramped in over its fade-in delay.
-    double lfoAmount(const char* prefix, double nowMs) const;
+    double lfoAmount(const ParamPtrs::Lfo& ids, double nowMs) const;
     int pitchWheelValue = 8192;  // last MIDI pitch wheel value (14-bit, centre 8192)
     int modWheelValue = 0;       // last MIDI mod wheel (CC 1) value, 0..127
     double noteOnMs = -1.0e18;   // last note attack time (wall clock), for the LFO fade-in
@@ -168,7 +218,26 @@ private:
     // Note scheduling state (this instance's single voice).
     static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)
     static constexpr double kSettleMs = 15.0;             // trailing flush after a note-off under pitch mod
-    static constexpr double kHardRestartMs = 16.0;        // envelope drain window before a re-attack
+    // 6581 ADSR delay bug, which is what drops notes at high decay/sustain. The
+    // envelope generator compares a 15-bit LFSR counter against a period picked from
+    // the current phase's rate nibble; if the phase or rate changes while the counter
+    // has already passed the new period, the counter must run its whole 32767-count
+    // sequence before the envelope moves. 32767 / 985248 Hz = up to ~33 ms at PAL.
+    // A long decay or release parks the counter at large values, so the failure tracks
+    // decay and sustain rather than release.
+    static constexpr double kAdsrWrapMs = 33.3;
+    // Drain window before a re-attack: the worst-case wrap plus the ~6 ms the fastest
+    // release itself takes, so by gate-on the envelope really is at zero AND the
+    // counter is cycling on a short period. The old 16 ms was under the wrap alone,
+    // which is why the muting was intermittent - the counter's phase at gate-off is
+    // effectively random, so it sometimes drained in time and sometimes did not.
+    static constexpr double kHardRestartMs = kAdsrWrapMs + 8.0;
+    // Gap between the fast-release write and the control re-write that commits it on
+    // the one-message-late unit.
+    static constexpr double kHardRestartFlushMs = 5.0;
+    // Below this much room ahead of the note there is no point draining: the two frames
+    // would land on top of the note-on rather than clearing the way for it.
+    static constexpr double kHardRestartMinMs = 12.0;
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double lastGateOffMs = -1.0e18;  // when this voice last released, to time hard restarts
     int lastPlaying = 0;          // transport state last block, to spot a start
@@ -183,13 +252,34 @@ private:
         return !AsidShared::isShared(id) && id != "asidVoice" && id != "bpm";
     }
 
-    ModStream pitchStream, pwStream, cutStream;  // only the .lfo of each is used now
+    sidstation::Lfo pitchStream, pwStream, cutStream;  // one per modulation target
     sidstation::WaveTablePlayer wtPlayer;
     double modTickMs = 0.0;       // one modulation clock for the whole voice
     int wtArp = 0;                // current wavetable arpeggio offset (semitones)
     bool wtOwnsWave = false;      // wavetable is driving the waveform register
     bool lastWtOn = false;        // wtOn last block, to catch the switch-off edge
     double glidePitch = -1.0;     // current sounding pitch (fractional note); -1 = no note
+    // Release tail. The gate is low but the envelope is still fading, so the frequency
+    // stream has to keep running or the tail freezes at whatever pitch the vibrato last
+    // wrote - audibly detuned. Holds the pitch that was sounding and when the fade ends.
+    double releaseTailNote = -1.0;
+    double releaseTailUntilMs = -1.0e18;
+    // Envelope parking, the other half of the ADSR-bug defence. Once the fade has
+    // finished, the release nibble is forced to 0: inaudible, since the envelope is
+    // already at zero, but it leaves the counter cycling on a SHORT period, so the next
+    // attack needs no wrap however long the gap. Where the pre-roll drain needs room
+    // ahead of a note, this uses the time after one, of which there is plenty.
+    //
+    // Emitted from the per-block path rather than scheduled ahead: a long release would
+    // put the frame up to 24 s into the queue, where a note starting first would have
+    // its own release yanked to 0 mid-flight. parkAtMs is the UNCAPPED fade end, unlike
+    // releaseTailUntilMs, so a slow fade is never cut short.
+    double parkAtMs = 0.0;
+    bool parkPending = false;
+    // Bounds the tail so a 24-second release nibble cannot stream for 24 seconds on a
+    // MIDI port three voices share. Past this the tail freezes, which by then is far
+    // enough down the fade to be inaudible on any normal patch.
+    static constexpr double kMaxReleaseTailMs = 4000.0;
     bool lfoOwnedPw = false;      // PW LFO drives pulse width, skip the static send
     bool lfoOwnedCutoff = false;  // cutoff LFO drives the shared cutoff, skip the static send
 

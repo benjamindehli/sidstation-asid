@@ -494,6 +494,82 @@ static void testAsidPlayer() {
           "the tune offset folds into pitch modulation too");
 }
 
+// setPitchTo writes a frequency for an explicit note with no note held, which is what
+// lets the release tail keep its vibrato instead of freezing detuned.
+static void testPitchTo() {
+    AsidVoicePlayer p;
+    CHECK(p.setPitchTo(-1, 69.0).empty(), "setPitchTo rejects a bad voice");
+    CHECK(p.currentNoteOf(0) < 0, "no note is sounding");
+    CHECK(p.setPitchMod(0, 0.0).empty(), "setPitchMod needs a sounding note");
+    CHECK(!p.setPitchTo(0, 69.0).empty(), "setPitchTo works with no note sounding");
+
+    const std::uint16_t a4 = sidFrequency(69.0);
+    CHECK(p.state().reg[0] == (a4 & 0xFF) && p.state().reg[1] == ((a4 >> 8) & 0xFF),
+          "setPitchTo lands A4 in the frequency registers");
+
+    // Fractional notes (a vibrato offset) resolve between semitones.
+    p.setPitchTo(0, 69.5);
+    const std::uint16_t half = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(half > a4 && half < sidFrequency(70.0), "a fractional note lands between semitones");
+
+    // Coarse/fine tune still folds in, exactly as setPitchMod does.
+    p.setPitchOffset(12.0);
+    p.setPitchTo(0, 69.0);
+    const std::uint16_t up = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(up > a4 * 1.9, "the stored pitch offset applies to setPitchTo too");
+
+    // And it agrees with setPitchMod for a sounding note.
+    p.setPitchOffset(0.0);
+    p.noteOn(0, 60, 100);
+    p.setPitchMod(0, 3.0);
+    const std::uint16_t viaMod = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    p.setPitchTo(0, 63.0);
+    const std::uint16_t viaTo = static_cast<std::uint16_t>(p.state().reg[0] | (p.state().reg[1] << 8));
+    CHECK(viaMod == viaTo, "setPitchMod(+3) matches setPitchTo(note + 3)");
+}
+
+// The hard restart is what dodges the 6581 ADSR delay bug: it must force the release
+// nibble to 0 with the gate held low so the envelope drains, WITHOUT disturbing the
+// stored registers, so the following note-on writes the player's real release back.
+static void testHardRestart() {
+    AsidVoicePlayer p;
+    CHECK(p.hardRestartFrames(-1).empty(), "hard restart rejects a negative voice");
+    CHECK(p.hardRestartFrames(3).empty(), "hard restart rejects a voice above 2");
+
+    // Default player: sustain 15, release 0, sawtooth, gate low.
+    // Frame 1 writes SR (reg 6 -> slot 5, mask/msb byte 0 bit 5 = 0x20), value 0xF0.
+    // Frame 2 rewrites control (reg 4 -> slot 22, byte 3 bit 1 = 0x02), value 0x20.
+    auto hr = p.hardRestartFrames(0);
+    CHECK(hr.size() == 2, "hard restart is two frames: fast release, then the commit");
+    checkBytes("hard restart frame 1 (sustain kept, release 0)", hr[0],
+               Bytes{0xF0, 0x2D, 0x4E, 0x20, 0x00, 0x00, 0x00,
+                     0x20, 0x00, 0x00, 0x00, 0x70, 0xF7});
+    checkBytes("hard restart frame 2 (control, gate low)", hr[1],
+               Bytes{0xF0, 0x2D, 0x4E, 0x00, 0x00, 0x00, 0x02,
+                     0x00, 0x00, 0x00, 0x00, 0x20, 0xF7});
+
+    // With a real envelope: sustain 9, release 12 -> reg 6 = 0x9C, and the frame must
+    // carry 0x90, i.e. the sustain nibble kept and the release nibble zeroed.
+    p.setSustainRelease(0, 9, 12);
+    CHECK(p.state().reg[6] == 0x9C, "sustain/release packed into the register");
+    hr = p.hardRestartFrames(0);
+    CHECK(hr[0][11] == (0x90 & 0x7F) && (hr[0][7] & 0x20) != 0,
+          "hard restart zeroes only the release nibble");
+    CHECK(p.state().reg[6] == 0x9C,
+          "hard restart does not touch the stored envelope, so the note-on restores it");
+
+    // While a note sounds the gate is high; the drain frame must still gate low, and
+    // again leave the stored control register alone.
+    p.noteOn(0, 69, 100);
+    CHECK((p.state().control(0) & sid::kGate) != 0, "note on leaves the gate high");
+    hr = p.hardRestartFrames(0);
+    CHECK((hr[1][11] & sid::kGate) == 0, "hard restart drops the gate in the drain frame");
+    CHECK((hr[1][11] & 0xF0) == (p.state().control(0) & 0xF0),
+          "hard restart keeps the waveform bits while dropping the gate");
+    CHECK((p.state().control(0) & sid::kGate) != 0,
+          "hard restart leaves the stored gate untouched");
+}
+
 static void testLfo() {
     Lfo lfo;
     lfo.reset();
@@ -532,18 +608,28 @@ static void testLfo() {
     lfo.advance(0.75, 1.0);  // crosses 1.0 -> wraps to 0.25
     CHECK(std::abs(lfo.phase() - 0.25) < 1e-9, "advance wraps the phase into 0..1");
 
-    // Sample & Hold holds one value between wraps and changes across one.
+    // setPhase takes the song position in CYCLES, so 1.05 is "just into cycle 1".
+    // Sample & Hold holds one value per cycle and takes a new one at each boundary.
     lfo.setShape(LfoShape::SampleHold);
     lfo.reset();
     lfo.setPhase(0.1);
     const double a = lfo.value();
     lfo.setPhase(0.4);
     CHECK(std::abs(lfo.value() - a) < 1e-12, "sample & hold holds its value within a cycle");
-    lfo.setPhase(0.05);  // wrapped back below the previous phase
-    CHECK(std::abs(lfo.value() - a) > 1e-12, "sample & hold picks a new value on a wrap");
-    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "sample & hold stays bipolar");
+    lfo.setPhase(1.05);  // into the next cycle
+    const double b = lfo.value();
+    CHECK(std::abs(b - a) > 1e-12, "sample & hold picks a new value on a cycle boundary");
+    CHECK(b >= -1.0 && b <= 1.0, "sample & hold stays bipolar");
 
-    // Random glides within a cycle and stays continuous across the wrap.
+    // A backward jump is the transport looping, not a new cycle: going back inside an
+    // earlier cycle must not re-roll the value, which is what made a looped bar sound
+    // different on every pass.
+    lfo.setPhase(0.5);  // loop back into cycle 0
+    CHECK(std::abs(lfo.value() - b) < 1e-12, "a backward jump does not re-roll sample & hold");
+    lfo.setPhase(1.5);  // forward across the boundary again
+    CHECK(std::abs(lfo.value() - b) > 1e-12, "crossing forward again does advance it");
+
+    // Random glides within a cycle and stays continuous across a boundary.
     lfo.setShape(LfoShape::Random);
     lfo.reset();
     lfo.setPhase(0.0);
@@ -552,9 +638,32 @@ static void testLfo() {
     CHECK(std::abs(lfo.value() - g0) > 1e-9, "random glides within a cycle, it does not hold");
     lfo.setPhase(0.999);
     const double gEnd = lfo.value();
-    lfo.setPhase(0.001);  // wrap: rndFrom becomes the previous rndTo
-    CHECK(std::abs(gEnd - lfo.value()) < 0.05, "random is continuous across the wrap");
+    lfo.setPhase(1.001);  // boundary: rndFrom becomes the previous rndTo
+    CHECK(std::abs(gEnd - lfo.value()) < 0.05, "random is continuous across the boundary");
     CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random glide stays bipolar");
+
+    // A step covering several cycles must advance the endpoints once per cycle, not
+    // once per call. Reachable when the modulation clock resumes after a gap (dt is
+    // clamped to 4x its interval) at a high rate. Compare against stepping one cycle
+    // at a time: same number of boundaries must give the same value.
+    Lfo fast, slow;
+    fast.setShape(LfoShape::SampleHold);
+    slow.setShape(LfoShape::SampleHold);
+    fast.reset();
+    slow.reset();
+    fast.advance(0.16, 20.0);  // 3.2 cycles in one step
+    for (int i = 0; i < 3; ++i) slow.advance(0.05, 20.0);  // 1 cycle at a time, 3 times
+    CHECK(std::abs(fast.phase() - 0.2) < 1e-9, "a multi-cycle step lands on the right phase");
+    CHECK(std::abs(fast.value() - slow.value()) < 1e-12,
+          "a multi-cycle step wraps once per cycle crossed");
+
+    // Zero and negative movement leave the phase alone rather than wrapping.
+    Lfo still;
+    still.reset();
+    still.advance(0.0, 20.0);
+    CHECK(std::abs(still.phase()) < 1e-12, "advancing by nothing does not move the phase");
+    still.advance(0.1, -5.0);
+    CHECK(std::abs(still.phase()) < 1e-12, "a negative rate does not move the phase backwards");
 }
 
 static void testWaveTable() {
@@ -634,6 +743,8 @@ int main() {
     testVoiceEngine();
     testAsid();
     testAsidPlayer();
+    testPitchTo();
+    testHardRestart();
     testLfo();
     testWaveTable();
     testWaveformBits();

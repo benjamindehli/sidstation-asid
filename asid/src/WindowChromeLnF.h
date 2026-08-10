@@ -48,4 +48,10 @@ struct WindowChromeLnF : juce::LookAndFeel_V4 {
     }
 };
 
-inline WindowChromeLnF& windowChromeLnF() { static WindowChromeLnF lnf; return lnf; }
+// Leaked deliberately, like SidLookAndFeel::c64Typeface() and AsidShared::get(): a
+// static LookAndFeel destroyed by __cxa_finalize at Logic's quit tears down cached JUCE
+// font and colour state on top of frameworks that are already finalizing.
+inline WindowChromeLnF& windowChromeLnF() {
+    static auto* lnf = new WindowChromeLnF();
+    return *lnf;
+}
