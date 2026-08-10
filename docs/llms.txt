@@ -10,14 +10,14 @@ Key facts, since they are easy to get wrong:
 - ASID is used because the SysEx Direct Program path is dead on OS 1.11 R34 firmware, not by preference. That finding is what shaped the whole design.
 - Presets are the plugin's own voice sounds, saved to disk as files that live outside both the DAW project and the unit's own memory.
 
-Current release is 1.0.0 (2026-08-09), licensed GPL v3, by Benjamin Dehli under Dehli Musikk. macOS 10.15 or later, universal for Apple Silicon and Intel, signed and notarized. The AU installs to /Library/Audio/Plug-Ins/Components, the VST3 to /Library/Audio/Plug-Ins/VST3, the Standalone to /Applications. Windows and Linux are untested. This is an independent project, not affiliated with or endorsed by Elektron.
+Current release is 1.1.0 (2026-08-09), licensed GPL v3, by Benjamin Dehli under Dehli Musikk. There are builds for macOS, Windows and Linux. The macOS build needs 10.15 or later, is universal for Apple Silicon and Intel, and is signed and notarized: its AU installs to /Library/Audio/Plug-Ins/Components, the VST3 to /Library/Audio/Plug-Ins/VST3, the Standalone to /Applications. Windows ships an Inno Setup installer and Linux an x86_64 tarball, both carrying the VST3 and Standalone (AU is macOS only) and neither signed. Only the macOS build has been tested against real hardware. This is an independent project, not affiliated with or endorsed by Elektron.
 
 ## Docs
 
 - [Landing page](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs (Voice, Wavetable, Modulation, Global), install steps and screenshots.
 - [README](https://github.com/benjamindehli/sidstation-asid/blob/main/README.md): the same ground in more detail, plus the repository layout and build instructions.
 - [Protocol notes](https://github.com/benjamindehli/sidstation-asid/blob/main/core/README.md): what talking to real hardware turned up, including the two address spaces and the dead Direct Program path on OS 1.11 R34.
-- [Releases](https://github.com/benjamindehli/sidstation-asid/releases/latest): the signed and notarized macOS DMG.
+- [Releases](https://github.com/benjamindehli/sidstation-asid/releases/latest): the signed and notarized macOS DMG, the Windows setup installer and the Linux tarball.
 
 ## Source
 
@@ -28,6 +28,6 @@ Current release is 1.0.0 (2026-08-09), licensed GPL v3, by Benjamin Dehli under 
 
 ## Optional
 
-- [Packaging notes](https://github.com/benjamindehli/sidstation-asid/blob/main/packaging/README.md): how the signed and notarized macOS installer is built.
+- [Packaging notes](https://github.com/benjamindehli/sidstation-asid/blob/main/packaging/README.md): how the installers for all three platforms are built, including the macOS signing and notarization.
 - [License](https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE): GNU GPL v3.
 - [Dehli Musikk](https://www.dehlimusikk.no/): the author's music business.

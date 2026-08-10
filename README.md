@@ -2,7 +2,7 @@
 
 A cross platform plugin (VST3, AU, Standalone) for the Elektron SidStation, the MOS6581 SID desktop synth.
 
-macOS first.
+Control the three Elektron SidStation voices individually from your DAW.
 
 ## What it is
 
