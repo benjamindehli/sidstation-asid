@@ -72,6 +72,34 @@ a:hover {
     padding: 0 24px;
 }
 
+/* Site navigation. Sits above the hero on both pages, so the sections are
+   addressable rather than only scrollable, and so the protocol notes are one
+   click from anywhere. --fg on --bg is 7.33:1. */
+.topnav {
+    background: var(--bg);
+    border-bottom: 2px solid var(--panel);
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+}
+.topnav .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    padding-top: 13px;
+    padding-bottom: 13px;
+}
+.topnav a {
+    color: var(--fg);
+    text-decoration: none;
+}
+.topnav a:hover,
+.topnav a:focus-visible,
+.topnav a[aria-current="page"] {
+    color: var(--hot);
+}
+
 /* Hero */
 .hero {
     background: var(--screen);
