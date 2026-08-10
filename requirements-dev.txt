@@ -20,4 +20,7 @@ clang-format==21.1.8
 # (packaging/make-og.py), which also needs fonttools to read the pixel font.
 # Pillow 11.3 and later can write AVIF without a separate plugin.
 pillow==12.3.0
-fonttools==4.60.1
+# 4.60.2 is the fix for CVE-2025-66034, an arbitrary file write reachable
+# through a malicious .designspace file. Nothing here opens one, so this was a
+# dependency alert rather than an exposure, but the fix is a patch release.
+fonttools==4.60.2
