@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Driving a SidStation over ASID: timing and write behaviour</title>
+        <meta
+            name="description"
+            content="Writes apply one message late, updates cap at about one per SID frame, and the 6581 envelope can swallow a note. What it takes to drive ASID from a DAW."
+        />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="theme-color" content="#463ea4" />
+        <meta name="color-scheme" content="dark" />
+        <link rel="canonical" href="https://benjamindehli.github.io/sidstation-asid/asid-timing/" />
+
+        <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="manifest" href="../site.webmanifest" />
+        <link rel="preload" href="../assets/fonts/SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="SidStation ASID" />
+        <meta property="og:title" content="Driving a SidStation over ASID: timing and write behaviour" />
+        <meta
+            property="og:description"
+            content="Writes apply one message late, updates cap at about one per SID frame, and the 6581 envelope can swallow a note. What it takes to drive ASID from a DAW."
+        />
+        <meta property="og:url" content="https://benjamindehli.github.io/sidstation-asid/asid-timing/" />
+        <meta property="og:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:alt" content="SidStation ASID, a plugin that plays the three SID voices of the Elektron SidStation" />
+        <meta property="og:locale" content="en_US" />
+
+        <!-- Twitter / X Card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Driving a SidStation over ASID: timing and write behaviour" />
+        <meta
+            name="twitter:description"
+            content="Writes apply one message late, updates cap at about one per SID frame, and the 6581 envelope can swallow a note. What it takes to drive ASID from a DAW."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta name="twitter:site" content="@BenjaminDehli" />
+        <meta name="twitter:creator" content="@BenjaminDehli" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "TechArticle",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/asid-timing/#article",
+                        "headline": "Driving a SidStation over ASID: timing and write behaviour",
+                        "description": "Behaviour you have to design around when streaming ASID to an Elektron SidStation from a DAW: writes apply one message late, the unit accepts roughly one update per SID frame, the 6581 envelope rate counter can swallow a note, and MIDI cannot be sent from the audio thread. Validated on OS 1.11 R34.",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/asid-timing/",
+                        "inLanguage": "en",
+                        "datePublished": "2026-08-10",
+                        "dateModified": "2026-08-10",
+                        "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+                        "publisher": { "@id": "https://www.dehlimusikk.no/" },
+                        "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "proficiencyLevel": "Expert",
+                        "keywords": "ASID timing, SID register streaming, MOS6581 ADSR bug, one message late, SidStation, MIDI scheduling, JUCE, audio thread",
+                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                        "mainEntityOfPage": "https://benjamindehli.github.io/sidstation-asid/asid-timing/"
+                    },
+                    {
+                        "@type": "Person",
+                        "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                        "name": "Benjamin Dehli",
+                        "url": "https://www.dehlimusikk.no/"
+                    },
+                    {
+                        "@type": "Organization",
+                        "@id": "https://www.dehlimusikk.no/",
+                        "name": "Dehli Musikk",
+                        "url": "https://www.dehlimusikk.no/"
+                    }
+                ]
+            }
+        </script>
+        <link rel="stylesheet" href="../css/docs.css" />
+    </head>
+    <body>
+        <nav class="topnav" aria-label="Site sections">
+            <div class="wrap">
+                <a href="../#what">What it is</a>
+                <a href="../#features">Features</a>
+                <a href="../#tabs">The four tabs</a>
+                <a href="../#install">Install</a>
+                <a href="../#build">Build</a>
+                <a href="../protocol/">Protocol notes</a>
+                <a href="../troubleshooting/">Troubleshooting</a>
+                <a href="./" aria-current="page">ASID timing</a>
+            </div>
+        </nav>
+        <header class="hero">
+            <div class="wrap">
+                <h1>ASID timing</h1>
+                <p class="tag">Getting the frames right is the easy half. This is the behaviour you have to design around.</p>
+                <div>
+                    <a class="btn ghost" href="../protocol/">Protocol notes</a>
+                    <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid/tree/main/core">Read the code</a>
+                </div>
+            </div>
+        </header>
+        <main>
+            <section id="one-message-late">
+                <div class="wrap">
+                    <h2>Writes apply one message late</h2>
+                    <p class="lead">
+                        This is the single most important thing on this page, and everything below is a consequence of it. A write you send does not
+                        take effect when it arrives. It takes effect when the <em>next</em> message arrives behind it.
+                    </p>
+                    <p class="lead">
+                        A lone write therefore hangs pending, indefinitely, until something else happens to follow it. That is why a note-off can
+                        leave a voice sounding forever, and why a correct-looking stream produces the previous note instead of the current one.
+                    </p>
+                    <p class="lead">
+                        For gating, the way through is to write the control register twice inside a single frame, through its primary slot and then
+                        its secondary slot, so the unit applies them in order within that one frame. A note-on writes gate low then high, retriggering
+                        the envelope atomically. A note-off writes gate low twice. A plain single control write is not applied reliably. In this
+                        codebase that is <code>encodeAsidDoubleControl</code>.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="update-rate">
+                <div class="wrap">
+                    <h2>About one update per SID frame</h2>
+                    <p class="lead">
+                        The unit applies roughly one ASID update per SID frame, near 50 Hz at PAL. Exceed that and updates are dropped, not queued.
+                    </p>
+                    <p class="lead">
+                        The trap is sending each modulation source as its own frame at its own rate. Pitch, pulse width, cutoff and a wavetable each
+                        streaming independently will overrun the limit as soon as two of them run fast, and the symptom is not a clean slowdown: one
+                        source starves and lurches between values while another looks fine.
+                    </p>
+                    <p class="lead">
+                        Run one modulation clock for the whole voice instead. Each tick, sample every source, collect the SID registers that actually
+                        changed, and send a single combined frame. The frame rate is then fixed regardless of how many modulations are active.
+                    </p>
+                </div>
+            </section>
+
+            <section id="frame-order">
+                <div class="wrap">
+                    <h2>End every frame with the control register</h2>
+                    <p class="lead">
+                        Because of the one-message-late rule, the last slot in a frame is the one left pending. So the last slot should be the one you
+                        least mind waiting, and it should be something that flushes everything before it.
+                    </p>
+                    <p class="lead">
+                        The failure this prevents is subtle. SID frequency is 16 bit across two registers. A frame writing only the two frequency
+                        bytes leaves the high byte last, so the oscillator runs with the new low byte and the <em>old</em> high byte until the next
+                        frame arrives, which is a wrong intermediate pitch. On one voice the next frame comes on schedule and it is barely audible.
+                        With two voices interleaving, the flush lands at uneven times and the glide sounds sluggish, worse at lower modulation rates.
+                        The MIDI meter stays low throughout, because it is a timing problem and not a traffic one.
+                    </p>
+                    <p class="lead">
+                        Ending each frame with the voice's control register, the highest slot, flushes the frequency and pulse width bytes ahead of it
+                        within the same frame. Note-on frames never had the problem because they already end in control writes.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="even-flow">
+                <div class="wrap">
+                    <h2>Every sounding voice has to keep streaming</h2>
+                    <p class="lead">
+                        A voice that modulates sends a steady flow of frames. A voice merely holding a note sends almost nothing. Put those two
+                        together and the quiet voice is the one that breaks: its sparse writes get flushed at unpredictable times by the busy voice's
+                        traffic.
+                    </p>
+                    <p class="lead">
+                        The shape of the bug is a good tell. No modulation on either voice is fine. Modulation on both is fine. Modulation on exactly
+                        one mangles the other. Keeping every sounding voice streaming its frequency each tick, modulated or not, evens out the frame
+                        flow and they all flush cleanly.
+                    </p>
+                </div>
+            </section>
+
+            <section id="envelope">
+                <div class="wrap">
+                    <h2>The 6581 envelope can swallow a note</h2>
+                    <p class="lead">
+                        The envelope generator shares one rate counter. If a new attack arrives when that counter is parked past the new period, the
+                        counter has to run its entire 32767 count sequence before the envelope moves at all. At the PAL clock that is up to about 33
+                        ms, and the note is silent for it.
+                    </p>
+                    <p class="lead">
+                        It tracks the <strong>decay</strong> setting rather than the envelope level, which is what makes it confusing to diagnose.
+                        Decay 0 never drops.
+                    </p>
+                    <p class="lead">Three things help, and they compose:</p>
+                    <p class="lead">
+                        At sustain 15 the decay is inaudible, since the envelope decays from peak to peak. Sending decay 0 there is sonically
+                        identical and starves the bug of its input.
+                    </p>
+                    <p class="lead">
+                        For a fresh attack landing while a previous note still rings, drain first: force the release nibble to 0 and take the gate
+                        low, then flush that write a few milliseconds later so it actually applies, then attack. Note that a drain is only worth doing
+                        if there is room ahead of the note for it. Stealing that room by delaying the note is worse than not draining, because the
+                        note's own modulation frames will gate the voice on early and the drain's gate-low then cuts it, heard as a burst and then
+                        silence.
+                    </p>
+                    <p class="lead">
+                        After a release has finished fading, park the release nibble at 0. It is inaudible, since the envelope is already at zero, but
+                        it leaves the counter cycling on a short period, so the next attack needs no wrap however long the gap. Where draining needs
+                        room before a note, this uses the time after one, of which there is plenty.
+                    </p>
+                    <p class="lead">
+                        Do not retrigger on legato. If a note is already sounding on that oscillator, retune it by writing frequency only and leave
+                        the gate high. Reloading the rate counter is what creates the risk, so a note that never reloads it cannot stall.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="threading">
+                <div class="wrap">
+                    <h2>Do not send MIDI from the audio thread</h2>
+                    <p class="lead">
+                        Sending real-time MIDI from inside the audio callback perturbs the host's audio and MIDI clock. In Logic on the Mac's built-in
+                        audio it raises "Error while trying to synchronize Audio and MIDI", and it fires with tiny traffic, independent of buffer
+                        size. Standalone stays clean, so it is not load.
+                    </p>
+                    <p class="lead">
+                        Push each frame, with its absolute send time, into a ring buffer and let a dedicated sender thread drain it into a time
+                        ordered queue and do the actual device I/O. The audio callback then never touches the MIDI API.
+                    </p>
+                    <p class="lead">
+                        One detail in that queue is easy to miss and expensive to debug:
+                        <strong>break ties by an insertion sequence number, not by time alone</strong>. A note-on emits several frames sharing one
+                        timestamp, and a plain priority queue is free to reorder equal keys. Reordering them scrambles the one-message-late mechanism,
+                        and the audible result is the <em>previous</em> note playing on fast passages, masked whenever a modulation stream happens to
+                        supply follow-up messages.
+                    </p>
+                </div>
+            </section>
+
+            <section id="host-time">
+                <div class="wrap">
+                    <h2>You may not get a host clock</h2>
+                    <p class="lead">
+                        Logic's AU does not give JUCE a per block host timestamp. It is absent in every transport and selection state, so wall clock
+                        scheduling against the host is simply not available there. The playhead position is available, and that is what you have to
+                        build on.
+                    </p>
+                    <p class="lead">
+                        That matters more than it sounds, because hosts do not render every instrument track at the same point relative to the
+                        playhead. Logic renders the selected track live and other instrument tracks ahead of it, so sending immediately makes
+                        unselected tracks play early, and two instances disagree purely because of which track you clicked on.
+                    </p>
+                    <p class="lead">
+                        The way out is to schedule against the playhead rather than against arrival: have the instances share the minimum offset
+                        between playhead and wall clock, which is the live track's mapping, and schedule every note against that shared reference.
+                        Ahead tracks then delay themselves back into line. A user facing latency trim on top absorbs the remaining offset against the
+                        audio path.
+                    </p>
+                    <p class="lead spaced">
+                        All of this was validated against one unit on OS 1.11 R34, in Logic and Standalone. The implementation is in
+                        <a href="https://github.com/benjamindehli/sidstation-asid/tree/main/core">core/</a> and the plugin's processor, and the frame
+                        format itself is in the <a href="../protocol/">protocol notes</a>. If your firmware behaves differently,
+                        <a href="https://github.com/benjamindehli/sidstation-asid/issues">say so on the issue tracker</a>.
+                    </p>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <div class="wrap">
+                <p class="pixel">Dehli Musikk</p>
+                <p>
+                    SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>, licensed under
+                    the <a href="https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE">GNU GPL v3</a>.
+                </p>
+                <p>
+                    An independent project, not affiliated with, endorsed or supported by Elektron. SidStation and SID are trademarks of their
+                    respective owners.
+                </p>
+            </div>
+        </footer>
+    </body>
+</html>

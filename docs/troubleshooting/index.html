@@ -94,6 +94,7 @@
                 <a href="../#build">Build</a>
                 <a href="../protocol/">Protocol notes</a>
                 <a href="./" aria-current="page">Troubleshooting</a>
+                <a href="../asid-timing/">ASID timing</a>
             </div>
         </nav>
         <header class="hero">
@@ -170,8 +171,14 @@
                     </p>
                     <p class="lead">
                         What is left is a genuine hardware limit: a high decay with sustain below 15, where the decay is audible and cannot be zeroed
-                        for you. On fast parts, keep decay lower. The plugin also holds a new attack until the gate has been low long enough for the
-                        unit to accept it, so fast staccato on one voice is handled, at the cost of the second note starting fractionally late.
+                        for you. On fast parts, keep decay lower.
+                    </p>
+                    <p class="lead">
+                        There is a second defence worth knowing about, because you control how well it works. When a new note arrives while the
+                        previous one is still releasing, the plugin drains the envelope to zero just before the attack, so the counter is cycling on a
+                        short period by the time the note starts. That drain needs a few milliseconds of room ahead of the note, and it only ever uses
+                        room that already exists, from the host's render lookahead or from the Latency you have dialled in. It never delays the note
+                        to make room. So if notes still drop on fast parts, raising Latency gives the drain somewhere to happen.
                     </p>
                 </div>
             </section>

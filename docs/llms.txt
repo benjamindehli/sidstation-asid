@@ -18,6 +18,7 @@ Current release is 1.1.0 (2026-08-09), licensed GPL v3, by Benjamin Dehli under 
 - [README](https://github.com/benjamindehli/sidstation-asid/blob/main/README.md): the same ground in more detail, plus the repository layout and build instructions.
 - [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/): what talking to real hardware turned up, including the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and findings from four real patch banks.
 - [Troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/): no sound, only one voice, notes dropping on fast passages, uneven modulation, and trimming note timing against a DAW.
+- [ASID timing](https://benjamindehli.github.io/sidstation-asid/asid-timing/): the behaviour to design around when streaming ASID from a DAW. Writes apply one message late, the unit accepts about one update per SID frame, the 6581 envelope rate counter can swallow a note, and MIDI must not be sent from the audio thread.
 - [Protocol source](https://github.com/benjamindehli/sidstation-asid/blob/main/core/README.md): the same ground alongside the code that implements it.
 - [Releases](https://github.com/benjamindehli/sidstation-asid/releases/latest): the signed and notarized macOS DMG, the Windows setup installer and the Linux tarball.
 
