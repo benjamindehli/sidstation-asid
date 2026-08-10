@@ -69,11 +69,11 @@ The settings the SID shares across all three voices. Filter has per voice routin
 
 ## Layout
 
-| Directory | What it is                                                                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------- |
+| Directory | What it is                                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `core/`   | Framework agnostic C++17 library for the SidStation MIDI, SysEx and ASID protocols, with no dependencies and its own tests. |
-| `asid/`   | The plugin itself, including its JUCE UI and MIDI device layer.                                             |
-| `probe/`  | Command line tool for checking the protocol against real hardware.                                          |
+| `asid/`   | The plugin itself, including its JUCE UI and MIDI device layer.                                                             |
+| `probe/`  | Command line tool for checking the protocol against real hardware.                                                          |
 
 ## Build
 

@@ -13,6 +13,7 @@ Needs:              pip install Pillow fonttools
 
 Edit TEXT below to change the wording, palette or layout, then re-run.
 """
+
 from pathlib import Path
 
 from fontTools.ttLib import TTFont
@@ -24,7 +25,7 @@ ICON = ROOT / "asid/assets/AppIcon.png"
 OUT = ROOT / "docs/og-cover.png"
 
 W, H = 1200, 630  # the Open Graph standard size
-SCREEN = (70, 62, 164)   # SID screen blue (matches the site --screen)
+SCREEN = (70, 62, 164)  # SID screen blue (matches the site --screen)
 WHITE = (255, 255, 255)
 TEAL = (60, 184, 166)
 LIGHT = (183, 179, 238)
@@ -65,7 +66,7 @@ def bitmap(ch):
             crossings = 0
             start = 0
             for end in ends:
-                pts = coords[start:end + 1]
+                pts = coords[start : end + 1]
                 n = len(pts)
                 for i in range(n):
                     x1, y1 = pts[i]

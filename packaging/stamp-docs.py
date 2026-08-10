@@ -19,6 +19,7 @@ Run from anywhere:  python3 packaging/stamp-docs.py [--version X.Y.Z] [--date YY
 makes this usable as a CI guard as well as a fixer. Exits 0 with no changes
 when the files are already correct, so the workflow can commit conditionally.
 """
+
 import argparse
 import datetime
 import os
@@ -71,17 +72,28 @@ def main():
         date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
 
     targets = [
-        (INDEX, [
-            (r'("softwareVersion":\s*")[^"]*(")', rf'\g<1>{version}\g<2>'),
-            (r'("dateModified":\s*")[^"]*(")', rf'\g<1>{date}\g<2>'),
-        ]),
-        (SITEMAP, [
-            (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{date}\g<2>"),
-        ]),
-        (LLMS, [
-            (r"(Current release is )\d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)",
-             rf"\g<1>{version} ({date})"),
-        ]),
+        (
+            INDEX,
+            [
+                (r'("softwareVersion":\s*")[^"]*(")', rf"\g<1>{version}\g<2>"),
+                (r'("dateModified":\s*")[^"]*(")', rf"\g<1>{date}\g<2>"),
+            ],
+        ),
+        (
+            SITEMAP,
+            [
+                (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{date}\g<2>"),
+            ],
+        ),
+        (
+            LLMS,
+            [
+                (
+                    r"(Current release is )\d+\.\d+\.\d+ \(\d{4}-\d{2}-\d{2}\)",
+                    rf"\g<1>{version} ({date})",
+                ),
+            ],
+        ),
     ]
 
     stale = []

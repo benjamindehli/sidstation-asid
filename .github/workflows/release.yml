@@ -240,7 +240,7 @@ jobs:
     runs-on: windows-latest
     defaults:
       run:
-        shell: bash  # Git Bash, so grep/cp/tar behave like the other jobs
+        shell: bash # Git Bash, so grep/cp/tar behave like the other jobs
     steps:
       - uses: actions/checkout@v5
 

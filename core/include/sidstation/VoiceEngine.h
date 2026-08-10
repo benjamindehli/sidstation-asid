@@ -24,48 +24,48 @@ namespace sidstation {
 int sidNoteFromMidi(int midiNote, int offset = 12);
 
 enum class VoiceMode {
-    PerChannel,  // MIDI channel 1, 2, 3 drive oscillator 1, 2, 3, each monophonic
+  PerChannel, // MIDI channel 1, 2, 3 drive oscillator 1, 2, 3, each monophonic
 };
 
 // One instruction for one oscillator.
 struct VoiceAction {
-    int  oscillator = 0;     // 0..2
-    bool gateOn = false;     // true to sound the note, false to release it
-    bool retrigger = true;   // gate-on only: false = true legato (retune, keep the
-                             // envelope running); true = re-attack the envelope
-    int  sidNote = 0;        // OSC_TRACK fixed note value, valid when gateOn
-    int  midiNote = -1;      // the source MIDI note
-    int  velocity = 0;       // the source velocity, when gateOn
+  int oscillator = 0;    // 0..2
+  bool gateOn = false;   // true to sound the note, false to release it
+  bool retrigger = true; // gate-on only: false = true legato (retune, keep the
+                         // envelope running); true = re-attack the envelope
+  int sidNote = 0;       // OSC_TRACK fixed note value, valid when gateOn
+  int midiNote = -1;     // the source MIDI note
+  int velocity = 0;      // the source velocity, when gateOn
 };
 
 class VoiceEngine {
 public:
-    void setMode(VoiceMode m) { mode = m; }
-    VoiceMode getMode() const { return mode; }
+  void setMode(VoiceMode m) { mode = m; }
+  VoiceMode getMode() const { return mode; }
 
-    void setNoteOffset(int o) { offset = o; }
-    int noteOffset() const { return offset; }
+  void setNoteOffset(int o) { offset = o; }
+  int noteOffset() const { return offset; }
 
-    // Feed MIDI note events (channel is 0 based). Each call returns the actions
-    // to apply, usually zero or one.
-    std::vector<VoiceAction> noteOn(int channel, int midiNote, int velocity);
-    std::vector<VoiceAction> noteOff(int channel, int midiNote);
+  // Feed MIDI note events (channel is 0 based). Each call returns the actions
+  // to apply, usually zero or one.
+  std::vector<VoiceAction> noteOn(int channel, int midiNote, int velocity);
+  std::vector<VoiceAction> noteOff(int channel, int midiNote);
 
-    // Releases every held note across all oscillators.
-    std::vector<VoiceAction> allNotesOff();
+  // Releases every held note across all oscillators.
+  std::vector<VoiceAction> allNotesOff();
 
-    // Clears all state without emitting actions.
-    void reset();
+  // Clears all state without emitting actions.
+  void reset();
 
 private:
-    int oscForChannel(int channel) const;
+  int oscForChannel(int channel) const;
 
-    VoiceMode mode = VoiceMode::PerChannel;
-    int offset = 12;
+  VoiceMode mode = VoiceMode::PerChannel;
+  int offset = 12;
 
-    // Per oscillator stack of held notes, newest at the back, for last note
-    // priority with legato fall back to the previously held note.
-    std::array<std::vector<int>, 3> held;
+  // Per oscillator stack of held notes, newest at the back, for last note
+  // priority with legato fall back to the previously held note.
+  std::array<std::vector<int>, 3> held;
 };
 
-}  // namespace sidstation
+} // namespace sidstation

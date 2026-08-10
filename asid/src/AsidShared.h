@@ -19,251 +19,302 @@
 
 class AsidShared {
 public:
-    struct Client {
-        virtual ~Client() = default;
-        // Read AsidShared::get() values and apply them to this instance.
-        virtual void sharedUpdated() = 0;
-        // Which SID voice this instance drives (0..2), or -1 until it registers one.
-        // It lives on the client, and is atomic, so setting it needs no lock: the
-        // voice is an automatable parameter, so the audio thread can set it, and the
-        // client-list lock is held across sharedUpdated callbacks (see publish).
-        std::atomic<int> sharedVoice{-1};
-    };
+  struct Client {
+    virtual ~Client() = default;
+    // Read AsidShared::get() values and apply them to this instance.
+    virtual void sharedUpdated() = 0;
+    // Which SID voice this instance drives (0..2), or -1 until it registers
+    // one. It lives on the client, and is atomic, so setting it needs no lock:
+    // the voice is an automatable parameter, so the audio thread can set it,
+    // and the client-list lock is held across sharedUpdated callbacks (see
+    // publish).
+    std::atomic<int> sharedVoice{-1};
+  };
 
-    static AsidShared& get() {
-        // Heap-allocated and intentionally never destroyed. The shared MidiHub's
-        // MidiOutput must not be torn down at process exit: JUCE's CoreMIDI cleanup
-        // then messages already-finalized Objective-C state and crashes the host on
-        // quit. A static-lifetime instance would run that teardown via __cxa_finalize;
-        // leaking it lets the OS reclaim everything at exit with no teardown.
-        static AsidShared* instance = new AsidShared();
-        return *instance;
-    }
+  static AsidShared &get() {
+    // Heap-allocated and intentionally never destroyed. The shared MidiHub's
+    // MidiOutput must not be torn down at process exit: JUCE's CoreMIDI cleanup
+    // then messages already-finalized Objective-C state and crashes the host on
+    // quit. A static-lifetime instance would run that teardown via
+    // __cxa_finalize; leaking it lets the OS reclaim everything at exit with no
+    // teardown.
+    static AsidShared *instance = new AsidShared();
+    return *instance;
+  }
 
-    AsidShared() {
-        for (int v = 0; v < 3; ++v) { voiceNote[v] = -1; voiceSeenMs[v] = 0.0; releaseGenV[v] = 0; }
-        watchdog.startThread();  // never stopped (this singleton is intentionally leaked)
+  AsidShared() {
+    for (int v = 0; v < 3; ++v) {
+      voiceNote[v] = -1;
+      voiceSeenMs[v] = 0.0;
+      releaseGenV[v] = 0;
     }
+    watchdog.startThread(); // never stopped (this singleton is intentionally
+                            // leaked)
+  }
 
-    // Per-voice stuck-note watchdog. Each instance reports its voice's held note (or
-    // -1) every processBlock; the watchdog thread - which stays alive even when a DAW
-    // suspends an unselected track's processBlock and its editor timer - releases a
-    // voice that stops being reported while a note is held. releaseGen(voice) bumps
-    // when it does, so the instance clears its stale note on resume (no re-gate).
-    void reportVoiceNote(int voice, int note, double nowMs) {
-        if (voice < 0 || voice > 2) return;
-        voiceSeenMs[voice].store(nowMs, std::memory_order_relaxed);
-        voiceNote[voice].store(note, std::memory_order_relaxed);
-    }
-    int releaseGen(int voice) const {
-        return (voice >= 0 && voice < 3) ? releaseGenV[voice].load(std::memory_order_relaxed) : 0;
-    }
-    // Release every voice right now (manual Panic button).
-    void panicAllVoices() {
-        const double now = juce::Time::getMillisecondCounterHiRes();
-        lastPanicMs.store(now, std::memory_order_relaxed);
-        for (int v = 0; v < 3; ++v) releaseStuckVoice(v, now);
-    }
-    // Same, for transport stop: every instance hits this on the same block, and a
-    // burst of overlapping panics overruns the unit (a single one commits fine), so
-    // the first instance wins the race and the rest skip.
-    void panicOnStop() {
-        const double now = juce::Time::getMillisecondCounterHiRes();
-        double last = lastPanicMs.load(std::memory_order_relaxed);
-        if (now - last < 150.0) return;
-        if (!lastPanicMs.compare_exchange_strong(last, now)) return;
-        for (int v = 0; v < 3; ++v) releaseStuckVoice(v, now);
-    }
+  // Per-voice stuck-note watchdog. Each instance reports its voice's held note
+  // (or -1) every processBlock; the watchdog thread - which stays alive even
+  // when a DAW suspends an unselected track's processBlock and its editor timer
+  // - releases a voice that stops being reported while a note is held.
+  // releaseGen(voice) bumps when it does, so the instance clears its stale note
+  // on resume (no re-gate).
+  void reportVoiceNote(int voice, int note, double nowMs) {
+    if (voice < 0 || voice > 2)
+      return;
+    voiceSeenMs[voice].store(nowMs, std::memory_order_relaxed);
+    voiceNote[voice].store(note, std::memory_order_relaxed);
+  }
+  int releaseGen(int voice) const {
+    return (voice >= 0 && voice < 3)
+               ? releaseGenV[voice].load(std::memory_order_relaxed)
+               : 0;
+  }
+  // Release every voice right now (manual Panic button).
+  void panicAllVoices() {
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    lastPanicMs.store(now, std::memory_order_relaxed);
+    for (int v = 0; v < 3; ++v)
+      releaseStuckVoice(v, now);
+  }
+  // Same, for transport stop: every instance hits this on the same block, and a
+  // burst of overlapping panics overruns the unit (a single one commits fine),
+  // so the first instance wins the race and the rest skip.
+  void panicOnStop() {
+    const double now = juce::Time::getMillisecondCounterHiRes();
+    double last = lastPanicMs.load(std::memory_order_relaxed);
+    if (now - last < 150.0)
+      return;
+    if (!lastPanicMs.compare_exchange_strong(last, now))
+      return;
+    for (int v = 0; v < 3; ++v)
+      releaseStuckVoice(v, now);
+  }
 
-    static bool isShared(const juce::String& id) {
-        return id == "cutoff" || id == "resonance" || id == "volume" || id == "latency"
-            || id == "filt1" || id == "filt2" || id == "filt3" || id == "filtExt"
-            || id == "modeLP" || id == "modeBP" || id == "modeHP" || id == "voice3off"
-            || id == "modRate";
+  static bool isShared(const juce::String &id) {
+    return id == "cutoff" || id == "resonance" || id == "volume" ||
+           id == "latency" || id == "filt1" || id == "filt2" || id == "filt3" ||
+           id == "filtExt" || id == "modeLP" || id == "modeBP" ||
+           id == "modeHP" || id == "voice3off" || id == "modRate";
+  }
+
+  void addClient(Client *c) {
+    const juce::ScopedLock sl(lock);
+    clients.addIfNotAlreadyThere(c);
+  }
+  void removeClient(Client *c) {
+    const juce::ScopedLock sl(lock);
+    clients.removeFirstMatchingValue(c);
+  }
+
+  // ---- Voice ownership (which instance drives which SID voice 0..2) ----
+  // Each instance registers the voice it drives, so the editor can mark and
+  // block voices already taken by another instance (one instance per voice).
+  static void setClientVoice(Client *c, int voice) {
+    if (c != nullptr)
+      c->sharedVoice.store(voice, std::memory_order_relaxed);
+  }
+  // How many instances drive a voice, optionally excluding one (to answer "is
+  // any OTHER instance already on this voice?"). Message thread (the editor's
+  // timer).
+  int usersOnVoice(int voice, const Client *except = nullptr) const {
+    const juce::ScopedLock sl(lock);
+    int n = 0;
+    for (auto *c : clients)
+      if (c != except &&
+          c->sharedVoice.load(std::memory_order_relaxed) == voice)
+        ++n;
+    return n;
+  }
+
+  // Stores new shared values and tells every client except the source. routing
+  // and mode are 3-bit masks (voice 1/2/3, and LP/BP/HP which combine).
+  void publish(int cutoff_, int resonance_, int mode_, int routing_,
+               int volume_, int latency_, int modRate_, Client *source) {
+    cutoff.store(cutoff_);
+    resonance.store(resonance_);
+    mode.store(mode_);
+    routing.store(routing_);
+    volume.store(volume_);
+    latency.store(latency_);
+    modRate.store(modRate_);
+    hasData.store(true);
+
+    // Notify while HOLDING the lock. Copying the list and calling afterwards
+    // left a window where an instance could run its whole destructor (including
+    // removeClient) between the copy and the call, leaving us to invoke
+    // sharedUpdated on freed memory.
+    //
+    // Safe to hold here because every other user of this lock does short,
+    // callback-free work on the message thread (addClient, removeClient,
+    // usersOnVoice), and nothing on the audio thread takes it at all - which is
+    // why setClientVoice moved onto the client as an atomic.
+    // juce::CriticalSection is re-entrant, so a client that sets a parameter
+    // and comes back round through parameterChanged -> publish on this same
+    // thread does not deadlock; its echo guard (value already equals
+    // valueFor(id)) stops it recursing.
+    //
+    // Indexed loop, re-reading size(): a future client that registers from
+    // inside sharedUpdated would then append rather than invalidate an
+    // iterator.
+    //
+    // Residual trade-off: a host automating a shared parameter calls this on
+    // the AUDIO thread, so it can wait on a UI-driven publish that is holding
+    // the lock across setValueNotifyingHost. Short in practice. The clean
+    // answer, if it ever bites, is to defer the notification to the message
+    // thread, which is where setValueNotifyingHost belongs anyway.
+    const juce::ScopedLock sl(lock);
+    for (int i = 0; i < clients.size(); ++i)
+      if (auto *c = clients[i]; c != nullptr && c != source)
+        c->sharedUpdated();
+  }
+
+  int valueFor(const juce::String &id) const {
+    if (id == "cutoff")
+      return cutoff.load();
+    if (id == "resonance")
+      return resonance.load();
+    if (id == "volume")
+      return volume.load();
+    if (id == "latency")
+      return latency.load();
+    if (id == "modRate")
+      return modRate.load();
+    if (id == "filt1")
+      return (routing.load() >> 0) & 1;
+    if (id == "filt2")
+      return (routing.load() >> 1) & 1;
+    if (id == "filt3")
+      return (routing.load() >> 2) & 1;
+    if (id == "filtExt")
+      return (routing.load() >> 3) & 1;
+    if (id == "modeLP")
+      return (mode.load() >> 0) & 1;
+    if (id == "modeBP")
+      return (mode.load() >> 1) & 1;
+    if (id == "modeHP")
+      return (mode.load() >> 2) & 1;
+    if (id == "voice3off")
+      return (mode.load() >> 3) & 1;
+    return -1;
+  }
+
+  // Playhead-to-wall alignment. Each instance reports its block's offset
+  // (playheadMs - wallMs) while playing. The running minimum since the last
+  // reset is the true song-to-wall mapping: it is captured at playback start,
+  // before the host ramps its render lookahead, so it holds even when no track
+  // is live to anchor it. Reset on transport start or a jump.
+  void resetPlayReference() { refOffsetMs.store(1.0e18); }
+  void reportPlayOffset(double offsetMs) {
+    double cur = refOffsetMs.load();
+    while (offsetMs < cur &&
+           !refOffsetMs.compare_exchange_weak(cur, offsetMs)) {
     }
+  }
+  double playOffset() const { return refOffsetMs.load(); }
 
-    void addClient(Client* c) {
-        const juce::ScopedLock sl(lock);
-        clients.addIfNotAlreadyThere(c);
-    }
-    void removeClient(Client* c) {
-        const juce::ScopedLock sl(lock);
-        clients.removeFirstMatchingValue(c);
-    }
+  // Cutoff is one shared filter, so only one instance may modulate it at a
+  // time. An instance claims it while its LFO targets cutoff; others targeting
+  // cutoff stay idle until it is free.
+  bool claimCutoffMod(Client *c) {
+    Client *expected = nullptr;
+    return cutoffModOwner.load() == c ||
+           cutoffModOwner.compare_exchange_strong(expected, c);
+  }
+  void releaseCutoffMod(Client *c) {
+    Client *self = c;
+    cutoffModOwner.compare_exchange_strong(self, nullptr);
+  }
+  bool isCutoffModOwner(Client *c) const { return cutoffModOwner.load() == c; }
+  bool cutoffModActive() const { return cutoffModOwner.load() != nullptr; }
 
-    // ---- Voice ownership (which instance drives which SID voice 0..2) ----
-    // Each instance registers the voice it drives, so the editor can mark and block
-    // voices already taken by another instance (one instance per voice).
-    static void setClientVoice(Client* c, int voice) {
-        if (c != nullptr) c->sharedVoice.store(voice, std::memory_order_relaxed);
-    }
-    // How many instances drive a voice, optionally excluding one (to answer "is any
-    // OTHER instance already on this voice?"). Message thread (the editor's timer).
-    int usersOnVoice(int voice, const Client* except = nullptr) const {
-        const juce::ScopedLock sl(lock);
-        int n = 0;
-        for (auto* c : clients)
-            if (c != except && c->sharedVoice.load(std::memory_order_relaxed) == voice) ++n;
-        return n;
-    }
+  // The filter routing (one bit per voice) and mode (LP/BP/HP, combinable) both
+  // live in registers shared by all voices, and any instance can edit any bit,
+  // so they are published as whole masks like cutoff and resonance.
+  std::atomic<int> cutoff{2047}, resonance{0}, mode{1},
+      volume{15}; // mode bit0 = LP
+  std::atomic<int> routing{0};
+  std::atomic<int> modRate{
+      1}; // shared modulation clock (0 Eco .. 3 Smooth), default PAL
+  std::atomic<int> latency{0}; // ms added to each note's scheduled play time
+  std::atomic<bool> hasData{false};
 
-    // Stores new shared values and tells every client except the source. routing
-    // and mode are 3-bit masks (voice 1/2/3, and LP/BP/HP which combine).
-    void publish(int cutoff_, int resonance_, int mode_, int routing_, int volume_, int latency_,
-                 int modRate_, Client* source) {
-        cutoff.store(cutoff_);
-        resonance.store(resonance_);
-        mode.store(mode_);
-        routing.store(routing_);
-        volume.store(volume_);
-        latency.store(latency_);
-        modRate.store(modRate_);
-        hasData.store(true);
+  std::atomic<double> refOffsetMs{1.0e18}; // running min of playheadMs - wallMs
+  std::atomic<Client *> cutoffModOwner{
+      nullptr}; // sole instance modulating the shared cutoff
 
-        // Notify while HOLDING the lock. Copying the list and calling afterwards left
-        // a window where an instance could run its whole destructor (including
-        // removeClient) between the copy and the call, leaving us to invoke
-        // sharedUpdated on freed memory.
-        //
-        // Safe to hold here because every other user of this lock does short,
-        // callback-free work on the message thread (addClient, removeClient,
-        // usersOnVoice), and nothing on the audio thread takes it at all - which is
-        // why setClientVoice moved onto the client as an atomic. juce::CriticalSection
-        // is re-entrant, so a client that sets a parameter and comes back round
-        // through parameterChanged -> publish on this same thread does not deadlock;
-        // its echo guard (value already equals valueFor(id)) stops it recursing.
-        //
-        // Indexed loop, re-reading size(): a future client that registers from inside
-        // sharedUpdated would then append rather than invalidate an iterator.
-        //
-        // Residual trade-off: a host automating a shared parameter calls this on the
-        // AUDIO thread, so it can wait on a UI-driven publish that is holding the lock
-        // across setValueNotifyingHost. Short in practice. The clean answer, if it ever
-        // bites, is to defer the notification to the message thread, which is where
-        // setValueNotifyingHost belongs anyway.
-        const juce::ScopedLock sl(lock);
-        for (int i = 0; i < clients.size(); ++i)
-            if (auto* c = clients[i]; c != nullptr && c != source) c->sharedUpdated();
-    }
+  // One MIDI output for every instance, so all voices' frames leave as a single
+  // time-ordered stream. Two independent senders to the SidStation interleave
+  // and confuse its one-message-late handling, which mangled notes when two
+  // voices played at once.
+  MidiHub out;
+  // Bumped when any instance (re)opens the shared device, so every instance
+  // re-pushes its voice setup (voices that initialised before it was open would
+  // otherwise stay silent).
+  std::atomic<int> outGeneration{0};
 
-    int valueFor(const juce::String& id) const {
-        if (id == "cutoff") return cutoff.load();
-        if (id == "resonance") return resonance.load();
-        if (id == "volume") return volume.load();
-        if (id == "latency") return latency.load();
-        if (id == "modRate") return modRate.load();
-        if (id == "filt1") return (routing.load() >> 0) & 1;
-        if (id == "filt2") return (routing.load() >> 1) & 1;
-        if (id == "filt3") return (routing.load() >> 2) & 1;
-        if (id == "filtExt") return (routing.load() >> 3) & 1;
-        if (id == "modeLP") return (mode.load() >> 0) & 1;
-        if (id == "modeBP") return (mode.load() >> 1) & 1;
-        if (id == "modeHP") return (mode.load() >> 2) & 1;
-        if (id == "voice3off") return (mode.load() >> 3) & 1;
-        return -1;
-    }
-
-    // Playhead-to-wall alignment. Each instance reports its block's offset
-    // (playheadMs - wallMs) while playing. The running minimum since the last
-    // reset is the true song-to-wall mapping: it is captured at playback start,
-    // before the host ramps its render lookahead, so it holds even when no track
-    // is live to anchor it. Reset on transport start or a jump.
-    void resetPlayReference() { refOffsetMs.store(1.0e18); }
-    void reportPlayOffset(double offsetMs) {
-        double cur = refOffsetMs.load();
-        while (offsetMs < cur && !refOffsetMs.compare_exchange_weak(cur, offsetMs)) {}
-    }
-    double playOffset() const { return refOffsetMs.load(); }
-
-    // Cutoff is one shared filter, so only one instance may modulate it at a
-    // time. An instance claims it while its LFO targets cutoff; others targeting
-    // cutoff stay idle until it is free.
-    bool claimCutoffMod(Client* c) {
-        Client* expected = nullptr;
-        return cutoffModOwner.load() == c || cutoffModOwner.compare_exchange_strong(expected, c);
-    }
-    void releaseCutoffMod(Client* c) {
-        Client* self = c;
-        cutoffModOwner.compare_exchange_strong(self, nullptr);
-    }
-    bool isCutoffModOwner(Client* c) const { return cutoffModOwner.load() == c; }
-    bool cutoffModActive() const { return cutoffModOwner.load() != nullptr; }
-
-    // The filter routing (one bit per voice) and mode (LP/BP/HP, combinable) both
-    // live in registers shared by all voices, and any instance can edit any bit,
-    // so they are published as whole masks like cutoff and resonance.
-    std::atomic<int> cutoff{2047}, resonance{0}, mode{1}, volume{15};  // mode bit0 = LP
-    std::atomic<int> routing{0};
-    std::atomic<int> modRate{1};  // shared modulation clock (0 Eco .. 3 Smooth), default PAL
-    std::atomic<int> latency{0};  // ms added to each note's scheduled play time
-    std::atomic<bool> hasData{false};
-
-    std::atomic<double> refOffsetMs{1.0e18};  // running min of playheadMs - wallMs
-    std::atomic<Client*> cutoffModOwner{nullptr};  // sole instance modulating the shared cutoff
-
-    // One MIDI output for every instance, so all voices' frames leave as a single
-    // time-ordered stream. Two independent senders to the SidStation interleave
-    // and confuse its one-message-late handling, which mangled notes when two
-    // voices played at once.
-    MidiHub out;
-    // Bumped when any instance (re)opens the shared device, so every instance
-    // re-pushes its voice setup (voices that initialised before it was open would
-    // otherwise stay silent).
-    std::atomic<int> outGeneration{0};
-
-    // Total bytes ever sent to the device across all instances. Monotonic, so an
-    // editor derives the current rate from the delta over its own poll interval.
-    // The SidStation's MIDI is 31250 baud, ~3125 bytes/sec, shared by every voice.
-    static constexpr double kMidiBytesPerSec = 3125.0;
-    std::atomic<long long> bytesSent{0};
-    void addBytes(int n) { bytesSent.fetch_add(n > 0 ? n : 0, std::memory_order_relaxed); }
+  // Total bytes ever sent to the device across all instances. Monotonic, so an
+  // editor derives the current rate from the delta over its own poll interval.
+  // The SidStation's MIDI is 31250 baud, ~3125 bytes/sec, shared by every
+  // voice.
+  static constexpr double kMidiBytesPerSec = 3125.0;
+  std::atomic<long long> bytesSent{0};
+  void addBytes(int n) {
+    bytesSent.fetch_add(n > 0 ? n : 0, std::memory_order_relaxed);
+  }
 
 private:
-    // Send a repeated, spaced hard gate-off (control register = 0: gate low, no
-    // waveform) so it commits on the SidStation's one-update-per-frame handling.
-    void releaseStuckVoice(int voice, double nowMs) {
-        voiceNote[voice].store(-1, std::memory_order_relaxed);
-        releaseGenV[voice].fetch_add(1, std::memory_order_relaxed);
-        const int base = sidstation::SidState::voiceBase(voice);
-        const auto frame = sidstation::encodeAsidUpdate(
-            {{static_cast<sidstation::Byte>(base + 4), static_cast<sidstation::Byte>(0)}});
-        // Repeat over a window longer than the note stream's max schedule-ahead (a
-        // playing track aligns frames up to ~500 ms into the future for the DAW's
-        // render-ahead). The first frame releases at once; later ones land after any
-        // gate-on frame still queued from before the stop, which would re-gate the
-        // voice. One frame per voice per step, so the density matches a clean Panic.
-        for (double t = 0.0; t <= 600.0; t += 30.0) {
-            juce::MidiBuffer buf;
-            buf.addEvent(juce::MidiMessage::createSysExMessage(frame.data() + 1,
-                             static_cast<int>(frame.size()) - 2), 0);
-            out.sendScheduled(buf, nowMs + t, 1000.0);
-        }
+  // Send a repeated, spaced hard gate-off (control register = 0: gate low, no
+  // waveform) so it commits on the SidStation's one-update-per-frame handling.
+  void releaseStuckVoice(int voice, double nowMs) {
+    voiceNote[voice].store(-1, std::memory_order_relaxed);
+    releaseGenV[voice].fetch_add(1, std::memory_order_relaxed);
+    const int base = sidstation::SidState::voiceBase(voice);
+    const auto frame =
+        sidstation::encodeAsidUpdate({{static_cast<sidstation::Byte>(base + 4),
+                                       static_cast<sidstation::Byte>(0)}});
+    // Repeat over a window longer than the note stream's max schedule-ahead (a
+    // playing track aligns frames up to ~500 ms into the future for the DAW's
+    // render-ahead). The first frame releases at once; later ones land after
+    // any gate-on frame still queued from before the stop, which would re-gate
+    // the voice. One frame per voice per step, so the density matches a clean
+    // Panic.
+    for (double t = 0.0; t <= 600.0; t += 30.0) {
+      juce::MidiBuffer buf;
+      buf.addEvent(juce::MidiMessage::createSysExMessage(
+                       frame.data() + 1, static_cast<int>(frame.size()) - 2),
+                   0);
+      out.sendScheduled(buf, nowMs + t, 1000.0);
     }
+  }
 
-    static constexpr double kNoteStallMs = 180.0;  // no report for this long -> release the voice
-    struct Watchdog : juce::Thread {
-        AsidShared& sh;
-        explicit Watchdog(AsidShared& s) : juce::Thread("SidStation note watchdog"), sh(s) {}
-        void run() override {
-            while (!threadShouldExit()) {
-                const double now = juce::Time::getMillisecondCounterHiRes();
-                for (int v = 0; v < 3; ++v)
-                    if (sh.voiceNote[v].load(std::memory_order_relaxed) >= 0
-                        && now - sh.voiceSeenMs[v].load(std::memory_order_relaxed) > kNoteStallMs)
-                        sh.releaseStuckVoice(v, now);
-                wait(40);
-            }
-        }
-    };
+  static constexpr double kNoteStallMs =
+      180.0; // no report for this long -> release the voice
+  struct Watchdog : juce::Thread {
+    AsidShared &sh;
+    explicit Watchdog(AsidShared &s)
+        : juce::Thread("SidStation note watchdog"), sh(s) {}
+    void run() override {
+      while (!threadShouldExit()) {
+        const double now = juce::Time::getMillisecondCounterHiRes();
+        for (int v = 0; v < 3; ++v)
+          if (sh.voiceNote[v].load(std::memory_order_relaxed) >= 0 &&
+              now - sh.voiceSeenMs[v].load(std::memory_order_relaxed) >
+                  kNoteStallMs)
+            sh.releaseStuckVoice(v, now);
+        wait(40);
+      }
+    }
+  };
 
-    // Guards the client list, and is held across sharedUpdated notifications so a
-    // client cannot be destroyed while one is in flight. Message thread only.
-    mutable juce::CriticalSection lock;
-    juce::Array<Client*> clients;
-    // Stuck-note watchdog state (see reportVoiceNote).
-    std::atomic<int> voiceNote[3];
-    std::atomic<double> voiceSeenMs[3];
-    std::atomic<int> releaseGenV[3];
-    std::atomic<double> lastPanicMs{-1.0e18};  // dedupe simultaneous transport-stop panics
-    Watchdog watchdog{*this};
+  // Guards the client list, and is held across sharedUpdated notifications so a
+  // client cannot be destroyed while one is in flight. Message thread only.
+  mutable juce::CriticalSection lock;
+  juce::Array<Client *> clients;
+  // Stuck-note watchdog state (see reportVoiceNote).
+  std::atomic<int> voiceNote[3];
+  std::atomic<double> voiceSeenMs[3];
+  std::atomic<int> releaseGenV[3];
+  std::atomic<double> lastPanicMs{
+      -1.0e18}; // dedupe simultaneous transport-stop panics
+  Watchdog watchdog{*this};
 };

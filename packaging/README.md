@@ -3,11 +3,11 @@
 The `Release` workflow (`.github/workflows/release.yml`) builds all three
 platforms and attaches their artifacts to the GitHub release:
 
-| Platform | Artifact | Signed |
-| --- | --- | --- |
-| macOS | `SidStation-ASID-x.y.z.dmg` (a `.pkg` inside a `.dmg`) | yes, signed and notarized |
-| Windows | `SidStation-ASID-x.y.z-setup.exe` (Inno Setup) | no |
-| Linux | `SidStation-ASID-x.y.z-linux-x86_64.tar.gz` | no |
+| Platform | Artifact                                               | Signed                    |
+| -------- | ------------------------------------------------------ | ------------------------- |
+| macOS    | `SidStation-ASID-x.y.z.dmg` (a `.pkg` inside a `.dmg`) | yes, signed and notarized |
+| Windows  | `SidStation-ASID-x.y.z-setup.exe` (Inno Setup)         | no                        |
+| Linux    | `SidStation-ASID-x.y.z-linux-x86_64.tar.gz`            | no                        |
 
 macOS is a universal (arm64 + x86_64) build. Windows and Linux build the VST3 and
 Standalone (AU is macOS only). The sections below cover the macOS signing setup;
@@ -19,11 +19,11 @@ The `.pkg` installs:
 
 The `.pkg` installs:
 
-| Item | Destination |
-| --- | --- |
-| `SidStation ASID.component` (AU) | `/Library/Audio/Plug-Ins/Components` |
-| `SidStation ASID.vst3` (VST3) | `/Library/Audio/Plug-Ins/VST3` |
-| `SidStation ASID.app` (Standalone) | `/Applications` |
+| Item                               | Destination                          |
+| ---------------------------------- | ------------------------------------ |
+| `SidStation ASID.component` (AU)   | `/Library/Audio/Plug-Ins/Components` |
+| `SidStation ASID.vst3` (VST3)      | `/Library/Audio/Plug-Ins/VST3`       |
+| `SidStation ASID.app` (Standalone) | `/Applications`                      |
 
 ## One-time setup
 
@@ -37,15 +37,15 @@ Export the **Application** certificate (with its private key) from Keychain
 Access as a `.p12`, then add these as repository secrets
 (Settings -> Secrets and variables -> Actions):
 
-| Secret | What it is |
-| --- | --- |
-| `MACOS_CERT_P12` | base64 of the Application `.p12` (`base64 -i cert.p12 \| pbcopy`) |
-| `MACOS_CERT_PASSWORD` | the `.p12` password |
-| `MACOS_SIGN_IDENTITY` | e.g. `Developer ID Application: Your Name (TEAMID)` |
-| `MACOS_INSTALLER_IDENTITY` | e.g. `Developer ID Installer: Your Name (TEAMID)` |
-| `APPLE_ID` | your Apple-ID email (for notarization) |
-| `APPLE_TEAM_ID` | your 10-character team id |
-| `APPLE_APP_PASSWORD` | an app-specific password from appleid.apple.com |
+| Secret                     | What it is                                                        |
+| -------------------------- | ----------------------------------------------------------------- |
+| `MACOS_CERT_P12`           | base64 of the Application `.p12` (`base64 -i cert.p12 \| pbcopy`) |
+| `MACOS_CERT_PASSWORD`      | the `.p12` password                                               |
+| `MACOS_SIGN_IDENTITY`      | e.g. `Developer ID Application: Your Name (TEAMID)`               |
+| `MACOS_INSTALLER_IDENTITY` | e.g. `Developer ID Installer: Your Name (TEAMID)`                 |
+| `APPLE_ID`                 | your Apple-ID email (for notarization)                            |
+| `APPLE_TEAM_ID`            | your 10-character team id                                         |
+| `APPLE_APP_PASSWORD`       | an app-specific password from appleid.apple.com                   |
 
 The installer certificate's private key must be in the same `.p12` (export both
 certs together, or add the installer `.p12` too). If any secret is missing the

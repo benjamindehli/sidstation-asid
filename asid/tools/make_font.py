@@ -13,6 +13,7 @@ than the letters around it) to the left.
 Run from anywhere:  python3 asid/tools/make_font.py
 Requires:  pip install pillow fonttools
 """
+
 import os
 
 from PIL import Image
@@ -24,12 +25,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SHEET = os.path.join(ROOT, "asid", "tools", "characters.png")
 OUT = os.path.join(ROOT, "asid", "assets", "SidStationC64.ttf")
 
-PX = 100                 # font units per source pixel
-CELL = 8                 # 8x8 source grid
-EM = PX * CELL           # 800 units per em
-ASCENT = PX * 7          # 7 px above the baseline
-DESCENT = PX * 1         # 1 px below (the bottom grid row)
-ADVANCE = PX * CELL      # monospaced: the full 8 px cell
+PX = 100  # font units per source pixel
+CELL = 8  # 8x8 source grid
+EM = PX * CELL  # 800 units per em
+ASCENT = PX * 7  # 7 px above the baseline
+DESCENT = PX * 1  # 1 px below (the bottom grid row)
+ADVANCE = PX * CELL  # monospaced: the full 8 px cell
 
 
 def codepoint_map():
@@ -123,16 +124,19 @@ def main():
     fb.setupHorizontalMetrics(metrics)
 
     fb.setupHorizontalHeader(ascent=ASCENT, descent=-DESCENT)
-    fb.setupNameTable({
-        "familyName": "SidStation C64",
-        "styleName": "Regular",
-        "psName": "SidStationC64-Regular",
-        "fullName": "SidStation C64",
-        "version": "Version 1.1",
-        "copyright": "PETSCII 8x8 bitmap redrawn for SidStation ASID",
-    })
-    fb.setupOS2(sTypoAscender=ASCENT, sTypoDescender=-DESCENT,
-               usWinAscent=ASCENT, usWinDescent=DESCENT)
+    fb.setupNameTable(
+        {
+            "familyName": "SidStation C64",
+            "styleName": "Regular",
+            "psName": "SidStationC64-Regular",
+            "fullName": "SidStation C64",
+            "version": "Version 1.1",
+            "copyright": "PETSCII 8x8 bitmap redrawn for SidStation ASID",
+        }
+    )
+    fb.setupOS2(
+        sTypoAscender=ASCENT, sTypoDescender=-DESCENT, usWinAscent=ASCENT, usWinDescent=DESCENT
+    )
     fb.setupPost()
     fb.save(OUT)
 
