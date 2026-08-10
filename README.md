@@ -69,11 +69,11 @@ The settings the SID shares across all three voices. Filter has per voice routin
 
 ## Layout
 
-| Directory | What it is                                                                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------- |
+| Directory | What it is                                                                                                                  |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `core/`   | Framework agnostic C++17 library for the SidStation MIDI, SysEx and ASID protocols, with no dependencies and its own tests. |
-| `asid/`   | The plugin itself, including its JUCE UI and MIDI device layer.                                             |
-| `probe/`  | Command line tool for checking the protocol against real hardware.                                          |
+| `asid/`   | The plugin itself, including its JUCE UI and MIDI device layer.                                                             |
+| `probe/`  | Command line tool for checking the protocol against real hardware.                                                          |
 
 ## Build
 
@@ -91,6 +91,16 @@ To run the core library tests without JUCE:
 ```sh
 cd core && make test
 ```
+
+## Formatting
+
+Three languages, three formatters, one command:
+
+```sh
+make format
+```
+
+clang-format handles the C++ in stock LLVM style, Prettier the docs site and Markdown and workflow YAML, and Ruff formats and lints the Python tools. The first run installs them into `node_modules` and `.venv`, pinned so a local run and a CI run agree. CI runs `make format-check`, which is the same thing without writing.
 
 ## Hardware notes
 

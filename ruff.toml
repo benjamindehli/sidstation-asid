@@ -1,0 +1,32 @@
+# Ruff formats and lints the Python tools: the docs stamper, the OG image
+# builder and the font builder. Dev/CI only, never a runtime dependency, since
+# the plugin ships no Python at all. MIT licensed.
+#
+#   make format         # rewrite in place
+#   make format-check   # check formatting, then lint (this is what CI runs)
+#
+# Pinned to one Ruff version in requirements-dev.txt, because the formatter's
+# output changes between releases.
+#
+# Targeting Python 3.9 so it never suggests 3.10+ syntax. Nothing here needs to
+# be newer: these are short scripts run by the release workflow and by hand, so
+# the floor is whatever system python3 a contributor already has.
+target-version = "py39"
+
+# Not ours to format: build output, the pinned tool venv, and the copyrighted
+# Elektron manual working directory.
+extend-exclude = ["build", ".venv", "temp"]
+
+# 100 rather than the default 88, which is the width the existing scripts were
+# already written to. Keeps the formatter from wrapping argparse and f-string
+# lines that read fine as they are.
+line-length = 100
+
+[lint]
+# A bug catcher, not a style enforcer: the formatter above already settles
+# layout, so the lint rules are left to the ones that find real defects.
+# pyflakes (F: undefined names, unused imports and variables), syntax and IO
+# errors (E9), and the high-signal flake8-bugbear (B) checks. Deliberately no
+# E501, since the formatter owns line length and a lint error on top of that is
+# just noise.
+select = ["F", "E9", "B"]

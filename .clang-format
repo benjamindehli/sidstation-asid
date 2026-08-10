@@ -1,0 +1,18 @@
+# C++ formatting for the plugin, the core library, the probe tool and the tests.
+#
+#   make format         # rewrite the tracked C++ in place
+#   make format-check   # fail if anything is unformatted (this is what CI runs)
+#
+# Editors pick this file up on their own: VS Code (C/C++ extension), CLion,
+# Xcode (with the ClangFormat plugin) and Vim all walk up from the edited file
+# looking for a .clang-format. Point yours at the pinned binary in .venv/bin so
+# it agrees with CI, because clang-format's output drifts between major versions.
+#
+# The style is stock LLVM, deliberately. Picking a published preset means the
+# rules are already documented and already familiar, and it keeps this file down
+# to one line that nobody has to maintain or argue about. The visible changes
+# from the old hand-formatted style are 2-space indents and an 80 column limit.
+# If those turn out to be too tight for the JUCE code, raise them here rather
+# than reformatting by hand: adding `IndentWidth: 4` and `ColumnLimit: 100` is
+# the whole change, and `make format` then makes the tree consistent again.
+BasedOnStyle: LLVM

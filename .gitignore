@@ -40,6 +40,13 @@ DerivedData/
 .AppleDouble
 .LSOverride
 
+# --- Formatter tooling ---
+# Installed by `make format`; the pinned versions live in package.json and
+# requirements-dev.txt, so these directories are reproducible and not tracked.
+# package-lock.json IS tracked, so npm resolves the same tree everywhere.
+node_modules/
+.venv/
+
 # --- IDEs ---
 .idea/
 .vscode/

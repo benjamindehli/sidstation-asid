@@ -1,308 +1,373 @@
 // A Commodore 64 flavoured look for the ASID editor: the classic blue screen,
 // light-blue foreground, blocky value bars and toggles, and a monospaced
-// (terminal) typeface. This only overrides drawing, never behaviour, so it drops
-// on and off cleanly. The SID heritage of the SidStation is the point.
+// (terminal) typeface. This only overrides drawing, never behaviour, so it
+// drops on and off cleanly. The SID heritage of the SidStation is the point.
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include "BinaryData.h"  // embedded SidStationC64.ttf (the PETSCII pixel font)
+#include "BinaryData.h" // embedded SidStationC64.ttf (the PETSCII pixel font)
 
 class SidLookAndFeel : public juce::LookAndFeel_V4 {
 public:
-    // C64 screen palette.
-    static constexpr juce::uint32 kBg    = 0xff463ea4;  // screen blue (darker shade)
-    static constexpr juce::uint32 kPanel = 0xff383382;  // slightly darker inset
-    static constexpr juce::uint32 kFg    = 0xff8781e3;  // light blue (text, outlines, border)
-    static constexpr juce::uint32 kDim   = 0xff6461bd;  // dimmed light blue (disabled)
-    static constexpr juce::uint32 kHot   = 0xffffffff;  // white highlight (pointers, text)
-    static constexpr juce::uint32 kAccent = 0xff3cb8a6; // teal (Voice 1) default accent
+  // C64 screen palette.
+  static constexpr juce::uint32 kBg = 0xff463ea4; // screen blue (darker shade)
+  static constexpr juce::uint32 kPanel = 0xff383382; // slightly darker inset
+  static constexpr juce::uint32 kFg =
+      0xff8781e3; // light blue (text, outlines, border)
+  static constexpr juce::uint32 kDim =
+      0xff6461bd; // dimmed light blue (disabled)
+  static constexpr juce::uint32 kHot =
+      0xffffffff; // white highlight (pointers, text)
+  static constexpr juce::uint32 kAccent =
+      0xff3cb8a6; // teal (Voice 1) default accent
 
-    SidLookAndFeel() {
-        setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(kBg));
-        setColour(juce::Label::textColourId, juce::Colour(kFg));
-        setColour(juce::Slider::textBoxTextColourId, juce::Colour(kHot));
-        setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(kFg));
-        setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(kPanel));
-        setColour(juce::ComboBox::backgroundColourId, juce::Colour(kPanel));
-        setColour(juce::ComboBox::textColourId, juce::Colour(kFg));
-        setColour(juce::ComboBox::outlineColourId, juce::Colour(kFg));
-        setColour(juce::ComboBox::arrowColourId, juce::Colour(kFg));
-        setColour(juce::PopupMenu::backgroundColourId, juce::Colour(kPanel));
-        setColour(juce::PopupMenu::textColourId, juce::Colour(kFg));
-        setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(kFg));
-        setColour(juce::PopupMenu::highlightedTextColourId, juce::Colour(kBg));
-        setColour(juce::TextButton::buttonColourId, juce::Colour(kPanel));
-        setColour(juce::TextButton::textColourOffId, juce::Colour(kFg));
-        setColour(juce::TextButton::textColourOnId, juce::Colour(kBg));  // dark text on the light active fill
-        setColour(juce::ToggleButton::textColourId, juce::Colour(kFg));
-        setColour(juce::ToggleButton::tickColourId, juce::Colour(kHot));
-        setColour(juce::GroupComponent::outlineColourId, juce::Colour(kFg));
-        setColour(juce::GroupComponent::textColourId, juce::Colour(kHot));
-        // The value bubble shown while turning a knob (setPopupDisplayEnabled).
-        setColour(juce::BubbleComponent::backgroundColourId, juce::Colour(kPanel));
-        setColour(juce::BubbleComponent::outlineColourId, juce::Colour(kFg));
-        setColour(juce::TooltipWindow::backgroundColourId, juce::Colour(kPanel));
-        setColour(juce::TooltipWindow::outlineColourId, juce::Colour(kFg));
-        setColour(juce::TooltipWindow::textColourId, juce::Colour(kHot));
-    }
+  SidLookAndFeel() {
+    setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(kBg));
+    setColour(juce::Label::textColourId, juce::Colour(kFg));
+    setColour(juce::Slider::textBoxTextColourId, juce::Colour(kHot));
+    setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(kFg));
+    setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(kPanel));
+    setColour(juce::ComboBox::backgroundColourId, juce::Colour(kPanel));
+    setColour(juce::ComboBox::textColourId, juce::Colour(kFg));
+    setColour(juce::ComboBox::outlineColourId, juce::Colour(kFg));
+    setColour(juce::ComboBox::arrowColourId, juce::Colour(kFg));
+    setColour(juce::PopupMenu::backgroundColourId, juce::Colour(kPanel));
+    setColour(juce::PopupMenu::textColourId, juce::Colour(kFg));
+    setColour(juce::PopupMenu::highlightedBackgroundColourId,
+              juce::Colour(kFg));
+    setColour(juce::PopupMenu::highlightedTextColourId, juce::Colour(kBg));
+    setColour(juce::TextButton::buttonColourId, juce::Colour(kPanel));
+    setColour(juce::TextButton::textColourOffId, juce::Colour(kFg));
+    setColour(juce::TextButton::textColourOnId,
+              juce::Colour(kBg)); // dark text on the light active fill
+    setColour(juce::ToggleButton::textColourId, juce::Colour(kFg));
+    setColour(juce::ToggleButton::tickColourId, juce::Colour(kHot));
+    setColour(juce::GroupComponent::outlineColourId, juce::Colour(kFg));
+    setColour(juce::GroupComponent::textColourId, juce::Colour(kHot));
+    // The value bubble shown while turning a knob (setPopupDisplayEnabled).
+    setColour(juce::BubbleComponent::backgroundColourId, juce::Colour(kPanel));
+    setColour(juce::BubbleComponent::outlineColourId, juce::Colour(kFg));
+    setColour(juce::TooltipWindow::backgroundColourId, juce::Colour(kPanel));
+    setColour(juce::TooltipWindow::outlineColourId, juce::Colour(kFg));
+    setColour(juce::TooltipWindow::textColourId, juce::Colour(kHot));
+  }
 
-    juce::Font getSliderPopupFont(juce::Slider&) override { return mono(15.0f, true); }
+  juce::Font getSliderPopupFont(juce::Slider &) override {
+    return mono(15.0f, true);
+  }
 
-    // The active/value colour, set per plugin instance from its SID voice so the
-    // three windows are colour-coded. Defaults to the base accent.
-    juce::Colour accent{juce::Colour(kAccent)};
-    void setAccent(juce::Colour c) { accent = c; }
+  // The active/value colour, set per plugin instance from its SID voice so the
+  // three windows are colour-coded. Defaults to the base accent.
+  juce::Colour accent{juce::Colour(kAccent)};
+  void setAccent(juce::Colour c) { accent = c; }
 
-    // The embedded C64 PETSCII pixel typeface, loaded once. This is the SID's own
-    // machine's screen font, so all GUI text is in it.
-    //
-    // Heap-allocated and intentionally never destroyed. As a plain static, __cxa_finalize
-    // ran this Ptr's destructor at process exit, dropping the last reference to a
-    // CoreTextTypeface: ~Native -> hb_font_destroy -> CoreText TBaseFont::~TBaseFont ->
-    // CFDictionaryRemoveValue, into CoreText and CoreFoundation that AppKit had already
-    // finalized. That crashed Logic on quit. Leaking it lets the OS reclaim the memory
-    // at exit with no teardown - the same reasoning as AsidShared::get().
-    static const juce::Typeface::Ptr& c64Typeface() {
-        static auto* tf = new juce::Typeface::Ptr(juce::Typeface::createSystemTypefaceFor(
+  // The embedded C64 PETSCII pixel typeface, loaded once. This is the SID's own
+  // machine's screen font, so all GUI text is in it.
+  //
+  // Heap-allocated and intentionally never destroyed. As a plain static,
+  // __cxa_finalize ran this Ptr's destructor at process exit, dropping the last
+  // reference to a CoreTextTypeface: ~Native -> hb_font_destroy -> CoreText
+  // TBaseFont::~TBaseFont -> CFDictionaryRemoveValue, into CoreText and
+  // CoreFoundation that AppKit had already finalized. That crashed Logic on
+  // quit. Leaking it lets the OS reclaim the memory at exit with no teardown -
+  // the same reasoning as AsidShared::get().
+  static const juce::Typeface::Ptr &c64Typeface() {
+    static auto *tf =
+        new juce::Typeface::Ptr(juce::Typeface::createSystemTypefaceFor(
             BinaryData::SidStationC64_ttf, BinaryData::SidStationC64_ttfSize));
-        return *tf;
-    }
+    return *tf;
+  }
 
-    // One uniform text size for the whole GUI (labels, section titles, buttons, the
-    // product title). Twice the 8 px source cell, so the pixels stay crisp. The C64
-    // screen shows every character at one size, and we match that.
-    static constexpr float kTextPx = 16.0f;
+  // One uniform text size for the whole GUI (labels, section titles, buttons,
+  // the product title). Twice the 8 px source cell, so the pixels stay crisp.
+  // The C64 screen shows every character at one size, and we match that.
+  static constexpr float kTextPx = 16.0f;
 
-    // A single-weight, single-size pixel font: the height and bold arguments are
-    // ignored so every call renders at kTextPx (kept for call-site compatibility).
-    static juce::Font mono(float = kTextPx, bool = false) {
-        if (auto tf = c64Typeface())
-            return juce::Font(juce::FontOptions().withTypeface(tf).withHeight(kTextPx));
-        return juce::Font(juce::FontOptions()
-                              .withName(juce::Font::getDefaultMonospacedFontName())
-                              .withHeight(kTextPx));
-    }
+  // A single-weight, single-size pixel font: the height and bold arguments are
+  // ignored so every call renders at kTextPx (kept for call-site
+  // compatibility).
+  static juce::Font mono(float = kTextPx, bool = false) {
+    if (auto tf = c64Typeface())
+      return juce::Font(
+          juce::FontOptions().withTypeface(tf).withHeight(kTextPx));
+    return juce::Font(juce::FontOptions()
+                          .withName(juce::Font::getDefaultMonospacedFontName())
+                          .withHeight(kTextPx));
+  }
 
-    juce::Font getLabelFont(juce::Label& l) override { return mono(l.getFont().getHeight()); }
-    juce::Font getComboBoxFont(juce::ComboBox&) override { return mono(14.0f); }
-    juce::Font getPopupMenuFont() override { return mono(14.0f); }
-    juce::Font getTextButtonFont(juce::TextButton&, int) override { return mono(14.0f); }
+  juce::Font getLabelFont(juce::Label &l) override {
+    return mono(l.getFont().getHeight());
+  }
+  juce::Font getComboBoxFont(juce::ComboBox &) override { return mono(14.0f); }
+  juce::Font getPopupMenuFont() override { return mono(14.0f); }
+  juce::Font getTextButtonFont(juce::TextButton &, int) override {
+    return mono(14.0f);
+  }
 
-    // Value bar: the whole control is one field-height block. The unfilled part is
-    // a field (dark, kFg text) and the filled part is the accent (kBg text), so it
-    // reads exactly like an off/on button split at the value. The slider's name is
-    // drawn inside, two-toned across the split. A "sidBipolar" bar fills out from
-    // the centre. Value-while-dragging still shows in the popup bubble.
-    // No thumb margin: the value bars have no thumb and are drawn/hit full width, so
-    // a click maps linearly across the whole bar and matches the hover preview (the
-    // default margin made a drag near the ends run slightly ahead of the cursor).
-    int getSliderThumbRadius(juce::Slider&) override { return 0; }
+  // Value bar: the whole control is one field-height block. The unfilled part
+  // is a field (dark, kFg text) and the filled part is the accent (kBg text),
+  // so it reads exactly like an off/on button split at the value. The slider's
+  // name is drawn inside, two-toned across the split. A "sidBipolar" bar fills
+  // out from the centre. Value-while-dragging still shows in the popup bubble.
+  // No thumb margin: the value bars have no thumb and are drawn/hit full width,
+  // so a click maps linearly across the whole bar and matches the hover preview
+  // (the default margin made a drag near the ends run slightly ahead of the
+  // cursor).
+  int getSliderThumbRadius(juce::Slider &) override { return 0; }
 
-    void drawLinearSlider(juce::Graphics& g, int, int, int, int, float, float, float,
-                          juce::Slider::SliderStyle, juce::Slider& s) override {
-        const bool bipolar = static_cast<bool>(s.getProperties().getWithDefault("sidBipolar", false));
-        // Fill the whole component (JUCE insets the linear-slider track by a thumb
-        // margin; we want the bar flush with the buttons and toggles beside it).
-        const auto bar = s.getLocalBounds();
-        const int x = bar.getX(), y = bar.getY(), w = bar.getWidth(), h = bar.getHeight();
-        const auto name = s.getName();
+  void drawLinearSlider(juce::Graphics &g, int, int, int, int, float, float,
+                        float, juce::Slider::SliderStyle,
+                        juce::Slider &s) override {
+    const bool bipolar = static_cast<bool>(
+        s.getProperties().getWithDefault("sidBipolar", false));
+    // Fill the whole component (JUCE insets the linear-slider track by a thumb
+    // margin; we want the bar flush with the buttons and toggles beside it).
+    const auto bar = s.getLocalBounds();
+    const int x = bar.getX(), y = bar.getY(), w = bar.getWidth(),
+              h = bar.getHeight();
+    const auto name = s.getName();
 
-        // Disabled: a flat greyed bar with just the dim name (no accent/muted fill,
-        // which would otherwise hide the text behind a same-tone block).
-        if (!s.isEnabled()) {
-            g.setColour(disabledFill());
-            g.fillRect(bar);
-            if (name.isNotEmpty()) {
-                g.setFont(mono());
-                g.setColour(juce::Colour(kDim));
-                g.drawText(name, bar.reduced(4, 0), juce::Justification::centred, false);
-            }
-            return;
-        }
-
-        const float frac = (float) s.valueToProportionOfLength(s.getValue());
-        const int originX = x + (bipolar ? w / 2 : 0);        // where the fill grows from
-        const int curX = x + juce::roundToInt(w * frac);      // current value edge
-
-        // Hover preview: the muted accent shows the change a click would make. The
-        // accent is the current fill (origin -> value). On the SAME side of centre
-        // the muted region is the delta between the value and the cursor; on the
-        // OPPOSITE side (bipolar) it grows from the centre to the cursor instead.
-        auto span = [&](int a, int b) {
-            return juce::Rectangle<int>(juce::jmin(a, b), y, juce::jmax(a, b) - juce::jmin(a, b), h);
-        };
-        int accLo = juce::jmin(originX, curX), accHi = juce::jmax(originX, curX);
-        int mutLo = 0, mutHi = 0;
-        if (s.isMouseOver()) {
-            const int mx = juce::jlimit(x, x + w, s.getMouseXYRelative().getX());
-            if ((curX >= originX) == (mx >= originX)) {  // same side of centre
-                const bool valNearer = (juce::jmax(curX, originX) - juce::jmin(curX, originX))
-                                     <= (juce::jmax(mx, originX) - juce::jmin(mx, originX));
-                const int nearX = valNearer ? curX : mx, farX = valNearer ? mx : curX;
-                accLo = juce::jmin(originX, nearX); accHi = juce::jmax(originX, nearX);
-                mutLo = juce::jmin(nearX, farX);    mutHi = juce::jmax(nearX, farX);
-            } else {  // opposite side: muted grows from the centre to the cursor
-                mutLo = juce::jmin(originX, mx);    mutHi = juce::jmax(originX, mx);
-            }
-        }
-        const auto accented = span(accLo, accHi);  // bright accent (also the two-tone text region)
-
-        g.setColour(fieldFill());
-        g.fillRect(bar);
-        g.setColour(accent);
-        g.fillRect(accented);
-        if (mutHi > mutLo) { g.setColour(mutedAccent()); g.fillRect(span(mutLo, mutHi)); }  // the delta
-
-        if (name.isNotEmpty()) {
-            g.setFont(mono());
-            const auto txt = bar.reduced(4, 0);
-            g.setColour(juce::Colour(kFg));  // text over the unfilled / muted part
-            g.drawText(name, txt, juce::Justification::centred, false);
-            juce::Graphics::ScopedSaveState clip(g);  // over the bright accent part: inverted
-            g.reduceClipRegion(accented);
-            g.setColour(juce::Colour(kBg));
-            g.drawText(name, txt, juce::Justification::centred, false);
-        }
-    }
-
-    // Shared height for checkboxes, combo boxes, number boxes and buttons, so a
-    // row of mixed controls lines up.
-    static constexpr float kFieldH = 24.0f;
-    static constexpr float kCaptionH = 16.0f;  // one size for all caption labels
-
-    // Two backgrounds only (keeping it Commodore-spare): the screen (kBg) and one
-    // darker fill for every field, input and button. Active states use the accent.
-    static juce::Colour fieldFill() { return juce::Colour(kBg).darker(0.42f); }
-
-    // The "muted accent": a dimmed, desaturated accent used for the in-use (not
-    // selected) voice, for button hover, and for the slider hover preview. One
-    // formula so all three read as the same colour.
-    static juce::Colour muted(juce::Colour c) {
-        return c.withMultipliedSaturation(0.6f).withMultipliedBrightness(0.5f);
-    }
-    juce::Colour mutedAccent() const { return muted(accent); }
-
-    // Disabled controls: a desaturated, recessed fill clearly greyer than the
-    // (saturated) field, so a greyed control is obvious even when it is "off".
-    static juce::Colour disabledFill() {
-        return juce::Colour(kBg).withMultipliedSaturation(0.35f).darker(0.5f);
-    }
-
-    // Toggle drawn as a labelled button: it fills with the accent colour when on
-    // (inverting its text), like the tab buttons, so on/off controls have the same
-    // weight as everything else. "sidHighlight" marks the instance's own filter
-    // voice, shown with accent-coloured text on the normal field (no extra fill
-    // shade). An empty label gives a plain on/off cell (the wavetable step matrix).
-    void drawToggleButton(juce::Graphics& g, juce::ToggleButton& b, bool over, bool down) override {
-        const bool on = b.getToggleState();
-        const bool en = b.isEnabled();
-        const bool hi = static_cast<bool>(b.getProperties().getWithDefault("sidHighlight", false));
-        auto r = b.getLocalBounds().toFloat();
-        // Hover (either state) tints with the muted accent; pressed flashes full
-        // accent; otherwise on = accent, off = field.
-        const bool bright = en && (down || (on && !over));  // shows the full accent
-        if (!en)        g.setColour(disabledFill());  // greyed, whether on or off
-        else if (down)  g.setColour(accent);
-        else if (over)  g.setColour(mutedAccent());
-        else if (on)    g.setColour(accent);
-        else            g.setColour(fieldFill());
-        g.fillRect(r);
-        if (b.getButtonText().isNotEmpty()) {
-            // Faint on disabled; dark over the bright accent fill; white on hover;
-            // accent for the own filter voice (off); foreground otherwise.
-            g.setColour(!en ? juce::Colour(kDim) : bright ? juce::Colour(kBg)
-                      : over ? juce::Colour(kHot) : hi ? accent : juce::Colour(kFg));
-            g.setFont(mono());
-            g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
-                             juce::Justification::centred, 1, 1.0f);
-        }
-    }
-
-    // Labels come in two kinds: a slider's number text box (its parent is the
-    // Slider) draws as a field, matching the combo, checkbox and button look; a
-    // plain caption draws as text only. Detecting the parent is reliable, where
-    // guessing from the background colour was not.
-    void drawLabel(juce::Graphics& g, juce::Label& l) override {
-        const auto bounds = l.getLocalBounds();
-        const auto bg = l.findColour(juce::Label::backgroundColourId);
-        const bool field = !bg.isTransparent()
-                           || dynamic_cast<juce::Slider*>(l.getParentComponent()) != nullptr
-                           || static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
-        const float alpha = l.isEnabled() ? 1.0f : 0.5f;
-        if (field) {
-            g.setColour(bg.isTransparent() ? (l.isEnabled() ? fieldFill() : disabledFill()) : bg);
-            g.fillRect(bounds);
-        }
-        if (!l.isBeingEdited()) {
-            const auto font = mono();  // one uniform size for every label
-            g.setColour(l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
-            g.setFont(font);
-            auto textArea = bounds.reduced(field ? 3 : 0, 0);
-            g.drawFittedText(l.getText(), textArea, l.getJustificationType(),
-                             juce::jmax(1, (int) ((float) textArea.getHeight() / font.getHeight())),
-                             l.getMinimumHorizontalScale());
-        }
-    }
-
-    // Give the combo's selected text a little left padding so it is not jammed
-    // against the border, and leave room on the right for the arrow.
-    void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override {
-        label.setBounds(7, 1, box.getWidth() - 7 - 18, box.getHeight() - 2);
-        label.setFont(getComboBoxFont(box));
-    }
-
-    void drawComboBox(juce::Graphics& g, int w, int h, bool, int, int, int, int, juce::ComboBox& box) override {
-        auto r = juce::Rectangle<float>(0, 0, (float) w, (float) h);
-        g.setColour(box.isEnabled() ? fieldFill() : disabledFill());
-        g.fillRect(r);
-        // A blocky down chevron.
-        const float cx = w - 12.0f, cy = h * 0.5f;
-        juce::Path p;
-        p.addTriangle(cx - 4.0f, cy - 2.0f, cx + 4.0f, cy - 2.0f, cx, cy + 3.0f);
-        g.setColour(box.findColour(juce::ComboBox::arrowColourId).withAlpha(box.isEnabled() ? 1.0f : 0.5f));
-        g.fillPath(p);
-    }
-
-    void drawButtonBackground(juce::Graphics& g, juce::Button& b, const juce::Colour&,
-                              bool over, bool down) override {
-        auto r = b.getLocalBounds().toFloat();
-        const bool on = b.getToggleState();
-        // Hover tints with the muted accent (selected or not); pressed flashes full
-        // accent; an active tab fills with the accent too, matching selected toggles;
-        // otherwise a field.
-        if (!b.isEnabled())             g.setColour(disabledFill());
-        else if (down)                  g.setColour(accent);
-        else if (over)                  g.setColour(mutedAccent());
-        else if (on)                    g.setColour(accent);
-        else                            g.setColour(fieldFill());
-        g.fillRect(r);
-    }
-
-    // Text buttons (tabs, Init, Panic, the arp steppers) draw their own label so it
-    // uses the pixel font and fills the button width (the default inset clipped the
-    // one-character steppers to an ellipsis). Hover text is white so it stays
-    // readable on the muted-accent hover fill.
-    void drawButtonText(juce::Graphics& g, juce::TextButton& b, bool over, bool down) override {
-        const bool on = b.getToggleState();
+    // Disabled: a flat greyed bar with just the dim name (no accent/muted fill,
+    // which would otherwise hide the text behind a same-tone block).
+    if (!s.isEnabled()) {
+      g.setColour(disabledFill());
+      g.fillRect(bar);
+      if (name.isNotEmpty()) {
         g.setFont(mono());
-        auto col = (over || down) ? juce::Colour(kHot)
-                 : b.findColour(on ? juce::TextButton::textColourOnId : juce::TextButton::textColourOffId);
-        g.setColour(col.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.5f));
-        g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(3, 0),
-                         juce::Justification::centred, 1, 1.0f);
+        g.setColour(juce::Colour(kDim));
+        g.drawText(name, bar.reduced(4, 0), juce::Justification::centred,
+                   false);
+      }
+      return;
     }
 
-    // A section is just its title on the screen background; the controls below are
-    // grouped by spacing alone. No panel fill or outline (fewer shades, cleaner).
-    void drawGroupComponentOutline(juce::Graphics& g, int w, int h, const juce::String& text,
-                                   const juce::Justification&, juce::GroupComponent&) override {
-        juce::ignoreUnused(h);
-        if (text.isEmpty()) return;
-        const float titleH = kTextPx + 2.0f;
-        g.setFont(mono());
-        g.setColour(juce::Colour(kHot));
-        g.drawText(text, juce::Rectangle<float>(6.0f, 0.0f, w - 12.0f, titleH).getSmallestIntegerContainer(),
-                   juce::Justification::centredLeft, false);
+    const float frac = (float)s.valueToProportionOfLength(s.getValue());
+    const int originX = x + (bipolar ? w / 2 : 0); // where the fill grows from
+    const int curX = x + juce::roundToInt(w * frac); // current value edge
+
+    // Hover preview: the muted accent shows the change a click would make. The
+    // accent is the current fill (origin -> value). On the SAME side of centre
+    // the muted region is the delta between the value and the cursor; on the
+    // OPPOSITE side (bipolar) it grows from the centre to the cursor instead.
+    auto span = [&](int a, int b) {
+      return juce::Rectangle<int>(juce::jmin(a, b), y,
+                                  juce::jmax(a, b) - juce::jmin(a, b), h);
+    };
+    int accLo = juce::jmin(originX, curX), accHi = juce::jmax(originX, curX);
+    int mutLo = 0, mutHi = 0;
+    if (s.isMouseOver()) {
+      const int mx = juce::jlimit(x, x + w, s.getMouseXYRelative().getX());
+      if ((curX >= originX) == (mx >= originX)) { // same side of centre
+        const bool valNearer =
+            (juce::jmax(curX, originX) - juce::jmin(curX, originX)) <=
+            (juce::jmax(mx, originX) - juce::jmin(mx, originX));
+        const int nearX = valNearer ? curX : mx, farX = valNearer ? mx : curX;
+        accLo = juce::jmin(originX, nearX);
+        accHi = juce::jmax(originX, nearX);
+        mutLo = juce::jmin(nearX, farX);
+        mutHi = juce::jmax(nearX, farX);
+      } else { // opposite side: muted grows from the centre to the cursor
+        mutLo = juce::jmin(originX, mx);
+        mutHi = juce::jmax(originX, mx);
+      }
     }
+    const auto accented =
+        span(accLo, accHi); // bright accent (also the two-tone text region)
+
+    g.setColour(fieldFill());
+    g.fillRect(bar);
+    g.setColour(accent);
+    g.fillRect(accented);
+    if (mutHi > mutLo) {
+      g.setColour(mutedAccent());
+      g.fillRect(span(mutLo, mutHi));
+    } // the delta
+
+    if (name.isNotEmpty()) {
+      g.setFont(mono());
+      const auto txt = bar.reduced(4, 0);
+      g.setColour(juce::Colour(kFg)); // text over the unfilled / muted part
+      g.drawText(name, txt, juce::Justification::centred, false);
+      juce::Graphics::ScopedSaveState clip(
+          g); // over the bright accent part: inverted
+      g.reduceClipRegion(accented);
+      g.setColour(juce::Colour(kBg));
+      g.drawText(name, txt, juce::Justification::centred, false);
+    }
+  }
+
+  // Shared height for checkboxes, combo boxes, number boxes and buttons, so a
+  // row of mixed controls lines up.
+  static constexpr float kFieldH = 24.0f;
+  static constexpr float kCaptionH = 16.0f; // one size for all caption labels
+
+  // Two backgrounds only (keeping it Commodore-spare): the screen (kBg) and one
+  // darker fill for every field, input and button. Active states use the
+  // accent.
+  static juce::Colour fieldFill() { return juce::Colour(kBg).darker(0.42f); }
+
+  // The "muted accent": a dimmed, desaturated accent used for the in-use (not
+  // selected) voice, for button hover, and for the slider hover preview. One
+  // formula so all three read as the same colour.
+  static juce::Colour muted(juce::Colour c) {
+    return c.withMultipliedSaturation(0.6f).withMultipliedBrightness(0.5f);
+  }
+  juce::Colour mutedAccent() const { return muted(accent); }
+
+  // Disabled controls: a desaturated, recessed fill clearly greyer than the
+  // (saturated) field, so a greyed control is obvious even when it is "off".
+  static juce::Colour disabledFill() {
+    return juce::Colour(kBg).withMultipliedSaturation(0.35f).darker(0.5f);
+  }
+
+  // Toggle drawn as a labelled button: it fills with the accent colour when on
+  // (inverting its text), like the tab buttons, so on/off controls have the
+  // same weight as everything else. "sidHighlight" marks the instance's own
+  // filter voice, shown with accent-coloured text on the normal field (no extra
+  // fill shade). An empty label gives a plain on/off cell (the wavetable step
+  // matrix).
+  void drawToggleButton(juce::Graphics &g, juce::ToggleButton &b, bool over,
+                        bool down) override {
+    const bool on = b.getToggleState();
+    const bool en = b.isEnabled();
+    const bool hi = static_cast<bool>(
+        b.getProperties().getWithDefault("sidHighlight", false));
+    auto r = b.getLocalBounds().toFloat();
+    // Hover (either state) tints with the muted accent; pressed flashes full
+    // accent; otherwise on = accent, off = field.
+    const bool bright = en && (down || (on && !over)); // shows the full accent
+    if (!en)
+      g.setColour(disabledFill()); // greyed, whether on or off
+    else if (down)
+      g.setColour(accent);
+    else if (over)
+      g.setColour(mutedAccent());
+    else if (on)
+      g.setColour(accent);
+    else
+      g.setColour(fieldFill());
+    g.fillRect(r);
+    if (b.getButtonText().isNotEmpty()) {
+      // Faint on disabled; dark over the bright accent fill; white on hover;
+      // accent for the own filter voice (off); foreground otherwise.
+      g.setColour(!en      ? juce::Colour(kDim)
+                  : bright ? juce::Colour(kBg)
+                  : over   ? juce::Colour(kHot)
+                  : hi     ? accent
+                           : juce::Colour(kFg));
+      g.setFont(mono());
+      g.drawFittedText(b.getButtonText(), r.toNearestInt().reduced(2, 0),
+                       juce::Justification::centred, 1, 1.0f);
+    }
+  }
+
+  // Labels come in two kinds: a slider's number text box (its parent is the
+  // Slider) draws as a field, matching the combo, checkbox and button look; a
+  // plain caption draws as text only. Detecting the parent is reliable, where
+  // guessing from the background colour was not.
+  void drawLabel(juce::Graphics &g, juce::Label &l) override {
+    const auto bounds = l.getLocalBounds();
+    const auto bg = l.findColour(juce::Label::backgroundColourId);
+    const bool field =
+        !bg.isTransparent() ||
+        dynamic_cast<juce::Slider *>(l.getParentComponent()) != nullptr ||
+        static_cast<bool>(l.getProperties().getWithDefault("sidField", false));
+    const float alpha = l.isEnabled() ? 1.0f : 0.5f;
+    if (field) {
+      g.setColour(bg.isTransparent()
+                      ? (l.isEnabled() ? fieldFill() : disabledFill())
+                      : bg);
+      g.fillRect(bounds);
+    }
+    if (!l.isBeingEdited()) {
+      const auto font = mono(); // one uniform size for every label
+      g.setColour(
+          l.findColour(juce::Label::textColourId).withMultipliedAlpha(alpha));
+      g.setFont(font);
+      auto textArea = bounds.reduced(field ? 3 : 0, 0);
+      g.drawFittedText(
+          l.getText(), textArea, l.getJustificationType(),
+          juce::jmax(1, (int)((float)textArea.getHeight() / font.getHeight())),
+          l.getMinimumHorizontalScale());
+    }
+  }
+
+  // Give the combo's selected text a little left padding so it is not jammed
+  // against the border, and leave room on the right for the arrow.
+  void positionComboBoxText(juce::ComboBox &box, juce::Label &label) override {
+    label.setBounds(7, 1, box.getWidth() - 7 - 18, box.getHeight() - 2);
+    label.setFont(getComboBoxFont(box));
+  }
+
+  void drawComboBox(juce::Graphics &g, int w, int h, bool, int, int, int, int,
+                    juce::ComboBox &box) override {
+    auto r = juce::Rectangle<float>(0, 0, (float)w, (float)h);
+    g.setColour(box.isEnabled() ? fieldFill() : disabledFill());
+    g.fillRect(r);
+    // A blocky down chevron.
+    const float cx = w - 12.0f, cy = h * 0.5f;
+    juce::Path p;
+    p.addTriangle(cx - 4.0f, cy - 2.0f, cx + 4.0f, cy - 2.0f, cx, cy + 3.0f);
+    g.setColour(box.findColour(juce::ComboBox::arrowColourId)
+                    .withAlpha(box.isEnabled() ? 1.0f : 0.5f));
+    g.fillPath(p);
+  }
+
+  void drawButtonBackground(juce::Graphics &g, juce::Button &b,
+                            const juce::Colour &, bool over,
+                            bool down) override {
+    auto r = b.getLocalBounds().toFloat();
+    const bool on = b.getToggleState();
+    // Hover tints with the muted accent (selected or not); pressed flashes full
+    // accent; an active tab fills with the accent too, matching selected
+    // toggles; otherwise a field.
+    if (!b.isEnabled())
+      g.setColour(disabledFill());
+    else if (down)
+      g.setColour(accent);
+    else if (over)
+      g.setColour(mutedAccent());
+    else if (on)
+      g.setColour(accent);
+    else
+      g.setColour(fieldFill());
+    g.fillRect(r);
+  }
+
+  // Text buttons (tabs, Init, Panic, the arp steppers) draw their own label so
+  // it uses the pixel font and fills the button width (the default inset
+  // clipped the one-character steppers to an ellipsis). Hover text is white so
+  // it stays readable on the muted-accent hover fill.
+  void drawButtonText(juce::Graphics &g, juce::TextButton &b, bool over,
+                      bool down) override {
+    const bool on = b.getToggleState();
+    g.setFont(mono());
+    auto col = (over || down)
+                   ? juce::Colour(kHot)
+                   : b.findColour(on ? juce::TextButton::textColourOnId
+                                     : juce::TextButton::textColourOffId);
+    g.setColour(col.withMultipliedAlpha(b.isEnabled() ? 1.0f : 0.5f));
+    g.drawFittedText(b.getButtonText(), b.getLocalBounds().reduced(3, 0),
+                     juce::Justification::centred, 1, 1.0f);
+  }
+
+  // A section is just its title on the screen background; the controls below
+  // are grouped by spacing alone. No panel fill or outline (fewer shades,
+  // cleaner).
+  void drawGroupComponentOutline(juce::Graphics &g, int w, int h,
+                                 const juce::String &text,
+                                 const juce::Justification &,
+                                 juce::GroupComponent &) override {
+    juce::ignoreUnused(h);
+    if (text.isEmpty())
+      return;
+    const float titleH = kTextPx + 2.0f;
+    g.setFont(mono());
+    g.setColour(juce::Colour(kHot));
+    g.drawText(text,
+               juce::Rectangle<float>(6.0f, 0.0f, w - 12.0f, titleH)
+                   .getSmallestIntegerContainer(),
+               juce::Justification::centredLeft, false);
+  }
 };

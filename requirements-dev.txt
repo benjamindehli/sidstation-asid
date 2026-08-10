@@ -1,0 +1,16 @@
+# Dev tooling only. The Python here is build and packaging scripts, never
+# anything the plugin loads at runtime, so nothing in this file is a shipping
+# dependency of the plugin.
+#
+#   python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+#
+# Both are pinned exactly, because both change their output between releases and
+# an unpinned version would let `make format-check` pass locally and fail in CI.
+
+# Lints and formats the Python. See ruff.toml.
+ruff==0.14.5
+
+# Formats the C++. See .clang-format. This is the LLVM binary shipped as a
+# wheel, which is how it gets pinned without asking everyone to install LLVM.
+# The npm package of the same name is not used: it is stuck on clang-format 15.
+clang-format==21.1.8

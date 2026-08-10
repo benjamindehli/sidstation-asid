@@ -9,6 +9,30 @@ permissions:
   contents: read # least privilege: CI only checks out and builds
 
 jobs:
+  # Runs first because it is the cheapest signal: no compiler, no JUCE checkout,
+  # under a minute. Checks formatting for all three languages and lints the
+  # Python. Reproducible only because every formatter is pinned, in
+  # package-lock.json and requirements-dev.txt; an unpinned one would fail here
+  # on a contributor who did nothing wrong. Fix locally with `make format`.
+  format:
+    name: Formatting and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      # `make format-check` installs the pinned tools itself, into node_modules
+      # and .venv, so this is the same command run the same way as locally.
+      - name: Check formatting and lint
+        run: make format-check
+
   core-tests:
     name: Core protocol tests
     runs-on: ubuntu-latest

@@ -27,21 +27,21 @@
 namespace sidstation {
 
 struct Patch {
-    static constexpr std::size_t kNameLength = 10;
+  static constexpr std::size_t kNameLength = 10;
 
-    // Full logical patch-data byte array (index 0.. ). Bytes 0..9 hold the
-    // ASCII name. The remainder follow the patch-data layout on manual page 41.
-    Bytes data;
+  // Full logical patch-data byte array (index 0.. ). Bytes 0..9 hold the
+  // ASCII name. The remainder follow the patch-data layout on manual page 41.
+  Bytes data;
 
-    std::string name() const;
-    void setName(const std::string& n);  // padded/truncated to 10 chars
+  std::string name() const;
+  void setName(const std::string &n); // padded/truncated to 10 chars
 };
 
 // Builds a complete Patch Dump SysEx message from `patch`.
-Bytes encodePatchDump(const Patch& patch);
+Bytes encodePatchDump(const Patch &patch);
 
 // Parses a Patch Dump SysEx message. Returns nullopt on framing mismatch.
-std::optional<Patch> decodePatchDump(const Bytes& msg);
+std::optional<Patch> decodePatchDump(const Bytes &msg);
 
 // "Patch all clear" - wipes every patch position (manual page 39).
 Bytes encodePatchAllClear();
@@ -49,4 +49,4 @@ Bytes encodePatchAllClear();
 // "Skip Patch" - advances the current patch position (manual page 39).
 Bytes encodeSkipPatch();
 
-}  // namespace sidstation
+} // namespace sidstation
