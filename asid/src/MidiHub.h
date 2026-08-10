@@ -11,10 +11,10 @@
 // single producer - but the guarded section is a bounded memcpy with no allocation and
 // no syscall, which is what makes it usable from the audio callback.
 //
-// sendPaced / sendPacedMessages / sendMessage / sendSysEx are message-thread paths:
-// they take outputLock and build buffers, so they must not be called from the audio
-// thread. Incoming SysEx is decoded on JUCE's MIDI thread and handed to the listener,
-// which must be thread-aware.
+// Output only, and deliberately: this plugin streams ASID one way. The MIDI input,
+// patch-dump listener and paced bulk-send paths were for the patch editor this project
+// began as, and nothing called them any more, so they are gone. The protocol side of
+// that work still lives in core/ and is exercised by probe/ and the core tests.
 #pragma once
 
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -23,59 +23,26 @@
 #include <memory>
 #include <vector>
 
-#include "sidstation/Patch.h"
-#include "sidstation/SysEx.h"
-
-class MidiHub : private juce::MidiInputCallback {
+class MidiHub {
 public:
-    struct Listener {
-        virtual ~Listener() = default;
-        // Called on the MIDI thread when a complete patch dump arrives. `raw` is
-        // the exact SysEx bytes (F0..F7), suitable for writing straight to .syx.
-        virtual void midiPatchReceived(const sidstation::Patch& patch,
-                                       const sidstation::Bytes& raw) = 0;
-    };
-
     MidiHub() = default;
-    ~MidiHub() override;
-
-    void setListener(Listener* l) { listener = l; }
+    ~MidiHub();
 
     static juce::Array<juce::MidiDeviceInfo> availableOutputs() {
         return juce::MidiOutput::getAvailableDevices();
     }
-    static juce::Array<juce::MidiDeviceInfo> availableInputs() {
-        return juce::MidiInput::getAvailableDevices();
-    }
 
     bool openOutputByIdentifier(const juce::String& identifier);
-    bool openInputByIdentifier(const juce::String& identifier);
     // Open the first device whose name contains `nameSubstr` (case-insensitive).
     bool openOutputMatching(const juce::String& nameSubstr);
-    bool openInputMatching(const juce::String& nameSubstr);
     void closeOutput();
-    void closeInput();
 
     juce::String outputName() const { return outputInfo.name; }
-    juce::String inputName() const { return inputInfo.name; }
     juce::String outputIdentifier() const { return outputInfo.identifier; }
-    juce::String inputIdentifier() const { return inputInfo.identifier; }
     // Lock-free, so the audio thread can check it before building a frame. Kept in
     // step with `output` under outputLock.
     bool hasOutput() const { return outputOpen.load(std::memory_order_acquire); }
 
-    // Sends one complete SysEx message (bytes must be F0..F7).
-    void sendSysEx(const sidstation::Bytes& fullMessage);
-    // Sends an arbitrary MIDI message (used to drain queued edits).
-    void sendMessage(const juce::MidiMessage& m);
-    // Sends many complete SysEx messages with `delayMs` between each, timed on a
-    // background thread. The SidStation cannot receive bulk dumps at full MIDI
-    // speed (per Elektron's C6 tool, 5-50 ms between packets), so patch/bank
-    // transfers must be paced or they silently fail.
-    void sendPaced(const std::vector<sidstation::Bytes>& messages, int delayMs);
-    // Same idea for a list of arbitrary MIDI messages (used to pace a full CC
-    // parameter push).
-    void sendPacedMessages(const std::vector<juce::MidiMessage>& messages, int delayMs);
     // Delivers a block of MIDI on the background thread, timed to an absolute
     // wall-clock start (in the Time::getMillisecondCounter() base). Event sample
     // positions are offsets from that start at `sampleRate`. Used to align notes
@@ -83,8 +50,6 @@ public:
     void sendScheduled(const juce::MidiBuffer& buffer, double startTimeMs, double sampleRate);
 
 private:
-    void handleIncomingMidiMessage(juce::MidiInput*, const juce::MidiMessage&) override;
-
     // Off-audio-thread MIDI delivery. Producers (the audio callback and the mod
     // streams) push frames with an absolute send time into a lock-free FIFO; a
     // dedicated sender thread sends each at its time via sendMessageNow. This
@@ -115,11 +80,9 @@ private:
     void stopSender();
 
     std::unique_ptr<juce::MidiOutput> output;
-    std::unique_ptr<juce::MidiInput> input;
     // Mirrors `output != nullptr` for lock-free reads (see hasOutput).
     std::atomic<bool> outputOpen{false};
-    juce::MidiDeviceInfo outputInfo, inputInfo;
-    Listener* listener = nullptr;
+    juce::MidiDeviceInfo outputInfo;
     juce::CriticalSection outputLock;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MidiHub)
