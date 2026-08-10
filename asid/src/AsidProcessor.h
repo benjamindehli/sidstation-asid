@@ -235,6 +235,9 @@ private:
     // Gap between the fast-release write and the control re-write that commits it on
     // the one-message-late unit.
     static constexpr double kHardRestartFlushMs = 5.0;
+    // Below this much room ahead of the note there is no point draining: the two frames
+    // would land on top of the note-on rather than clearing the way for it.
+    static constexpr double kHardRestartMinMs = 12.0;
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double lastGateOffMs = -1.0e18;  // when this voice last released, to time hard restarts
     int lastPlaying = 0;          // transport state last block, to spot a start

@@ -823,27 +823,25 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         // long decay and release 0. There the generator sits in the long decay phase
         // while the note sounds, so the counter is large even though the release is the
         // fastest there is - and the old `rel > 0` guard skipped that case entirely.
+        // PRE-ROLL ONLY: the note itself must never be moved. noteOn mutates the stored
+        // SID state right here, while the frame carrying it is scheduled for `target`,
+        // and updateModulation broadcasts that SAME control register on its own clock
+        // from the stored state. Delay the note past its own modulation frames and they
+        // gate the voice on early, after which the drain's gate-low cuts it: heard as a
+        // short burst and then silence. So the drain only ever uses room that already
+        // exists ahead of the note - the host's render lookahead, or an Output Latency
+        // the user has dialled in - and is skipped when there is none.
         if (freshAttack && (target - lastGateOffMs) < sidReleaseMs(paramInt(pp.release)) + kAdsrWrapMs) {
-            const auto hr = asidPlayer.hardRestartFrames(voice);
+            const double room = target - juce::jmax(nowMs, voiceClockMs);
+            const auto hr = (room >= kHardRestartMinMs) ? asidPlayer.hardRestartFrames(voice)
+                                                        : std::vector<sidstation::Bytes>{};
             if (hr.size() == 2) {
-                const double preroll = kHardRestartFlushMs + kHardRestartMs;
-                // Put the drain BEFORE the note so the note keeps its time. There is
-                // room whenever the frame was aligned into the host's render lookahead,
-                // and also whenever the user has dialled in an Output Latency of at
-                // least this pre-roll, since that shifts every note into the future by
-                // the same amount. Live at zero latency, or on a retrigger so fast that
-                // the previous note's frames are still in the way, there is no room -
-                // and then the attack moves back instead, which is still better than a
-                // note that never sounds.
-                const double earliest = juce::jmax(nowMs, voiceClockMs);
-                double drainAt = target - preroll;
-                if (drainAt < earliest) {
-                    drainAt = earliest;
-                    target = drainAt + preroll;
-                }
+                // A partial drain is still worth having: it is the waiting that matters,
+                // and a short wait beats none. Never runs past the note.
+                const double drain = juce::jmin(room, kHardRestartFlushMs + kHardRestartMs);
+                const double drainAt = target - drain;
                 addFrame(out, hr[0], posOf(drainAt));
-                addFrame(out, hr[1], posOf(drainAt + kHardRestartFlushMs));
-                voiceClockMs = target;
+                addFrame(out, hr[1], posOf(drainAt + juce::jmin(kHardRestartFlushMs, drain * 0.25)));
             }
         }
 
