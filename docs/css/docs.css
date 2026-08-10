@@ -4,14 +4,26 @@
     font-display: swap;
 }
 
+/* Every text colour here clears WCAG AA (4.5:1) against every background it is
+   actually painted on, with the tightest pairing at 4.80. The constraint that
+   shapes the palette is --screen, the lighter panel behind .alt sections and the
+   hero: text that reads comfortably on --bg has far less room on --screen, so
+   that is the pairing to re-check before changing any of these. */
 :root {
     --bg: #2e2a63;
     --screen: #463ea4;
     --panel: #383382;
-    --fg: #b7b3ee;
+    --fg: #c2bef1;
+    /* Borders only. Too dark for text, which is what --muted is for. */
     --dim: #6461bd;
+    /* Footer text. Safe on --bg (4.92) and nowhere else: it drops to 3.22 on
+       --screen, so do not reach for it inside an .alt section. */
+    --muted: #9c9ad6;
     --hot: #ffffff;
+    /* Decoration: button fill, card rules. Fails as text on --screen at 3.46. */
     --teal: #3cb8a6;
+    /* The same teal lifted until it passes on --screen. Link text only. */
+    --link: #72d4c4;
     --red: #e0655f;
     --sand: #d9a441;
 }
@@ -48,7 +60,7 @@ body {
 }
 
 a {
-    color: var(--teal);
+    color: var(--link);
 }
 a:hover {
     color: var(--hot);
@@ -280,7 +292,7 @@ footer {
     border-top: 4px solid var(--panel);
     padding: 40px 0;
     text-align: center;
-    color: var(--dim);
+    color: var(--muted);
     font-size: 15px;
 }
 footer .pixel {
