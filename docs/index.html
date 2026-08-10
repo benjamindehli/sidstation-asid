@@ -17,7 +17,9 @@
         <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
         <link rel="manifest" href="site.webmanifest" />
-        <link rel="preload" href="SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
+        <!-- Kept in step with the @font-face src in css/docs.css. This href is relative to this
+             document, not to the stylesheet, so it has no ../ where the stylesheet does. -->
+        <link rel="preload" href="assets/fonts/SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
 
         <!-- Open Graph -->
         <meta property="og:type" content="website" />
