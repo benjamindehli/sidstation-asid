@@ -212,8 +212,9 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     presetNextBtn.onClick = [this] { cyclePreset(1); };
     addAndMakeVisible(presetSaveBtn);
     presetSaveBtn.onClick = [this] {
-        const auto name = presetBox.getText().trim();
-        if (name.isNotEmpty()) { proc.savePreset(name); refreshPresets(name); }
+        // Show the name it was stored under, not what was typed: savePreset sanitises
+        // the name into a legal filename, so the two can differ.
+        if (proc.savePreset(presetBox.getText())) refreshPresets(proc.currentPreset());
     };
     addAndMakeVisible(presetDeleteBtn);
     presetDeleteBtn.onClick = [this] {

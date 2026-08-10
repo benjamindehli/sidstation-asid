@@ -73,10 +73,20 @@ public:
     // in a user folder. Not the shared filter/volume, voice selection, or tempo.
     juce::File presetsDir() const;
     juce::StringArray presetNames() const;
-    void savePreset(const juce::String& name);
+    // Returns false if the name is unusable or the file could not be written; the
+    // stored name is presetKey(name), which is what currentPreset() then reports.
+    bool savePreset(const juce::String& name);
     bool loadPreset(const juce::String& name);
     void deletePreset(const juce::String& name);
     juce::String currentPreset() const { return currentPresetName; }
+    // A preset is a file named <key>.xml, so the name has to be a legal filename.
+    // juce::File::getChildFile honours "../" and absolute paths, so an unsanitised
+    // name could write outside the presets folder and then never show up in the
+    // list. createLegalFileName drops the separators that make that reachable, and
+    // is idempotent, so applying it twice is harmless.
+    static juce::String presetKey(const juce::String& name) {
+        return juce::File::createLegalFileName(name.trim());
+    }
 
     // Editor UI preference (persisted with the plugin state): show hover hints.
     bool showTooltips() const { return tooltipsOn; }
@@ -90,6 +100,10 @@ private:
         double lastMs = 0.0;
         sidstation::Bytes lastFrame;
     };
+
+    juce::File presetFile(const juce::String& name) const {
+        return presetsDir().getChildFile(presetKey(name) + ".xml");
+    }
 
     static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout();
     // Sends one ASID frame to the device now (from processBlock). Used for the

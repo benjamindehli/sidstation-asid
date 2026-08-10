@@ -564,22 +564,26 @@ juce::StringArray AsidProcessor::presetNames() const {
     return names;
 }
 
-void AsidProcessor::savePreset(const juce::String& name) {
-    const auto clean = name.trim();
-    if (clean.isEmpty()) return;
+bool AsidProcessor::savePreset(const juce::String& name) {
+    const auto key = presetKey(name);
+    if (key.isEmpty()) return false;
     juce::ValueTree tree("SidStationAsidPreset");
     for (auto* p : getParameters())
         if (auto* wid = dynamic_cast<juce::AudioProcessorParameterWithID*>(p))
             if (isVoiceSoundParam(wid->paramID) && apvts.getParameter(wid->paramID) != nullptr)
                 tree.setProperty(wid->paramID, paramFloat(wid->paramID), nullptr);  // raw value
-    if (auto xml = tree.createXml())
-        xml->writeTo(presetsDir().getChildFile(clean + ".xml"));
-    currentPresetName = clean;
+    const auto xml = tree.createXml();
+    // Only claim the preset once it is actually on disk, so a failed write does not
+    // leave the editor displaying a name that nothing can load.
+    if (xml == nullptr || !xml->writeTo(presetFile(key))) return false;
+    currentPresetName = key;
+    return true;
 }
 
 bool AsidProcessor::loadPreset(const juce::String& name) {
-    const auto file = presetsDir().getChildFile(name.trim() + ".xml");
-    auto xml = juce::XmlDocument::parse(file);
+    const auto key = presetKey(name);
+    if (key.isEmpty()) return false;
+    auto xml = juce::XmlDocument::parse(presetFile(key));
     if (xml == nullptr) return false;
     const auto tree = juce::ValueTree::fromXml(*xml);
     if (!tree.isValid()) return false;
@@ -590,14 +594,16 @@ bool AsidProcessor::loadPreset(const juce::String& name) {
         if (auto* p = apvts.getParameter(id))
             p->setValueNotifyingHost(p->convertTo0to1((float) tree.getProperty(id)));
     }
-    currentPresetName = name.trim();
+    currentPresetName = key;
     return true;
 }
 
 void AsidProcessor::deletePreset(const juce::String& name) {
-    const auto file = presetsDir().getChildFile(name.trim() + ".xml");
+    const auto key = presetKey(name);
+    if (key.isEmpty()) return;
+    const auto file = presetFile(key);
     if (file.existsAsFile()) file.moveToTrash();  // recoverable
-    if (currentPresetName == name.trim()) currentPresetName.clear();
+    if (currentPresetName == key) currentPresetName.clear();
 }
 
 
