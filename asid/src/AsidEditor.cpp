@@ -5,10 +5,6 @@
 
 namespace {
 
-// The content area inside a titled box: sides in, and below the title.
-juce::Rectangle<int> innerBox(juce::Rectangle<int> box) {
-    return box.reduced(10, 0).withTrimmedTop(22).withTrimmedBottom(8);
-}
 // Distinct accent per SID voice, so the three plugin windows are colour-coded.
 juce::Colour voiceColour(int v) {
     switch (v) {
@@ -483,8 +479,9 @@ AsidEditor::AsidEditor(AsidProcessor& p)
         wtPwKnob[i].addMouseListener(&sliderHover, false);
         wtPage.addAndMakeVisible(wtPwKnob[i]);
         wtPwAtt[i] = std::make_unique<SliderAtt>(state, "wtPw" + juce::String(i), wtPwKnob[i]);
-        if (auto* p = state.getParameter("wtPw" + juce::String(i)))  // double-click resets to default
-            wtPwKnob[i].setDoubleClickReturnValue(true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
+        if (auto* pwParam = state.getParameter("wtPw" + juce::String(i)))  // double-click resets to default
+            wtPwKnob[i].setDoubleClickReturnValue(
+                true, pwParam->getNormalisableRange().convertFrom0to1(pwParam->getDefaultValue()));
         // Hidden slider: the value model / APVTS binding. UI is the field + buttons.
         wtPage.addChildComponent(wtArpSlider[i]);
         wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i), wtArpSlider[i]);
@@ -1093,21 +1090,23 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         wtPwHead.setBounds(pwX, head.getY(), pwW, head.getHeight());
         wtArpHead.setBounds(arpX, head.getY(), 96, head.getHeight());
         c.removeFromTop(4);
-        const int H = 24, vg = 4;
+        // Step rows are shorter than the standard control height, hence their own
+        // height and gap rather than the page's H / vg.
+        const int rowH = 24, rowGap = 4;
         for (int i = 0; i < steps; ++i) {
-            if (i > 0) c.removeFromTop(vg);
-            auto line = c.removeFromTop(H);
+            if (i > 0) c.removeFromTop(rowGap);
+            auto line = c.removeFromTop(rowH);
             const int y = line.getY();
-            wtStepInd[i].setBounds(0, y, 40, H);  // 8px loop box + 32px number
-            for (int w = 0; w < 4; ++w) wtWaveTog[i][w].setBounds(cx(w), y, box, H);
-            wtSyncTog[i].setBounds(cx(4), y, box, H);
-            wtRingTog[i].setBounds(cx(5), y, box, H);
-            wtTestTog[i].setBounds(cx(6), y, box, H);
-            wtPwKnob[i].setBounds(pwX, y, pwW, H);  // horizontal fader
+            wtStepInd[i].setBounds(0, y, 40, rowH);  // 8px loop box + 32px number
+            for (int w = 0; w < 4; ++w) wtWaveTog[i][w].setBounds(cx(w), y, box, rowH);
+            wtSyncTog[i].setBounds(cx(4), y, box, rowH);
+            wtRingTog[i].setBounds(cx(5), y, box, rowH);
+            wtTestTog[i].setBounds(cx(6), y, box, rowH);
+            wtPwKnob[i].setBounds(pwX, y, pwW, rowH);  // horizontal fader
             const int bw = 24;                       // arp stepper: [-][value][+]
-            wtArpDec[i].setBounds(arpX, y, bw, H);
-            wtArpValue[i].setBounds(arpX + bw, y, 48, H);
-            wtArpInc[i].setBounds(arpX + bw + 48, y, bw, H);
+            wtArpDec[i].setBounds(arpX, y, bw, rowH);
+            wtArpValue[i].setBounds(arpX + bw, y, 48, rowH);
+            wtArpInc[i].setBounds(arpX + bw + 48, y, bw, rowH);
         }
     }
 }

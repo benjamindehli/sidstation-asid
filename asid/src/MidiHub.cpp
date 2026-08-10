@@ -44,7 +44,7 @@ void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
     int start1, size1, start2, size2;
     frameFifo.prepareToWrite(1, start1, size1, start2, size2);
     if (size1 > 0) {
-        Frame& f = frameStore[start1];
+        Frame& f = frameStore[static_cast<size_t>(start1)];
         f.timeMs = timeMs;
         f.seq = frameSeq++;
         f.len = len;
@@ -62,7 +62,12 @@ void MidiHub::Sender::run() {
     // note-on's sequence of writes) never get reordered.
     struct Later {
         bool operator()(const Pending& a, const Pending& b) const {
-            return a.timeMs != b.timeMs ? a.timeMs > b.timeMs : a.seq > b.seq;
+            // Ordered comparisons only, no float equality: same-time frames fall
+            // through to the insertion counter, which is the tie-break that keeps a
+            // note-on's writes in sequence.
+            if (a.timeMs < b.timeMs) return false;
+            if (b.timeMs < a.timeMs) return true;
+            return a.seq > b.seq;
         }
     };
     std::priority_queue<Pending, std::vector<Pending>, Later> pending;
@@ -72,11 +77,11 @@ void MidiHub::Sender::run() {
             int s1, n1, s2, n2;
             hub.frameFifo.prepareToRead(ready, s1, n1, s2, n2);
             for (int i = 0; i < n1; ++i) {
-                const Frame& f = hub.frameStore[s1 + i];
+                const Frame& f = hub.frameStore[static_cast<size_t>(s1 + i)];
                 pending.push({f.timeMs, f.seq, juce::MidiMessage(f.data, f.len)});
             }
             for (int i = 0; i < n2; ++i) {
-                const Frame& f = hub.frameStore[s2 + i];
+                const Frame& f = hub.frameStore[static_cast<size_t>(s2 + i)];
                 pending.push({f.timeMs, f.seq, juce::MidiMessage(f.data, f.len)});
             }
             hub.frameFifo.finishedRead(n1 + n2);
