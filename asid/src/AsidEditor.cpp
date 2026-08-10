@@ -28,8 +28,7 @@ constexpr int kCtrlH = 30;
 // not stretch absurdly (it still shrinks to fit narrow columns).
 constexpr int kCtrlWMax = 200;
 // A value bar centred in a column (the label is drawn inside the bar now).
-void knobInCol(juce::Rectangle<int> col, juce::Slider& s, juce::Label& l) {
-    juce::ignoreUnused(l);
+void knobInCol(juce::Rectangle<int> col, juce::Slider& s) {
     s.setBounds(col.withSizeKeepingCentre(juce::jmin(col.getWidth() - 8, kCtrlWMax), kCtrlH));
 }
 // A toggle button centred in a column both ways.
@@ -39,7 +38,7 @@ void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton& b) {
 
 }  // namespace
 
-void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label& l, const juce::String& name,
+void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, const juce::String& name,
                            const juce::String& paramId, std::unique_ptr<SliderAtt>& att) {
     // A horizontal value bar with its name drawn inside (see drawLinearSlider), so
     // knobs, buttons and menus are all one uniform-height control. No caption label.
@@ -48,7 +47,6 @@ void AsidEditor::setupKnob(juce::Component& parent, juce::Slider& s, juce::Label
     s.setPopupDisplayEnabled(true, false, this);  // value bubble while dragging
     s.setName(name);                              // drawn inside the bar
     s.addMouseListener(&sliderHover, false);      // repaint on move for the hover preview
-    juce::ignoreUnused(l);                        // caption is now inside the bar
     parent.addAndMakeVisible(s);
     att = std::make_unique<SliderAtt>(state, paramId, s);
     if (auto* p = state.getParameter(paramId))    // double-click resets to the default
@@ -140,10 +138,10 @@ void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::S
 
     // Rate knob: set up the knob shell, then bind it (free Hz by default, or the
     // stepped tempo division when Tempo Sync is on - see configureRateKnob).
-    setupKnob(parent, u.rateKnob, u.rateLabel, "Rate", prefix + "Rate", u.rateAtt);
+    setupKnob(parent, u.rateKnob, "Rate", prefix + "Rate", u.rateAtt);
     configureRateKnob(u, false);
-    setupKnob(parent, u.depthKnob, u.depthLabel, "Depth", prefix + "Depth", u.depthAtt);
-    setupKnob(parent, u.delayKnob, u.delayLabel, "Delay", prefix + "Delay", u.delayAtt);
+    setupKnob(parent, u.depthKnob, "Depth", prefix + "Depth", u.depthAtt);
+    setupKnob(parent, u.delayKnob, "Delay", prefix + "Delay", u.delayAtt);
 }
 
 void AsidEditor::configureRateKnob(LfoControls& u, bool synced) {
@@ -374,8 +372,6 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     oscPage.addAndMakeVisible(syncButton);
     oscPage.addAndMakeVisible(ringButton);
     oscPage.addAndMakeVisible(testButton);
-    oscPage.addAndMakeVisible(oscDiv1);
-    oscPage.addAndMakeVisible(oscDiv2);
 
     outputBox.onChange = [this] {
         const int id = outputBox.getSelectedId();
@@ -392,27 +388,25 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     wavePulseAtt = std::make_unique<ButtonAtt>(state, "wavePulse", wavePulseButton);
     waveNoiseAtt = std::make_unique<ButtonAtt>(state, "waveNoise", waveNoiseButton);
 
-    setupKnob(oscPage, pwKnob, pwLabel, "Pulse Width", "pulseWidth", pwAtt);
-    setupKnob(oscPage, coarseKnob, coarseLabel, "Coarse", "coarse", coarseAtt);
-    setupKnob(oscPage, fineKnob, fineLabel, "Fine", "fine", fineAtt);
+    setupKnob(oscPage, pwKnob, "Pulse Width", "pulseWidth", pwAtt);
+    setupKnob(oscPage, coarseKnob, "Coarse", "coarse", coarseAtt);
+    setupKnob(oscPage, fineKnob, "Fine", "fine", fineAtt);
     // These have a natural centre default, so their arcs fill out from the centre.
     for (auto* k : {&pwKnob, &coarseKnob, &fineKnob}) k->getProperties().set("sidBipolar", true);
-    setupKnob(oscPage, bendKnob, bendLabel, "Bend", "pitchBendRange", bendAtt);
+    setupKnob(oscPage, bendKnob, "Bend", "pitchBendRange", bendAtt);
     syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
     ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
     testAtt = std::make_unique<ButtonAtt>(state, "test", testButton);
 
-    setupKnob(oscPage, portaKnob, portaLabel, "Glide", "portaTime", portaAtt);
+    setupKnob(oscPage, portaKnob, "Glide", "portaTime", portaAtt);
     setupSwitch(portaTrigBtns[0], portaTrigBtns[1], "Legato", "Always", "portaTrigger");
     setupSwitch(portaTypeBtns[0], portaTypeBtns[1], "Smooth", "Step", "portaType");
-    oscPage.addAndMakeVisible(tuningDiv1);
-    oscPage.addAndMakeVisible(tuningDiv2);
 
     // ---- AMP+MOD page: Amp envelope, Pitch Mod, PW Mod ----
-    setupKnob(oscPage, attackKnob, attackLabel, "Attack", "attack", attackAtt);
-    setupKnob(oscPage, decayKnob, decayLabel, "Decay", "decay", decayAtt);
-    setupKnob(oscPage, sustainKnob, sustainLabel, "Sustain", "sustain", sustainAtt);
-    setupKnob(oscPage, releaseKnob, releaseLabel, "Release", "release", releaseAtt);
+    setupKnob(oscPage, attackKnob, "Attack", "attack", attackAtt);
+    setupKnob(oscPage, decayKnob, "Decay", "decay", decayAtt);
+    setupKnob(oscPage, sustainKnob, "Sustain", "sustain", sustainAtt);
+    setupKnob(oscPage, releaseKnob, "Release", "release", releaseAtt);
     setupLfo(ampModPage, pitchLfoUi, "pitchLfo");
     setupLfo(ampModPage, pwLfoUi, "pwLfo");
 
@@ -436,13 +430,11 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     filtExtButton.setButtonText("Ext");
     sharedPage.addAndMakeVisible(filtExtButton);
     filtExtAtt = std::make_unique<ButtonAtt>(state, "filtExt", filtExtButton);
-    sharedPage.addAndMakeVisible(filtDiv1);
-    sharedPage.addAndMakeVisible(filtDiv2);
-    setupKnob(sharedPage, cutoffKnob, cutoffLabel, "Cutoff", "cutoff", cutoffAtt);
-    setupKnob(sharedPage, resKnob, resLabel, "Resonance", "resonance", resAtt);
+    setupKnob(sharedPage, cutoffKnob, "Cutoff", "cutoff", cutoffAtt);
+    setupKnob(sharedPage, resKnob, "Resonance", "resonance", resAtt);
     setupLfo(sharedPage, cutLfoUi, "cutLfo");
-    setupKnob(sharedPage, volumeKnob, volumeLabel, "Volume", "volume", volumeAtt);
-    setupKnob(sharedPage, latencyKnob, latencyLabel, "Latency", "latency", latencyAtt);
+    setupKnob(sharedPage, volumeKnob, "Volume", "volume", volumeAtt);
+    setupKnob(sharedPage, latencyKnob, "Latency", "latency", latencyAtt);
     sharedPage.addAndMakeVisible(voice3offButton);
     voice3offAtt = std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
     sharedPage.addAndMakeVisible(panicButton);
@@ -456,9 +448,9 @@ AsidEditor::AsidEditor(AsidProcessor& p)
     // ---- WAVE page: wavetable config and the per-step rows ----
     wtPage.addAndMakeVisible(wtOnButton);
     wtOnAtt = std::make_unique<ButtonAtt>(state, "wtOn", wtOnButton);
-    setupKnob(wtPage, wtSpeedKnob, wtSpeedLabel, "Speed", "wtSpeed", wtSpeedAtt);
-    setupKnob(wtPage, wtLengthKnob, wtLengthLabel, "Length", "wtLength", wtLengthAtt);
-    setupKnob(wtPage, wtLoopKnob, wtLoopLabel, "Loop", "wtLoop", wtLoopAtt);
+    setupKnob(wtPage, wtSpeedKnob, "Speed", "wtSpeed", wtSpeedAtt);
+    setupKnob(wtPage, wtLengthKnob, "Length", "wtLength", wtLengthAtt);
+    setupKnob(wtPage, wtLoopKnob, "Loop", "wtLoop", wtLoopAtt);
     const char* wtHeads[4] = {"Tri", "Saw", "Pul", "Noi"};
     const char* wtIds[4] = {"wtTri", "wtSaw", "wtPulse", "wtNoise"};
     for (int w = 0; w < 4; ++w) {
@@ -648,7 +640,6 @@ void AsidEditor::updateEnablement() {
     // Pulse width only matters when the pulse wave actually sounds.
     const bool pulse = intOf(pr.wavePulse) != 0 && !noise;
     pwKnob.setEnabled(pulse);
-    pwLabel.setEnabled(pulse);
 
     // Hard sync is meaningless on a noise-only voice; ring mod needs the triangle.
     syncButton.setEnabled(!noise);
@@ -751,7 +742,6 @@ void AsidEditor::updateEnablement() {
     // setting away for good and rewrote it inside presets that carried sustain 15.
     const bool sustainMax = intOf(pr.sustain) == 15;
     decayKnob.setEnabled(!sustainMax);
-    decayLabel.setEnabled(!sustainMax);
 
     // Shape doubles as on/off, so reflect each LFO's On + Shape into its selector.
     // Never grey the selector itself, or the LFO could not be switched back on.
@@ -767,11 +757,8 @@ void AsidEditor::updateEnablement() {
         u.syncButton.setEnabled(on);
         u.wheelButton.setEnabled(on);
         u.depthKnob.setEnabled(on);
-        u.depthLabel.setEnabled(on);
         u.rateKnob.setEnabled(on);
-        u.rateLabel.setEnabled(on);
         u.delayKnob.setEnabled(on);
-        u.delayLabel.setEnabled(on);
     };
     applyLfo(pitchLfoUi, boolOf(pitchLfoUi.onPtr));
     applyLfo(cutLfoUi, boolOf(cutLfoUi.onPtr));
@@ -1076,9 +1063,9 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
         wtConfigGroup.setBounds(box);
         auto c = box.withTrimmedTop(titleH);
         toggleInCol(colOf(c, 0, 4), wtOnButton);
-        knobInCol(colOf(c, 1, 4), wtSpeedKnob, wtSpeedLabel);
-        knobInCol(colOf(c, 2, 4), wtLengthKnob, wtLengthLabel);
-        knobInCol(colOf(c, 3, 4), wtLoopKnob, wtLoopLabel);
+        knobInCol(colOf(c, 1, 4), wtSpeedKnob);
+        knobInCol(colOf(c, 2, 4), wtLengthKnob);
+        knobInCol(colOf(c, 3, 4), wtLoopKnob);
     }
     area.removeFromTop(sabove);  // 24px above the STEPS title
     {  // STEPS. Each row (24px tall, 4px apart): loop+number (40), then seven 32px

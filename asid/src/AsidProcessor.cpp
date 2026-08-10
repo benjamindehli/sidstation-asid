@@ -504,7 +504,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
         }
         const double heard = (paramInt(pp.portaType) == 1) ? std::round(glidePitch) : glidePitch;  // stepped glide
         const double vibrato = vibratoOn
-            ? sampleLfo(pitchStream.lfo, pp.pitchLfo, dt, playing, ppq, bpm)
+            ? sampleLfo(pitchStream, pp.pitchLfo, dt, playing, ppq, bpm)
                   * lfoAmount(pp.pitchLfo, nowMs) * 12.0
             : 0.0;
         asidPlayer.setPitchMod(voice, (heard - curNote) + vibrato + wtArp);
@@ -513,7 +513,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     }
 
     if (pwOn) {
-        const double v = sampleLfo(pwStream.lfo, pp.pwLfo, dt, playing, ppq, bpm);
+        const double v = sampleLfo(pwStream, pp.pwLfo, dt, playing, ppq, bpm);
         asidPlayer.setPulseWidth(voice, juce::jlimit(0, 4095,
             paramInt(pp.pulseWidth) + static_cast<int>(v * lfoAmount(pp.pwLfo, nowMs) * 2047.0)));
         addReg(base + 2);
@@ -521,7 +521,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
     }
 
     if (cutOn) {
-        const double v = sampleLfo(cutStream.lfo, pp.cutLfo, dt, playing, ppq, bpm);
+        const double v = sampleLfo(cutStream, pp.cutLfo, dt, playing, ppq, bpm);
         asidPlayer.setCutoff(juce::jlimit(0, 2047,
             paramInt(pp.cutoff) + static_cast<int>(v * lfoAmount(pp.cutLfo, nowMs) * 2047.0)));
         addReg(21);  // cutoff low/high (registers 21, 22)
@@ -763,10 +763,6 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         glidePitch = -1.0;
     }
 
-    // Every sounding voice streams its frequency, and that stream stops on
-    // release, so every note-off's gate-low needs a settle frame behind it.
-    const bool pitchActive = true;
-
     for (const auto meta : midiMessages) {
         const auto m = meta.getMessage();
         const bool on = m.isNoteOn();
@@ -852,9 +848,10 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             } else {
                 lastGateOffMs = target;  // fully released; times the next attack's hard restart
             }
-            // A note-off's gate-low needs a message behind it; under pitch mod the
-            // stream has stopped, so add a benign settle frame just after.
-            if (fellBackTo < 0 && pitchActive) {
+            // A note-off's gate-low needs a message behind it. Every sounding voice
+            // streams its frequency and that stream stops on release, so there is
+            // nothing left to flush it: add a benign settle frame just after.
+            if (fellBackTo < 0) {
                 const double settleTarget = target + kSettleMs;
                 addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
                 voiceClockMs = settleTarget;

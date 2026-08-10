@@ -140,14 +140,6 @@ private:
         return p != nullptr ? p->load() : 0.0f;
     }
 
-    // One modulation stream per LFO target: its LFO, when it last sent, and the
-    // last frame sent (to skip identical steps).
-    struct ModStream {
-        sidstation::Lfo lfo;
-        double lastMs = 0.0;
-        sidstation::Bytes lastFrame;
-    };
-
     juce::File presetFile(const juce::String& name) const {
         return presetsDir().getChildFile(presetKey(name) + ".xml");
     }
@@ -241,7 +233,7 @@ private:
         return !AsidShared::isShared(id) && id != "asidVoice" && id != "bpm";
     }
 
-    ModStream pitchStream, pwStream, cutStream;  // only the .lfo of each is used now
+    sidstation::Lfo pitchStream, pwStream, cutStream;  // one per modulation target
     sidstation::WaveTablePlayer wtPlayer;
     double modTickMs = 0.0;       // one modulation clock for the whole voice
     int wtArp = 0;                // current wavetable arpeggio offset (semitones)
