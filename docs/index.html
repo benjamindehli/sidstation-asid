@@ -195,294 +195,296 @@
                 <p class="fineprint">macOS, Windows and Linux. The macOS build is signed and notarized. <a href="#install">Install steps</a>.</p>
             </div>
         </header>
+        <main>
+            <section id="what">
+                <div class="wrap">
+                    <h2>What it is</h2>
+                    <p class="lead">
+                        SidStation ASID streams raw SID registers over the ASID protocol instead of sending MIDI CC, so every register is reachable
+                        and each voice gets its own pitch and gate. One instance drives one voice. Put an instance on each of three DAW tracks, pick a
+                        voice per track, and the three voices become three monosynths you can sequence apart. Getting that out of the SidStation on
+                        its own is awkward.
+                    </p>
+                </div>
+            </section>
 
-        <section id="what">
-            <div class="wrap">
-                <h2>What it is</h2>
-                <p class="lead">
-                    SidStation ASID streams raw SID registers over the ASID protocol instead of sending MIDI CC, so every register is reachable and
-                    each voice gets its own pitch and gate. One instance drives one voice. Put an instance on each of three DAW tracks, pick a voice
-                    per track, and the three voices become three monosynths you can sequence apart. Getting that out of the SidStation on its own is
-                    awkward.
-                </p>
-            </div>
-        </section>
-
-        <section class="alt">
-            <div class="wrap">
-                <h2>What it does</h2>
-                <div class="cards">
-                    <div class="card">
-                        <h3>Per voice</h3>
-                        <ul>
-                            <li>The four SID waveforms, combinable, with noise exclusive as on the real chip.</li>
-                            <li>ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range.</li>
-                            <li>Hard sync, ring modulation, and the raw TEST bit.</li>
-                            <li>Portamento, with a legato or always trigger and a smooth or stepped glide.</li>
-                            <li>
-                                An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus
-                                speed, length and a loop point.
-                            </li>
-                            <li>
-                                Three LFOs on pitch, pulse width and cutoff, with several shapes, a free Hz or host tempo synced rate, depth, mod
-                                wheel scaling, and a fade in delay.
-                            </li>
-                        </ul>
+            <section class="alt">
+                <div class="wrap">
+                    <h2>What it does</h2>
+                    <div class="cards">
+                        <div class="card">
+                            <h3>Per voice</h3>
+                            <ul>
+                                <li>The four SID waveforms, combinable, with noise exclusive as on the real chip.</li>
+                                <li>ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range.</li>
+                                <li>Hard sync, ring modulation, and the raw TEST bit.</li>
+                                <li>Portamento, with a legato or always trigger and a smooth or stepped glide.</li>
+                                <li>
+                                    An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus
+                                    speed, length and a loop point.
+                                </li>
+                                <li>
+                                    Three LFOs on pitch, pulse width and cutoff, with several shapes, a free Hz or host tempo synced rate, depth, mod
+                                    wheel scaling, and a fade in delay.
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="card v2">
+                            <h3>Shared across voices</h3>
+                            <ul>
+                                <li>
+                                    The filter, since the chip has one: cutoff, resonance, per voice routing, external input, and combinable low, band
+                                    and high pass modes.
+                                </li>
+                                <li>Master volume, and a switch to silence voice 3 so it can serve as a pure modulation source for ring and sync.</li>
+                            </ul>
+                        </div>
+                        <div class="card v3">
+                            <h3>Everything else</h3>
+                            <ul>
+                                <li>A Commodore 64 styled pixel interface, colour coded per voice.</li>
+                                <li>
+                                    Voice presets saved to disk, so a sound outlives the DAW project it was made in. Init puts a voice back to its
+                                    default sound.
+                                </li>
+                                <li>A tempo readout, host tempo in a DAW or set by hand in Standalone, and a Panic that releases every voice.</li>
+                                <li>A MIDI load meter, since the SidStation shares one slow MIDI port across all three voices.</li>
+                            </ul>
+                        </div>
                     </div>
-                    <div class="card v2">
-                        <h3>Shared across voices</h3>
-                        <ul>
-                            <li>
-                                The filter, since the chip has one: cutoff, resonance, per voice routing, external input, and combinable low, band and
-                                high pass modes.
-                            </li>
-                            <li>Master volume, and a switch to silence voice 3 so it can serve as a pure modulation source for ring and sync.</li>
-                        </ul>
+                </div>
+            </section>
+
+            <section>
+                <div class="wrap">
+                    <h2>The four tabs</h2>
+                    <p class="lead">
+                        The dark strip along the top is the same on every tab. It carries the MIDI output picker with a Scan button, the tempo and the
+                        clock rate, a MIDI load meter, the voice selector, and the preset bar.
+                    </p>
+
+                    <div class="shot">
+                        <h3>Voice</h3>
+                        <p>
+                            Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width.
+                            Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger and type switches. Amp Envelope is
+                            the ADSR.
+                        </p>
+                        <picture>
+                            <source
+                                type="image/avif"
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-voice-tab_466.avif   466w,
+                                    assets/screenshots/sidstation-asid-voice-tab_932.avif   932w,
+                                    assets/screenshots/sidstation-asid-voice-tab_1444.avif 1444w
+                                "
+                            />
+                            <img
+                                src="assets/screenshots/sidstation-asid-voice-tab_932.webp"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-voice-tab_466.webp   466w,
+                                    assets/screenshots/sidstation-asid-voice-tab_932.webp   932w,
+                                    assets/screenshots/sidstation-asid-voice-tab_1444.webp 1444w
+                                "
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                alt="The Voice tab, with the oscillator waveforms, tuning and ADSR envelope"
+                                width="1444"
+                                height="1204"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                        </picture>
                     </div>
-                    <div class="card v3">
-                        <h3>Everything else</h3>
-                        <ul>
-                            <li>A Commodore 64 styled pixel interface, colour coded per voice.</li>
-                            <li>
-                                Voice presets saved to disk, so a sound outlives the DAW project it was made in. Init puts a voice back to its default
-                                sound.
-                            </li>
-                            <li>A tempo readout, host tempo in a DAW or set by hand in Standalone, and a Panic that releases every voice.</li>
-                            <li>A MIDI load meter, since the SidStation shares one slow MIDI port across all three voices.</li>
-                        </ul>
+
+                    <div class="shot">
+                        <h3>Wavetable</h3>
+                        <p>
+                            An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed,
+                            length and the loop point. Each step row carries its waveform, Sync, Ring and Test, a pulse width fader, and an arpeggio
+                            offset. The loop point and the playing step are marked on the left.
+                        </p>
+                        <picture>
+                            <source
+                                type="image/avif"
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-wavetable-tab_466.avif   466w,
+                                    assets/screenshots/sidstation-asid-wavetable-tab_932.avif   932w,
+                                    assets/screenshots/sidstation-asid-wavetable-tab_1444.avif 1444w
+                                "
+                            />
+                            <img
+                                src="assets/screenshots/sidstation-asid-wavetable-tab_932.webp"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-wavetable-tab_466.webp   466w,
+                                    assets/screenshots/sidstation-asid-wavetable-tab_932.webp   932w,
+                                    assets/screenshots/sidstation-asid-wavetable-tab_1444.webp 1444w
+                                "
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                alt="The Wavetable tab, with eight step rows and the loop point marked"
+                                width="1444"
+                                height="1204"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                        </picture>
+                    </div>
+
+                    <div class="shot">
+                        <h3>Modulation</h3>
+                        <p>
+                            Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is either free in Hz or locked
+                            to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.
+                        </p>
+                        <picture>
+                            <source
+                                type="image/avif"
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-modulation-tab_466.avif   466w,
+                                    assets/screenshots/sidstation-asid-modulation-tab_932.avif   932w,
+                                    assets/screenshots/sidstation-asid-modulation-tab_1444.avif 1444w
+                                "
+                            />
+                            <img
+                                src="assets/screenshots/sidstation-asid-modulation-tab_932.webp"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-modulation-tab_466.webp   466w,
+                                    assets/screenshots/sidstation-asid-modulation-tab_932.webp   932w,
+                                    assets/screenshots/sidstation-asid-modulation-tab_1444.webp 1444w
+                                "
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                alt="The Modulation tab, with the pitch and pulse width LFOs"
+                                width="1444"
+                                height="1204"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                        </picture>
+                    </div>
+
+                    <div class="shot">
+                        <h3>Global</h3>
+                        <p>
+                            The settings the SID shares across all three voices. Filter has per voice routing, the external input, the combinable low,
+                            band and high pass modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the
+                            Voice 3 Off switch, Volume, Latency and Panic.
+                        </p>
+                        <picture>
+                            <source
+                                type="image/avif"
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-global-tab_466.avif   466w,
+                                    assets/screenshots/sidstation-asid-global-tab_932.avif   932w,
+                                    assets/screenshots/sidstation-asid-global-tab_1444.avif 1444w
+                                "
+                            />
+                            <img
+                                src="assets/screenshots/sidstation-asid-global-tab_932.webp"
+                                srcset="
+                                    assets/screenshots/sidstation-asid-global-tab_466.webp   466w,
+                                    assets/screenshots/sidstation-asid-global-tab_932.webp   932w,
+                                    assets/screenshots/sidstation-asid-global-tab_1444.webp 1444w
+                                "
+                                sizes="(max-width: 980px) calc(100vw - 48px), 932px"
+                                alt="The Global tab, with the shared filter, cutoff modulation and master controls"
+                                width="1444"
+                                height="1204"
+                                loading="lazy"
+                                decoding="async"
+                            />
+                        </picture>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <section>
-            <div class="wrap">
-                <h2>The four tabs</h2>
-                <p class="lead">
-                    The dark strip along the top is the same on every tab. It carries the MIDI output picker with a Scan button, the tempo and the
-                    clock rate, a MIDI load meter, the voice selector, and the preset bar.
-                </p>
-
-                <div class="shot">
-                    <h3>Voice</h3>
-                    <p>
-                        Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width.
-                        Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger and type switches. Amp Envelope is the
-                        ADSR.
+            <section class="alt" id="install">
+                <div class="wrap">
+                    <h2>Install</h2>
+                    <p class="lead">
+                        Builds for macOS, Windows and Linux are on
+                        <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a>. The macOS build is signed
+                        and notarized. The Windows and Linux builds are provided but not yet hardware-tested.
                     </p>
-                    <picture>
-                        <source
-                            type="image/avif"
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            srcset="
-                                assets/screenshots/sidstation-asid-voice-tab_466.avif   466w,
-                                assets/screenshots/sidstation-asid-voice-tab_932.avif   932w,
-                                assets/screenshots/sidstation-asid-voice-tab_1444.avif 1444w
-                            "
-                        />
-                        <img
-                            src="assets/screenshots/sidstation-asid-voice-tab_932.webp"
-                            srcset="
-                                assets/screenshots/sidstation-asid-voice-tab_466.webp   466w,
-                                assets/screenshots/sidstation-asid-voice-tab_932.webp   932w,
-                                assets/screenshots/sidstation-asid-voice-tab_1444.webp 1444w
-                            "
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            alt="The Voice tab, with the oscillator waveforms, tuning and ADSR envelope"
-                            width="1444"
-                            height="1204"
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    </picture>
-                </div>
 
-                <div class="shot">
-                    <h3>Wavetable</h3>
-                    <p>
-                        An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length
-                        and the loop point. Each step row carries its waveform, Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The
-                        loop point and the playing step are marked on the left.
+                    <h3>macOS</h3>
+                    <p class="lead">
+                        macOS 10.15 or later, Apple Silicon or Intel. The package is signed and notarized, so it opens without a Gatekeeper warning.
                     </p>
-                    <picture>
-                        <source
-                            type="image/avif"
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            srcset="
-                                assets/screenshots/sidstation-asid-wavetable-tab_466.avif   466w,
-                                assets/screenshots/sidstation-asid-wavetable-tab_932.avif   932w,
-                                assets/screenshots/sidstation-asid-wavetable-tab_1444.avif 1444w
-                            "
-                        />
-                        <img
-                            src="assets/screenshots/sidstation-asid-wavetable-tab_932.webp"
-                            srcset="
-                                assets/screenshots/sidstation-asid-wavetable-tab_466.webp   466w,
-                                assets/screenshots/sidstation-asid-wavetable-tab_932.webp   932w,
-                                assets/screenshots/sidstation-asid-wavetable-tab_1444.webp 1444w
-                            "
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            alt="The Wavetable tab, with eight step rows and the loop point marked"
-                            width="1444"
-                            height="1204"
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    </picture>
-                </div>
+                    <ol class="steps">
+                        <li>Download the DMG from the latest release and open it.</li>
+                        <li>Run the installer inside. It asks for your admin password, since the plugins go in the system plugin folders.</li>
+                        <li>Restart your DAW. Logic revalidates the AU on the next launch, which takes a moment the first time.</li>
+                        <li>Connect the SidStation over MIDI and put it in ASID mode from the front panel.</li>
+                        <li>In the plugin, hit Scan and pick the SidStation as the MIDI output.</li>
+                    </ol>
+                    <table class="paths">
+                        <tr>
+                            <th>What</th>
+                            <th>Goes to</th>
+                        </tr>
+                        <tr>
+                            <td>AU</td>
+                            <td><code>/Library/Audio/Plug-Ins/Components</code></td>
+                        </tr>
+                        <tr>
+                            <td>VST3</td>
+                            <td><code>/Library/Audio/Plug-Ins/VST3</code></td>
+                        </tr>
+                        <tr>
+                            <td>Standalone</td>
+                            <td><code>/Applications</code></td>
+                        </tr>
+                    </table>
 
-                <div class="shot">
-                    <h3>Modulation</h3>
-                    <p>
-                        Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is either free in Hz or locked to
-                        the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay.
+                    <h3>Windows</h3>
+                    <ol class="steps">
+                        <li>
+                            Download the setup .exe from the latest release and run it. It is unsigned, so SmartScreen may warn: choose More info,
+                            then Run anyway.
+                        </li>
+                        <li>The installer places the VST3 in <code>Common Files\VST3</code> and the Standalone in <code>Program Files</code>.</li>
+                        <li>Restart your DAW so it picks up the new VST3.</li>
+                        <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
+                    </ol>
+
+                    <h3>Linux</h3>
+                    <ol class="steps">
+                        <li>Download the .tar.gz from the latest release and extract it.</li>
+                        <li>
+                            Copy <code>SidStation ASID.vst3</code> into <code>~/.vst3</code> (or <code>/usr/lib/vst3</code> for all users), and run
+                            the Standalone from the extracted folder.
+                        </li>
+                        <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
+                    </ol>
+
+                    <p class="lead spaced">
+                        One instance drives one voice, so load three instances on three tracks and set each to a different voice.
                     </p>
-                    <picture>
-                        <source
-                            type="image/avif"
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            srcset="
-                                assets/screenshots/sidstation-asid-modulation-tab_466.avif   466w,
-                                assets/screenshots/sidstation-asid-modulation-tab_932.avif   932w,
-                                assets/screenshots/sidstation-asid-modulation-tab_1444.avif 1444w
-                            "
-                        />
-                        <img
-                            src="assets/screenshots/sidstation-asid-modulation-tab_932.webp"
-                            srcset="
-                                assets/screenshots/sidstation-asid-modulation-tab_466.webp   466w,
-                                assets/screenshots/sidstation-asid-modulation-tab_932.webp   932w,
-                                assets/screenshots/sidstation-asid-modulation-tab_1444.webp 1444w
-                            "
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            alt="The Modulation tab, with the pitch and pulse width LFOs"
-                            width="1444"
-                            height="1204"
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    </picture>
                 </div>
+            </section>
 
-                <div class="shot">
-                    <h3>Global</h3>
-                    <p>
-                        The settings the SID shares across all three voices. Filter has per voice routing, the external input, the combinable low,
-                        band and high pass modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the
-                        Voice 3 Off switch, Volume, Latency and Panic.
+            <section>
+                <div class="wrap">
+                    <h2>Build from source</h2>
+                    <p class="lead">
+                        The project builds via CMake, and JUCE is fetched automatically by the root CMakeLists. With copy after build on, the AU and
+                        VST3 land in your user plugin folders, and the Standalone app is the quickest way to test.
                     </p>
-                    <picture>
-                        <source
-                            type="image/avif"
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            srcset="
-                                assets/screenshots/sidstation-asid-global-tab_466.avif   466w,
-                                assets/screenshots/sidstation-asid-global-tab_932.avif   932w,
-                                assets/screenshots/sidstation-asid-global-tab_1444.avif 1444w
-                            "
-                        />
-                        <img
-                            src="assets/screenshots/sidstation-asid-global-tab_932.webp"
-                            srcset="
-                                assets/screenshots/sidstation-asid-global-tab_466.webp   466w,
-                                assets/screenshots/sidstation-asid-global-tab_932.webp   932w,
-                                assets/screenshots/sidstation-asid-global-tab_1444.webp 1444w
-                            "
-                            sizes="(max-width: 980px) calc(100vw - 48px), 932px"
-                            alt="The Global tab, with the shared filter, cutoff modulation and master controls"
-                            width="1444"
-                            height="1204"
-                            loading="lazy"
-                            decoding="async"
-                        />
-                    </picture>
-                </div>
-            </div>
-        </section>
-
-        <section class="alt" id="install">
-            <div class="wrap">
-                <h2>Install</h2>
-                <p class="lead">
-                    Builds for macOS, Windows and Linux are on
-                    <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a>. The macOS build is signed and
-                    notarized. The Windows and Linux builds are provided but not yet hardware-tested.
-                </p>
-
-                <h3>macOS</h3>
-                <p class="lead">
-                    macOS 10.15 or later, Apple Silicon or Intel. The package is signed and notarized, so it opens without a Gatekeeper warning.
-                </p>
-                <ol class="steps">
-                    <li>Download the DMG from the latest release and open it.</li>
-                    <li>Run the installer inside. It asks for your admin password, since the plugins go in the system plugin folders.</li>
-                    <li>Restart your DAW. Logic revalidates the AU on the next launch, which takes a moment the first time.</li>
-                    <li>Connect the SidStation over MIDI and put it in ASID mode from the front panel.</li>
-                    <li>In the plugin, hit Scan and pick the SidStation as the MIDI output.</li>
-                </ol>
-                <table class="paths">
-                    <tr>
-                        <th>What</th>
-                        <th>Goes to</th>
-                    </tr>
-                    <tr>
-                        <td>AU</td>
-                        <td><code>/Library/Audio/Plug-Ins/Components</code></td>
-                    </tr>
-                    <tr>
-                        <td>VST3</td>
-                        <td><code>/Library/Audio/Plug-Ins/VST3</code></td>
-                    </tr>
-                    <tr>
-                        <td>Standalone</td>
-                        <td><code>/Applications</code></td>
-                    </tr>
-                </table>
-
-                <h3>Windows</h3>
-                <ol class="steps">
-                    <li>
-                        Download the setup .exe from the latest release and run it. It is unsigned, so SmartScreen may warn: choose More info, then
-                        Run anyway.
-                    </li>
-                    <li>The installer places the VST3 in <code>Common Files\VST3</code> and the Standalone in <code>Program Files</code>.</li>
-                    <li>Restart your DAW so it picks up the new VST3.</li>
-                    <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
-                </ol>
-
-                <h3>Linux</h3>
-                <ol class="steps">
-                    <li>Download the .tar.gz from the latest release and extract it.</li>
-                    <li>
-                        Copy <code>SidStation ASID.vst3</code> into <code>~/.vst3</code> (or <code>/usr/lib/vst3</code> for all users), and run the
-                        Standalone from the extracted folder.
-                    </li>
-                    <li>Connect the SidStation, put it in ASID mode, then Scan and pick it as the MIDI output in the plugin.</li>
-                </ol>
-
-                <p class="lead spaced">One instance drives one voice, so load three instances on three tracks and set each to a different voice.</p>
-            </div>
-        </section>
-
-        <section>
-            <div class="wrap">
-                <h2>Build from source</h2>
-                <p class="lead">
-                    The project builds via CMake, and JUCE is fetched automatically by the root CMakeLists. With copy after build on, the AU and VST3
-                    land in your user plugin folders, and the Standalone app is the quickest way to test.
-                </p>
-                <pre>
+                    <pre>
 git clone https://github.com/benjamindehli/sidstation-asid.git
 cd sidstation-asid
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build</pre>
-                <p class="lead">
-                    Developed and tested against OS 1.11 R34 hardware on macOS. The Windows and Linux builds compile and package but are not yet
-                    hardware-tested.
-                </p>
-            </div>
-        </section>
-
+                    <p class="lead">
+                        Developed and tested against OS 1.11 R34 hardware on macOS. The Windows and Linux builds compile and package but are not yet
+                        hardware-tested.
+                    </p>
+                </div>
+            </section>
+        </main>
         <footer>
             <div class="wrap">
                 <p class="pixel">Dehli Musikk</p>
