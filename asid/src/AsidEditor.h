@@ -28,11 +28,32 @@ private:
     using ButtonAtt = juce::AudioProcessorValueTreeState::ButtonAttachment;
     using ComboAtt = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
 
-    // This instance's SID voice (0..2), read from the shared parameter tree.
-    int currentVoice() const {
-        auto* p = state.getRawParameterValue("asidVoice");
-        return p ? juce::jlimit(0, 2, juce::roundToInt(p->load())) : 0;
+    // Cached parameter pointers, resolved once in the constructor.
+    //
+    // updateEnablement runs at 10 Hz and reads a lot of parameters, several by a
+    // built-up id ("wtNoise" + i, prefix + "Sync"), so each tick was ~150 map walks
+    // and ~20 juce::String allocations. This is the message thread, so it was never a
+    // glitch risk like the processor's - but the same fix costs nothing here.
+    struct ParamRefs {
+        using P = std::atomic<float>*;
+        P asidVoice{}, sustain{};
+        P waveTri{}, wavePulse{}, waveNoise{};
+        P portaTime{}, portaTrigger{}, portaType{};
+        P wtOn{}, wtLength{}, wtLoop{};
+        P wtNoise[AsidProcessor::kWtSteps]{};  // per-step noise drives the row greying
+    };
+    ParamRefs pr;
+    void buildParamRefs();
+
+    static int intOf(const std::atomic<float>* p) {
+        return p != nullptr ? juce::roundToInt(p->load()) : 0;
     }
+    static bool boolOf(const std::atomic<float>* p) {
+        return p != nullptr && p->load() > 0.5f;
+    }
+
+    // This instance's SID voice (0..2), read from the shared parameter tree.
+    int currentVoice() const { return juce::jlimit(0, 2, intOf(pr.asidVoice)); }
     void refreshDevices();
     // Enable/disable controls that only apply in some states (pulse-wave-only
     // pulse width, sync-vs-free rate). Driven from the timer.
@@ -60,6 +81,11 @@ private:
         std::unique_ptr<SliderAtt> rateAtt, depthAtt, delayAtt;
         juce::String prefix;  // parameter prefix, for re-binding the rate knob
         int rateMode = -1;    // -1 uninit, 0 free (Hz), 1 tempo-synced (division)
+        // Resolved from the prefix in setupLfo, so the 10 Hz enablement pass reads
+        // these directly instead of rebuilding "<prefix>On" / "Shape" / "Sync".
+        std::atomic<float>* onPtr = nullptr;
+        std::atomic<float>* shapePtr = nullptr;
+        std::atomic<float>* syncPtr = nullptr;
     };
     // A 2-segment switch bound to a 2-value choice parameter: the selected segment
     // lights up, clicking a segment sets the parameter.

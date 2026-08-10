@@ -83,8 +83,34 @@ void AsidEditor::setupSwitch(juce::ToggleButton& segA, juce::ToggleButton& segB,
     segB.onClick = flip;
 }
 
+// Resolves the parameters the enablement pass reads, once. All the id building
+// happens here rather than at 10 Hz.
+void AsidEditor::buildParamRefs() {
+    auto at = [this](const juce::String& id) {
+        auto* p = state.getRawParameterValue(id);
+        jassert(p != nullptr);  // id typo, or a parameter missing from makeLayout()
+        return p;
+    };
+    pr.asidVoice = at("asidVoice");
+    pr.sustain = at("sustain");
+    pr.waveTri = at("waveTri");
+    pr.wavePulse = at("wavePulse");
+    pr.waveNoise = at("waveNoise");
+    pr.portaTime = at("portaTime");
+    pr.portaTrigger = at("portaTrigger");
+    pr.portaType = at("portaType");
+    pr.wtOn = at("wtOn");
+    pr.wtLength = at("wtLength");
+    pr.wtLoop = at("wtLoop");
+    for (int i = 0; i < AsidProcessor::kWtSteps; ++i)
+        pr.wtNoise[i] = at("wtNoise" + juce::String(i));
+}
+
 void AsidEditor::setupLfo(juce::Component& parent, LfoControls& u, const juce::String& prefix) {
     u.prefix = prefix;
+    u.onPtr = state.getRawParameterValue(prefix + "On");
+    u.shapePtr = state.getRawParameterValue(prefix + "Shape");
+    u.syncPtr = state.getRawParameterValue(prefix + "Sync");
 
     // Shape doubles as on/off: "Off" (id 1) disables the LFO, each waveform (id 2+)
     // enables it and selects that shape. Managed by hand since one control drives
@@ -153,6 +179,7 @@ void AsidEditor::layoutLfo(LfoControls& u, juce::Rectangle<int> area) {
 
 AsidEditor::AsidEditor(AsidProcessor& p)
     : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
+    buildParamRefs();  // before currentVoice() or anything else reads a parameter
     setLookAndFeel(&laf);
     laf.setAccent(voiceColour(currentVoice()));  // colour-code this voice's window
     logo = juce::ImageFileFormat::loadFrom(BinaryData::DehliMusikkLogo_PETSCII_png,
@@ -611,59 +638,50 @@ void AsidEditor::cyclePreset(int delta) {
 }
 
 void AsidEditor::updateEnablement() {
-    auto boolParam = [this](const char* id) {
-        auto* p = state.getRawParameterValue(id);
-        return p && p->load() > 0.5f;
-    };
-    auto intParam = [this](const char* id) {
-        auto* p = state.getRawParameterValue(id);
-        return p ? juce::roundToInt(p->load()) : 0;
-    };
-
     // Noise locks the other waveforms on the 6581, so it is exclusive: when it is
     // on, grey out the other three (they keep their state but are ignored).
-    const bool noise = intParam("waveNoise") != 0;
+    const bool noise = intOf(pr.waveNoise) != 0;
     waveTriButton.setEnabled(!noise);
     waveSawButton.setEnabled(!noise);
     wavePulseButton.setEnabled(!noise);
 
     // Pulse width only matters when the pulse wave actually sounds.
-    const bool pulse = intParam("wavePulse") != 0 && !noise;
+    const bool pulse = intOf(pr.wavePulse) != 0 && !noise;
     pwKnob.setEnabled(pulse);
     pwLabel.setEnabled(pulse);
 
     // Hard sync is meaningless on a noise-only voice; ring mod needs the triangle.
     syncButton.setEnabled(!noise);
-    ringButton.setEnabled(intParam("waveTri") != 0 && !noise);
+    ringButton.setEnabled(intOf(pr.waveTri) != 0 && !noise);
 
     // Glide trigger and type only matter when portamento time is up. Reflect the
     // choice value in each 2-segment switch (which segment is lit).
-    const bool porta = intParam("portaTime") > 0;
+    const bool porta = intOf(pr.portaTime) > 0;
     auto syncSwitch = [porta](juce::ToggleButton& a, juce::ToggleButton& b, int val) {
         a.setToggleState(val == 0, juce::dontSendNotification);
         b.setToggleState(val == 1, juce::dontSendNotification);
         a.setEnabled(porta);
         b.setEnabled(porta);
     };
-    syncSwitch(portaTrigBtns[0], portaTrigBtns[1], intParam("portaTrigger"));
-    syncSwitch(portaTypeBtns[0], portaTypeBtns[1], intParam("portaType"));
+    syncSwitch(portaTrigBtns[0], portaTrigBtns[1], intOf(pr.portaTrigger));
+    syncSwitch(portaTypeBtns[0], portaTypeBtns[1], intOf(pr.portaType));
 
     // The wavetable's config and steps are live only when it is on. Steps beyond
     // the table length are greyed; the loop point and the playing step are marked
     // on the per-step indicators.
-    const bool wtOn = boolParam("wtOn");
+    const bool wtOn = boolOf(pr.wtOn);
     for (auto* s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
         s->setEnabled(wtOn);
     for (auto& h : wtWaveHead) h.setEnabled(wtOn);
     for (auto* h : {&wtSyncHead, &wtRingHead, &wtTestHead, &wtPwHead, &wtArpHead}) h->setEnabled(wtOn);
-    const int wtLen = intParam("wtLength");
-    const int wtLoopPt = intParam("wtLoop");
+    const int wtLen = intOf(pr.wtLength);
+    const int wtLoopPt = intOf(pr.wtLoop);
     const int wtPlaying = proc.wtStep();
     const auto acc = voiceColour(currentVoice());
     for (int i = 0; i < AsidProcessor::kWtSteps; ++i) {
         const bool rowActive = wtOn && i < wtLen;
         // Noise is exclusive per step, same as the oscillator: grey the other three.
-        const bool stepNoise = intParam((juce::String("wtNoise") + juce::String(i)).toRawUTF8()) != 0;
+        const bool stepNoise = intOf(pr.wtNoise[i]) != 0;
         for (int w = 0; w < 4; ++w)
             wtWaveTog[i][w].setEnabled(rowActive && (w == 3 || !stepNoise));
         wtSyncTog[i].setEnabled(rowActive);
@@ -684,13 +702,13 @@ void AsidEditor::updateEnablement() {
     // Re-bind each LFO's rate knob when its Tempo Sync toggles (free Hz vs the
     // stepped tempo division). Only on change, so it does not thrash every tick.
     for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
-        const bool synced = boolParam((u->prefix + "Sync").toRawUTF8());
+        const bool synced = boolOf(u->syncPtr);
         if ((synced ? 1 : 0) != u->rateMode) configureRateKnob(*u, synced);
     }
 
     // The filter checkboxes are shared across instances; mark this instance's own
     // voice so you can see which of the three it drives. Only touch it on change.
-    const int myVoice = juce::jlimit(0, 2, intParam("asidVoice"));
+    const int myVoice = juce::jlimit(0, 2, intOf(pr.asidVoice));
     if (myVoice != highlightedVoice) {
         highlightedVoice = myVoice;
         laf.setAccent(voiceColour(myVoice));  // recolour the whole window for the new voice
@@ -731,15 +749,15 @@ void AsidEditor::updateEnablement() {
     // do NOT write the parameter: the disabled bar draws no value at all, so the
     // stored decay is invisible either way, and zeroing it here threw the user's
     // setting away for good and rewrote it inside presets that carried sustain 15.
-    const bool sustainMax = intParam("sustain") == 15;
+    const bool sustainMax = intOf(pr.sustain) == 15;
     decayKnob.setEnabled(!sustainMax);
     decayLabel.setEnabled(!sustainMax);
 
     // Shape doubles as on/off, so reflect each LFO's On + Shape into its selector.
     // Never grey the selector itself, or the LFO could not be switched back on.
     for (auto* u : {&pitchLfoUi, &pwLfoUi, &cutLfoUi}) {
-        const bool on = boolParam((u->prefix + "On").toRawUTF8());
-        const int wantId = on ? intParam((u->prefix + "Shape").toRawUTF8()) + 2 : 1;
+        const bool on = boolOf(u->onPtr);
+        const int wantId = on ? intOf(u->shapePtr) + 2 : 1;
         if (u->shapeBox.getSelectedId() != wantId)
             u->shapeBox.setSelectedId(wantId, juce::dontSendNotification);
     }
@@ -755,11 +773,11 @@ void AsidEditor::updateEnablement() {
         u.delayKnob.setEnabled(on);
         u.delayLabel.setEnabled(on);
     };
-    applyLfo(pitchLfoUi, boolParam("pitchLfoOn"));
-    applyLfo(cutLfoUi, boolParam("cutLfoOn"));
+    applyLfo(pitchLfoUi, boolOf(pitchLfoUi.onPtr));
+    applyLfo(cutLfoUi, boolOf(cutLfoUi.onPtr));
     // The PW LFO only works on a pulse wave, so its Shape selector greys out too.
     pwLfoUi.shapeBox.setEnabled(pulse);
-    applyLfo(pwLfoUi, pulse && boolParam("pwLfoOn"));
+    applyLfo(pwLfoUi, pulse && boolOf(pwLfoUi.onPtr));
 }
 
 void AsidEditor::timerCallback() {
