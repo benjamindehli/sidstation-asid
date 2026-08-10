@@ -8,12 +8,12 @@
 # an unpinned version would let `make format-check` pass locally and fail in CI.
 
 # Lints and formats the Python. See ruff.toml.
-ruff==0.14.5
+ruff==0.16.2
 
 # Formats the C++. See .clang-format. This is the LLVM binary shipped as a
 # wheel, which is how it gets pinned without asking everyone to install LLVM.
 # The npm package of the same name is not used: it is stuck on clang-format 15.
-clang-format==21.1.8
+clang-format==22.1.8
 
 # Image tooling. Pillow encodes the responsive screenshot set
 # (packaging/make-screenshots.py) and draws the social card
@@ -23,4 +23,4 @@ pillow==12.3.0
 # 4.60.2 is the fix for CVE-2025-66034, an arbitrary file write reachable
 # through a malicious .designspace file. Nothing here opens one, so this was a
 # dependency alert rather than an exposure, but the fix is a patch release.
-fonttools==4.60.2
+fonttools==4.63.0
