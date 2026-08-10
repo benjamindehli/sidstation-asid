@@ -56,10 +56,17 @@ public:
 
     // The embedded C64 PETSCII pixel typeface, loaded once. This is the SID's own
     // machine's screen font, so all GUI text is in it.
+    //
+    // Heap-allocated and intentionally never destroyed. As a plain static, __cxa_finalize
+    // ran this Ptr's destructor at process exit, dropping the last reference to a
+    // CoreTextTypeface: ~Native -> hb_font_destroy -> CoreText TBaseFont::~TBaseFont ->
+    // CFDictionaryRemoveValue, into CoreText and CoreFoundation that AppKit had already
+    // finalized. That crashed Logic on quit. Leaking it lets the OS reclaim the memory
+    // at exit with no teardown - the same reasoning as AsidShared::get().
     static const juce::Typeface::Ptr& c64Typeface() {
-        static juce::Typeface::Ptr tf = juce::Typeface::createSystemTypefaceFor(
-            BinaryData::SidStationC64_ttf, BinaryData::SidStationC64_ttfSize);
-        return tf;
+        static auto* tf = new juce::Typeface::Ptr(juce::Typeface::createSystemTypefaceFor(
+            BinaryData::SidStationC64_ttf, BinaryData::SidStationC64_ttfSize));
+        return *tf;
     }
 
     // One uniform text size for the whole GUI (labels, section titles, buttons, the
