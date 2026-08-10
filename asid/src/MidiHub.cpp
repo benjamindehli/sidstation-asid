@@ -33,6 +33,10 @@ void MidiHub::stopSender() {
 // the sequence counter; the single sender thread stays the only reader.
 void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
     if (len <= 0 || len > static_cast<int>(sizeof(Frame::data))) return;
+    // With no port open there is no consumer: the sender thread only runs while a
+    // device is. Queueing anyway filled the ring and then dumped the whole backlog
+    // at the unit the moment a device was picked, every frame already past due.
+    if (!hasOutput()) return;
     const juce::ScopedLock sl(pushLock);
     int start1, size1, start2, size2;
     frameFifo.prepareToWrite(1, start1, size1, start2, size2);
@@ -77,7 +81,9 @@ void MidiHub::Sender::run() {
 
         const double now = juce::Time::getMillisecondCounterHiRes();
         while (!pending.empty() && pending.top().timeMs <= now) {
-            {
+            // Drop a frame that is stale rather than late (see kMaxLateMs): replaying
+            // a backlog of old gates and pitches at the unit is worse than silence.
+            if (now - pending.top().timeMs <= kMaxLateMs) {
                 const juce::ScopedLock sl(hub.outputLock);
                 if (hub.output != nullptr) hub.output->sendMessageNow(pending.top().msg);
             }
@@ -101,6 +107,7 @@ bool MidiHub::openOutputByIdentifier(const juce::String& identifier) {
     output->startBackgroundThread();
     outputInfo = output->getDeviceInfo();
     startSender();  // real-time frames go through our own thread, not the audio thread
+    outputOpen.store(true, std::memory_order_release);  // opens the gate in pushFrame
     return true;
 }
 
@@ -132,6 +139,7 @@ bool MidiHub::openInputMatching(const juce::String& nameSubstr) {
 
 void MidiHub::closeOutput() {
     const juce::ScopedLock sl(outputLock);
+    outputOpen.store(false, std::memory_order_release);  // stop producers first
     if (output != nullptr) output->stopBackgroundThread();
     output.reset();
     outputInfo = {};

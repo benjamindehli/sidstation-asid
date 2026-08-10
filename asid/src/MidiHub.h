@@ -11,6 +11,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -51,7 +52,9 @@ public:
     juce::String inputName() const { return inputInfo.name; }
     juce::String outputIdentifier() const { return outputInfo.identifier; }
     juce::String inputIdentifier() const { return inputInfo.identifier; }
-    bool hasOutput() const { return output != nullptr; }
+    // Lock-free, so the audio thread can check it before building a frame. Kept in
+    // step with `output` under outputLock.
+    bool hasOutput() const { return outputOpen.load(std::memory_order_acquire); }
 
     // Sends one complete SysEx message (bytes must be F0..F7).
     void sendSysEx(const sidstation::Bytes& fullMessage);
@@ -83,6 +86,11 @@ private:
     // time keep their order (a note-on's frames must stay in sequence).
     struct Frame { double timeMs = 0.0; long long seq = 0; int len = 0; juce::uint8 data[64] = {}; };
     static constexpr int kFifoCapacity = 4096;
+    // A frame this far past its send time is stale, not merely late: the sender
+    // delivers within ~25 ms when it is running, and nothing is ever scheduled more
+    // than ~600 ms ahead. Anything older belongs to a backlog that built up while
+    // the port was shut, and sending it would replay old gates at the unit.
+    static constexpr double kMaxLateMs = 1000.0;
     std::vector<Frame> frameStore{kFifoCapacity};
     juce::AbstractFifo frameFifo{kFifoCapacity};
     long long frameSeq = 0;                 // insertion counter (guarded by pushLock)
@@ -100,6 +108,8 @@ private:
 
     std::unique_ptr<juce::MidiOutput> output;
     std::unique_ptr<juce::MidiInput> input;
+    // Mirrors `output != nullptr` for lock-free reads (see hasOutput).
+    std::atomic<bool> outputOpen{false};
     juce::MidiDeviceInfo outputInfo, inputInfo;
     Listener* listener = nullptr;
     juce::CriticalSection outputLock;
