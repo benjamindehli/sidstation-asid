@@ -1,0 +1,51 @@
+# Routine version-update PRs for the dev tooling.
+#
+# Security alerts do not need this file and are not affected by it: they fire as
+# soon as an advisory lands, whatever the schedule below says. This only adds the
+# "your formatter is a few releases behind" nudge, which is why it runs monthly
+# and groups everything. The alternative, weekly and ungrouped, would open a pull
+# request every time Ruff ships, and Ruff ships often.
+#
+# Nothing here reaches the plugin. The three ecosystems below are the formatters,
+# the image tooling and the CI actions. JUCE is pinned by tag in CMakeLists.txt
+# and Dependabot cannot see it, since it does not read CMake FetchContent, so
+# that upgrade stays manual.
+version: 2
+updates:
+  # Ruff, clang-format, Pillow, fontTools. See requirements-dev.txt.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      python-tools:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: Bump
+
+  # Prettier. See package.json.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      node-tools:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: Bump
+
+  # actions/checkout, setup-node, setup-python and the release workflow's
+  # actions. Worth tracking: a major bump here is the usual reason a workflow
+  # starts warning about a deprecated runner.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: Bump
