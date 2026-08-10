@@ -16,7 +16,8 @@ Current release is 1.1.0 (2026-08-09), licensed GPL v3, by Benjamin Dehli under 
 
 - [Landing page](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs (Voice, Wavetable, Modulation, Global), install steps and screenshots.
 - [README](https://github.com/benjamindehli/sidstation-asid/blob/main/README.md): the same ground in more detail, plus the repository layout and build instructions.
-- [Protocol notes](https://github.com/benjamindehli/sidstation-asid/blob/main/core/README.md): what talking to real hardware turned up, including the two address spaces and the dead Direct Program path on OS 1.11 R34.
+- [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol.html): what talking to real hardware turned up, including the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and findings from four real patch banks.
+- [Protocol source](https://github.com/benjamindehli/sidstation-asid/blob/main/core/README.md): the same ground alongside the code that implements it.
 - [Releases](https://github.com/benjamindehli/sidstation-asid/releases/latest): the signed and notarized macOS DMG, the Windows setup installer and the Linux tarball.
 
 ## Source

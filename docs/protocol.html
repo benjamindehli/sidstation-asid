@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>SidStation protocol notes: ASID, SysEx and patch dumps</title>
+        <meta
+            name="description"
+            content="What talking to real Elektron SidStation hardware turned up: Direct Program is dead on OS 1.11 R34, the ASID frame format, the two address spaces, and findings from real patch banks."
+        />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="theme-color" content="#463ea4" />
+        <meta name="color-scheme" content="dark" />
+        <link rel="canonical" href="https://benjamindehli.github.io/sidstation-asid/protocol.html" />
+
+        <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="manifest" href="site.webmanifest" />
+        <link rel="preload" href="assets/fonts/SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="SidStation ASID" />
+        <meta property="og:title" content="SidStation protocol notes: ASID, SysEx and patch dumps" />
+        <meta
+            property="og:description"
+            content="What talking to real Elektron SidStation hardware turned up: Direct Program is dead on OS 1.11 R34, the ASID frame format, the two address spaces, and findings from real patch banks."
+        />
+        <meta property="og:url" content="https://benjamindehli.github.io/sidstation-asid/protocol.html" />
+        <meta property="og:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:alt" content="SidStation ASID, a plugin that plays the three SID voices of the Elektron SidStation" />
+        <meta property="og:locale" content="en_US" />
+
+        <!-- Twitter / X Card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="SidStation protocol notes: ASID, SysEx and patch dumps" />
+        <meta
+            name="twitter:description"
+            content="What talking to real Elektron SidStation hardware turned up: Direct Program is dead on OS 1.11 R34, the ASID frame format, and findings from real patch banks."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta name="twitter:site" content="@BenjaminDehli" />
+        <meta name="twitter:creator" content="@BenjaminDehli" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "TechArticle",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/protocol.html#article",
+                        "headline": "SidStation protocol notes: ASID, SysEx and patch dumps",
+                        "description": "What talking to real Elektron SidStation hardware turned up while building the SidStation ASID plugin: Direct Program is dead on OS 1.11 R34 firmware, the ASID frame format, the two address spaces, and findings from four real patch banks.",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/protocol.html",
+                        "inLanguage": "en",
+                        "datePublished": "2026-08-10",
+                        "dateModified": "2026-08-10",
+                        "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+                        "publisher": { "@id": "https://www.dehlimusikk.no/" },
+                        "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "proficiencyLevel": "Expert",
+                        "keywords": "Elektron SidStation, ASID, SysEx, Direct Program, MOS6581, SID registers, patch dump, OS 1.11 R34",
+                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                        "mainEntityOfPage": "https://benjamindehli.github.io/sidstation-asid/protocol.html"
+                    },
+                    {
+                        "@type": "Person",
+                        "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                        "name": "Benjamin Dehli",
+                        "url": "https://www.dehlimusikk.no/"
+                    },
+                    {
+                        "@type": "Organization",
+                        "@id": "https://www.dehlimusikk.no/",
+                        "name": "Dehli Musikk",
+                        "url": "https://www.dehlimusikk.no/"
+                    }
+                ]
+            }
+        </script>
+        <link rel="stylesheet" href="css/docs.css" />
+    </head>
+    <body>
+        <header class="hero">
+            <div class="wrap">
+                <h1>Protocol notes</h1>
+                <p class="tag">What talking to a real Elektron SidStation turned up, and why this plugin works the way it does.</p>
+                <div>
+                    <a class="btn ghost" href="./">Back to SidStation ASID</a>
+                    <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
+                </div>
+            </div>
+        </header>
+        <main>
+            <section id="direct-program">
+                <div class="wrap">
+                    <h2>Direct Program is dead on OS 1.11 R34</h2>
+                    <p class="lead">
+                        The SidStation Owners Manual (r22b, OS 1.1) documents a SysEx Direct Program message that sets a single parameter at a live
+                        memory address. It is the obvious way to drive the unit from software, and the documentation gives no hint that it might not
+                        work.
+                    </p>
+                    <p class="lead">
+                        On OS 1.11 R34 firmware the unit does not honour it. Direct Program messages are accepted on the wire and change nothing
+                        audible. Patch dumps over SysEx do work on the same firmware, and so does ASID mode, which is what made the difference. This
+                        single finding is the reason the plugin streams raw SID registers rather than editing patch parameters, and it is worth
+                        knowing before you spend time building against the documented path.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="asid">
+                <div class="wrap">
+                    <h2>ASID: streaming raw SID registers</h2>
+                    <p class="lead">
+                        ASID bypasses the SidStation patch engine entirely and writes the MOS6581 chip registers directly. That reaches everything the
+                        chip can do, including parameters MIDI CC cannot touch (waveform selection, resonance, filter mode), and it gives genuinely
+                        independent per-voice play, because each SID voice has its own frequency and gate.
+                    </p>
+                    <p class="lead">The frame, confirmed against the Jouni Paulus specification and the vap decoder:</p>
+                    <pre>F0 2D 4E [mask1..4] [msb1..4] [data...] F7</pre>
+                    <p class="lead">
+                        Four mask bytes carry 7 bits each and flag which of up to 28 register slots are being written. Four msb bytes carry the eighth
+                        bit of each register value, since SysEx data bytes only hold 7 bits. Then one 7-bit data byte per flagged slot, in ascending
+                        slot order.
+                    </p>
+                    <p class="lead">
+                        The unit has to be put into ASID mode from its front panel first. Nothing on the MIDI side can do it for you, which is the
+                        most common reason a correctly built ASID stream produces silence.
+                    </p>
+                </div>
+            </section>
+
+            <section id="address-spaces">
+                <div class="wrap">
+                    <h2>Two address spaces</h2>
+                    <p class="lead">
+                        The SidStation exposes its parameters through two different memory layouts, and they do not agree with each other.
+                    </p>
+                    <h3>Direct Program map</h3>
+                    <p class="lead">
+                        Sparse live memory addresses, one parameter per message. Oscillator 1 sits at base 0x47 with a 21 byte stride, and LFO 1 at
+                        base 0x86 with a 28 byte stride.
+                    </p>
+                    <h3>Patch dump layout</h3>
+                    <p class="lead">
+                        A compact 143 byte structure used for reading and writing a whole patch, nibble encoded on the wire. Oscillator 1 sits at
+                        index 36 and LFO 1 at index 99.
+                    </p>
+                    <p class="lead">
+                        The first 0x24 bytes (name, direct controllers, filter, mode) coincide between the two. Oscillators and LFOs diverge, so a
+                        mapping built for one layout will silently produce wrong values in the other.
+                    </p>
+                    <p class="lead">
+                        One documented range is unreachable through Direct Program at all: Pitch Sync Speed is specified as 50 to 200, but its Direct
+                        Program field is 7 bit, so anything above 127 can only be set through a full patch dump.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="patch-banks">
+                <div class="wrap">
+                    <h2>What real patch banks revealed</h2>
+                    <p class="lead">
+                        The codec was validated against four real SidStation .syx banks (Giraya, Klaus P Rausch, Ninjabank, Presets_r1), roughly 90 to
+                        100 patches each. Four things came out of that which the manual does not tell you.
+                    </p>
+                    <h3>Sending a bank is destructive, sending a patch is not</h3>
+                    <p class="lead">
+                        A bank file is one PatchAllClear (0x01) followed by, for each of 128 slots, either a PatchDump (0x02) or a SkipPatch (0x03).
+                        Because it opens by wiping patch memory, sending a whole bank file destroys what is on the unit. A single patch is one 0x02
+                        message and is safe.
+                    </p>
+                    <h3>The size field is unreliable</h3>
+                    <p class="lead">
+                        Different banks disagree on what it means. Giraya writes the byte count; Klaus P Rausch writes the byte count minus 145. The
+                        device appears to ignore it and simply parses to F7. A round trip against third party banks therefore differs in those two
+                        bytes while the data itself is byte identical.
+                    </p>
+                    <h3>There is an older init sequence</h3>
+                    <p class="lead">
+                        SidStation_Presets_r1.syx opens with F0 00 45 01 00 rather than F0 00 20 3C 01 00. It is safer to reject that than to risk
+                        mis-parsing it as the current format.
+                    </p>
+                    <h3>Bulk sends have to be paced</h3>
+                    <p class="lead">
+                        Elektron's own C6 tool allows 5 to 50 ms between packets. A zero delay burst overflows the unit and fails silently, which
+                        looks exactly like a protocol bug and is not one.
+                    </p>
+                </div>
+            </section>
+
+            <section id="open-questions">
+                <div class="wrap">
+                    <h2>Still open</h2>
+                    <p class="lead">
+                        Typed patch dump field access. The patch codec exposes the name and raw bytes with a validated round trip, but mapping each
+                        byte to a typed field is a second table distinct from the Direct Program map, and it is what reading a received patch back
+                        into named parameters would need.
+                    </p>
+                    <p class="lead">
+                        Table data for the arpeggiator and waveform sequences, at Direct Program positions from 0x176 up, is not modelled.
+                    </p>
+                    <p class="lead">
+                        All of this comes from one unit on OS 1.11 R34. If your firmware behaves differently, particularly if Direct Program works for
+                        you, that is worth reporting on
+                        <a href="https://github.com/benjamindehli/sidstation-asid/issues">the issue tracker</a>.
+                    </p>
+                    <p class="lead spaced">
+                        The code behind these notes is the framework agnostic core library in the repository, unit tested against the byte sequences
+                        in the manual: <a href="https://github.com/benjamindehli/sidstation-asid/tree/main/core">core/</a> on GitHub.
+                    </p>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <div class="wrap">
+                <p class="pixel">Dehli Musikk</p>
+                <p>
+                    SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>, licensed under
+                    the <a href="https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE">GNU GPL v3</a>.
+                </p>
+                <p>
+                    An independent project, not affiliated with, endorsed or supported by Elektron. SidStation and SID are trademarks of their
+                    respective owners.
+                </p>
+            </div>
+        </footer>
+    </body>
+</html>
