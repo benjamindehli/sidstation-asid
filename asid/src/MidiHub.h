@@ -4,9 +4,17 @@
 // interface itself. This gives identical behaviour in any DAW and in Standalone,
 // which is what the ASID player needs.
 //
-// Immediate sends may come from the audio thread; timed sends (sendScheduled,
-// sendPaced) hand off to JUCE's MIDI background thread. Incoming SysEx is decoded
-// on JUCE's MIDI thread and handed to the listener, which must be thread-aware.
+// Threading. sendScheduled is the real-time path: it copies each frame into a ring
+// buffer and returns, and a MidiHub-owned sender thread does the CoreMIDI I/O at each
+// frame's due time. It is NOT lock-free - pushFrame takes a short mutex, because one
+// hub takes pushes from every plugin instance while juce::AbstractFifo only supports a
+// single producer - but the guarded section is a bounded memcpy with no allocation and
+// no syscall, which is what makes it usable from the audio callback.
+//
+// sendPaced / sendPacedMessages / sendMessage / sendSysEx are message-thread paths:
+// they take outputLock and build buffers, so they must not be called from the audio
+// thread. Incoming SysEx is decoded on JUCE's MIDI thread and handed to the listener,
+// which must be thread-aware.
 #pragma once
 
 #include <juce_audio_devices/juce_audio_devices.h>

@@ -28,9 +28,15 @@ void MidiHub::stopSender() {
     }
 }
 
-// Producer side (audio/mod thread): copy the frame into the ring, no allocation.
-// One shared output takes pushes from every instance, so guard the write side and
-// the sequence counter; the single sender thread stays the only reader.
+// Producer side (audio thread): copy the frame into the ring, no allocation.
+//
+// pushLock guards the write side and the sequence counter, because juce::AbstractFifo
+// is single-producer and this one hub takes pushes from every instance's audio thread
+// plus the AsidShared watchdog thread. That means the audio thread does briefly block
+// on a mutex, which is worth being honest about; it is bounded by one 64-byte memcpy
+// with no allocation or syscall inside, and the watchdog releases and retakes it per
+// frame rather than holding it across its burst. The single sender thread is the only
+// reader, so it needs no lock of its own.
 void MidiHub::pushFrame(const juce::uint8* data, int len, double timeMs) {
     if (len <= 0 || len > static_cast<int>(sizeof(Frame::data))) return;
     // With no port open there is no consumer: the sender thread only runs while a
@@ -200,8 +206,9 @@ void MidiHub::sendPacedMessages(const std::vector<juce::MidiMessage>& messages, 
 void MidiHub::sendScheduled(const juce::MidiBuffer& buffer, double startTimeMs, double sampleRate) {
     if (buffer.isEmpty()) return;
     // Push each event with its absolute send time; the sender thread delivers it.
-    // No CoreMIDI call and no lock here, so this is safe from the audio callback.
     const double sr = juce::jmax(1.0, sampleRate);
+    // Usable from the audio callback: no CoreMIDI call and no allocation. Note it is
+    // not lock-free - pushFrame takes pushLock for a bounded memcpy (see there).
     for (const auto meta : buffer) {
         const auto m = meta.getMessage();
         pushFrame(m.getRawData(), m.getRawDataSize(), startTimeMs + meta.samplePosition * 1000.0 / sr);
