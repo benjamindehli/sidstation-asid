@@ -213,9 +213,12 @@ void AsidProcessor::applyControlChanges(int voice, bool forceAll) {
     }
     const int s = paramInt("sustain"), rel = paramInt("release");
     const int a = paramInt("attack");
-    // At full sustain the decay is inaudible (it "decays" from the peak to the
-    // peak), but its rate still drives the SID ADSR counter bug and drops fast
-    // retriggers. Send decay 0 there. The knob is disabled and shows 0 to match.
+    // Notes go missing on the unit as decay and sustain rise, worst with both at 15.
+    // The root cause is still unknown, so this is a targeted workaround, not a fix:
+    // at full sustain the decay is inaudible anyway (it "decays" from the peak to the
+    // peak) while its rate still drives the SID's shared ADSR counter, so send 0 and
+    // keep the failure away from the one case where it costs nothing. The editor greys
+    // the knob to match but leaves the parameter alone, so the user's value survives.
     const int d = (s == 15) ? 0 : paramInt("decay");
     if (forceAll || a != sent.attack || d != sent.decay) {
         sent.attack = a; sent.decay = d;

@@ -724,13 +724,15 @@ void AsidEditor::updateEnablement() {
         bpmField.setText(juce::String((int) bpmSlider.getValue()), juce::dontSendNotification);
     }
 
-    // Decay is inaudible at full sustain and only feeds the ADSR bug there, so
-    // disable it and pin it to 0 when sustain is 15.
+    // Decay does nothing audible at full sustain, and a high decay there is what
+    // makes notes drop out on the unit, so the processor sends decay 0 while sustain
+    // is 15 (see applyControlChanges). Grey the knob to show it is not in play, but
+    // do NOT write the parameter: the disabled bar draws no value at all, so the
+    // stored decay is invisible either way, and zeroing it here threw the user's
+    // setting away for good and rewrote it inside presets that carried sustain 15.
     const bool sustainMax = intParam("sustain") == 15;
     decayKnob.setEnabled(!sustainMax);
     decayLabel.setEnabled(!sustainMax);
-    if (sustainMax && decayKnob.getValue() != 0.0)
-        decayKnob.setValue(0.0, juce::sendNotificationSync);
 
     // Shape doubles as on/off, so reflect each LFO's On + Shape into its selector.
     // Never grey the selector itself, or the LFO could not be switched back on.
