@@ -148,9 +148,11 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" build/dist/SidStation-ASID-*.dmg --clobber
 
-      # The landing page advertises a version and a date in its structured data
-      # and its sitemap. Stamp them from the release that just shipped, so the
-      # site cannot drift from what is actually downloadable. Runs last: if the
+      # The docs site advertises a version and a date in the landing page
+      # structured data, the sitemap and llms.txt. Stamp them from the release
+      # that just shipped, so the site cannot drift from what is actually
+      # downloadable. stamp-docs.py owns the list of files and lines that get
+      # stamped, and this step commits all of them. Runs last: if the
       # build or notarization failed there is nothing to advertise. The version
       # is the one checked against the tag above, not whatever main says now.
       - name: Stamp the docs site with the released version
@@ -169,7 +171,10 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html docs/sitemap.xml
+          # Stage whatever the script wrote, not a hand kept list. A hardcoded
+          # list silently drops any file the script learns to stamp later,
+          # which is how llms.txt sat at 1.0.0 through the 1.1.0 release.
+          git add -A docs
           git commit -m "Stamp the docs site for $TAG"
           git push origin main
 
