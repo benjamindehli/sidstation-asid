@@ -1,19 +1,31 @@
 #!/usr/bin/env python3
 """Stamp the released version and date into the docs site.
 
-Four values in the docs site go stale the moment a release goes out and
-nothing else keeps them honest:
+Values in the docs site that go stale on their own, and nothing else keeps
+honest:
   docs/index.html   the JSON-LD softwareVersion and dateModified
-  docs/sitemap.xml  the lastmod
+  docs/sitemap.xml  the lastmod of each page
   docs/llms.txt     the "Current release is X.Y.Z (date)" line
 
-Version defaults to CMakeLists.txt, the same place the release workflow reads
-it, so the page can never claim a version that was never built. Date defaults
-to today (UTC), which is the release date when this runs from the workflow.
-The workflow passes both explicitly, since it stamps main with the version it
-validated against the tag, and main may have moved on since.
+Two dates, not one. They drifted apart the moment the site started changing
+between releases:
 
-Run from anywhere:  python3 packaging/stamp-docs.py [--version X.Y.Z] [--date YYYY-MM-DD] [--check]
+--date is when the software was released. It is what dateModified on the
+SoftwareApplication node means, and what the llms.txt release line states.
+Stamping today's date into either would claim a release that never happened.
+It defaults to the release date already in the files, so a manual run cannot
+falsify it. The workflow passes the tag's published_at.
+
+--page-date is when the pages themselves last changed, which is all that
+sitemap lastmod means. It defaults to today (UTC), so editing the site and
+running this leaves an honest freshness signal without touching the release.
+
+Version defaults to CMakeLists.txt, the same place the release workflow reads
+it, so the page can never claim a version that was never built.
+
+Run from anywhere:
+  python3 packaging/stamp-docs.py [--version X.Y.Z] [--date YYYY-MM-DD]
+                                  [--page-date YYYY-MM-DD] [--check]
 
 --check writes nothing and exits 1 if anything is out of date, which is what
 makes this usable as a CI guard as well as a fixer. Exits 0 with no changes
@@ -31,6 +43,23 @@ CMAKE = os.path.join(ROOT, "CMakeLists.txt")
 INDEX = os.path.join(ROOT, "docs", "index.html")
 SITEMAP = os.path.join(ROOT, "docs", "sitemap.xml")
 LLMS = os.path.join(ROOT, "docs", "llms.txt")
+
+
+def released_date():
+    """The release date already stamped in the site, so a run cannot invent one."""
+    text = open(LLMS, encoding="utf-8").read()
+    m = re.search(r"Current release is \d+\.\d+\.\d+ \((\d{4}-\d{2}-\d{2})\)", text)
+    if not m:
+        sys.exit(f"no 'Current release is X.Y.Z (date)' line in {LLMS}, pass --date")
+    return m.group(1)
+
+
+def iso_date(value, flag):
+    try:
+        datetime.date.fromisoformat(value)
+    except ValueError:
+        sys.exit(f"{flag} must be YYYY-MM-DD, got {value}")
+    return value
 
 
 def project_version():
@@ -55,21 +84,17 @@ def substitute(path, rules):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", help="version to stamp, defaults to the CMake project version")
-    ap.add_argument("--date", help="ISO date to stamp, defaults to today (UTC)")
+    ap.add_argument("--date", help="release date, defaults to the one already stamped")
+    ap.add_argument("--page-date", help="date the pages last changed, defaults to today (UTC)")
     ap.add_argument("--check", action="store_true", help="report drift, write nothing")
     args = ap.parse_args()
 
     if args.version and not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
         sys.exit(f"--version must be X.Y.Z, got {args.version}")
     version = args.version or project_version()
-    if args.date:
-        try:
-            datetime.date.fromisoformat(args.date)
-        except ValueError:
-            sys.exit(f"--date must be YYYY-MM-DD, got {args.date}")
-        date = args.date
-    else:
-        date = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    date = iso_date(args.date, "--date") if args.date else released_date()
+    today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
+    page_date = iso_date(args.page_date, "--page-date") if args.page_date else today
 
     targets = [
         (
@@ -82,7 +107,9 @@ def main():
         (
             SITEMAP,
             [
-                (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{date}\g<2>"),
+                # Every page, since a shared stylesheet or nav change touches all
+                # of them. lastmod is a freshness hint, not a per byte audit.
+                (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{page_date}\g<2>"),
             ],
         ),
         (
@@ -105,11 +132,12 @@ def main():
         if not args.check:
             open(path, "w", encoding="utf-8").write(text)
 
+    summary = f"{version} released {date}, pages {page_date}"
     if not stale:
-        print(f"docs already stamped at {version} / {date}")
+        print(f"docs already stamped at {summary}")
         return 0
     verb = "stale" if args.check else "stamped"
-    print(f"{verb} at {version} / {date}: {', '.join(stale)}")
+    print(f"{verb} at {summary}: {', '.join(stale)}")
     return 1 if args.check else 0
 
 
