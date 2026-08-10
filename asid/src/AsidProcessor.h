@@ -218,7 +218,23 @@ private:
     // Note scheduling state (this instance's single voice).
     static constexpr double kMaxScheduleAheadMs = 500.0;  // sane alignment ceiling (> lookahead)
     static constexpr double kSettleMs = 15.0;             // trailing flush after a note-off under pitch mod
-    static constexpr double kHardRestartMs = 16.0;        // envelope drain window before a re-attack
+    // 6581 ADSR delay bug, which is what drops notes at high decay/sustain. The
+    // envelope generator compares a 15-bit LFSR counter against a period picked from
+    // the current phase's rate nibble; if the phase or rate changes while the counter
+    // has already passed the new period, the counter must run its whole 32767-count
+    // sequence before the envelope moves. 32767 / 985248 Hz = up to ~33 ms at PAL.
+    // A long decay or release parks the counter at large values, so the failure tracks
+    // decay and sustain rather than release.
+    static constexpr double kAdsrWrapMs = 33.3;
+    // Drain window before a re-attack: the worst-case wrap plus the ~6 ms the fastest
+    // release itself takes, so by gate-on the envelope really is at zero AND the
+    // counter is cycling on a short period. The old 16 ms was under the wrap alone,
+    // which is why the muting was intermittent - the counter's phase at gate-off is
+    // effectively random, so it sometimes drained in time and sometimes did not.
+    static constexpr double kHardRestartMs = kAdsrWrapMs + 8.0;
+    // Gap between the fast-release write and the control re-write that commits it on
+    // the one-message-late unit.
+    static constexpr double kHardRestartFlushMs = 5.0;
     double voiceClockMs = 0.0;    // target time of the last frame sent, keeps order
     double lastGateOffMs = -1.0e18;  // when this voice last released, to time hard restarts
     int lastPlaying = 0;          // transport state last block, to spot a start

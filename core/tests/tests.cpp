@@ -494,6 +494,48 @@ static void testAsidPlayer() {
           "the tune offset folds into pitch modulation too");
 }
 
+// The hard restart is what dodges the 6581 ADSR delay bug: it must force the release
+// nibble to 0 with the gate held low so the envelope drains, WITHOUT disturbing the
+// stored registers, so the following note-on writes the player's real release back.
+static void testHardRestart() {
+    AsidVoicePlayer p;
+    CHECK(p.hardRestartFrames(-1).empty(), "hard restart rejects a negative voice");
+    CHECK(p.hardRestartFrames(3).empty(), "hard restart rejects a voice above 2");
+
+    // Default player: sustain 15, release 0, sawtooth, gate low.
+    // Frame 1 writes SR (reg 6 -> slot 5, mask/msb byte 0 bit 5 = 0x20), value 0xF0.
+    // Frame 2 rewrites control (reg 4 -> slot 22, byte 3 bit 1 = 0x02), value 0x20.
+    auto hr = p.hardRestartFrames(0);
+    CHECK(hr.size() == 2, "hard restart is two frames: fast release, then the commit");
+    checkBytes("hard restart frame 1 (sustain kept, release 0)", hr[0],
+               Bytes{0xF0, 0x2D, 0x4E, 0x20, 0x00, 0x00, 0x00,
+                     0x20, 0x00, 0x00, 0x00, 0x70, 0xF7});
+    checkBytes("hard restart frame 2 (control, gate low)", hr[1],
+               Bytes{0xF0, 0x2D, 0x4E, 0x00, 0x00, 0x00, 0x02,
+                     0x00, 0x00, 0x00, 0x00, 0x20, 0xF7});
+
+    // With a real envelope: sustain 9, release 12 -> reg 6 = 0x9C, and the frame must
+    // carry 0x90, i.e. the sustain nibble kept and the release nibble zeroed.
+    p.setSustainRelease(0, 9, 12);
+    CHECK(p.state().reg[6] == 0x9C, "sustain/release packed into the register");
+    hr = p.hardRestartFrames(0);
+    CHECK(hr[0][11] == (0x90 & 0x7F) && (hr[0][7] & 0x20) != 0,
+          "hard restart zeroes only the release nibble");
+    CHECK(p.state().reg[6] == 0x9C,
+          "hard restart does not touch the stored envelope, so the note-on restores it");
+
+    // While a note sounds the gate is high; the drain frame must still gate low, and
+    // again leave the stored control register alone.
+    p.noteOn(0, 69, 100);
+    CHECK((p.state().control(0) & sid::kGate) != 0, "note on leaves the gate high");
+    hr = p.hardRestartFrames(0);
+    CHECK((hr[1][11] & sid::kGate) == 0, "hard restart drops the gate in the drain frame");
+    CHECK((hr[1][11] & 0xF0) == (p.state().control(0) & 0xF0),
+          "hard restart keeps the waveform bits while dropping the gate");
+    CHECK((p.state().control(0) & sid::kGate) != 0,
+          "hard restart leaves the stored gate untouched");
+}
+
 static void testLfo() {
     Lfo lfo;
     lfo.reset();
@@ -667,6 +709,7 @@ int main() {
     testVoiceEngine();
     testAsid();
     testAsidPlayer();
+    testHardRestart();
     testLfo();
     testWaveTable();
     testWaveformBits();

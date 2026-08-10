@@ -748,6 +748,9 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
     // Frames are stamped as millisecond offsets from nowMs (sampleRate 1000, so
     // one "sample" is one ms), then handed to the timed background sender.
     juce::MidiBuffer out;
+    auto posOf = [nowMs](double timeMs) {
+        return juce::jmax(0, juce::roundToInt(timeMs - nowMs));
+    };
 
     // The host does not send a note-off for a note still sounding when the
     // transport stops or pauses, so release this voice now to avoid a stuck note.
@@ -761,6 +764,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         // releaseGen makes each instance clear its stale note on resume.
         AsidShared::get().panicOnStop();
         glidePitch = -1.0;
+        lastGateOffMs = nowMs;  // a forced release still leaves the ADSR counter parked
     }
 
     for (const auto meta : midiMessages) {
@@ -808,30 +812,44 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
 
         double target = juce::jmax(eventMs, voiceClockMs);
 
-        // Hard restart: a fresh attack landing while the previous note is still
-        // releasing hits the 6581 ADSR bug (a high release rate counter stalls the
-        // attack into silence). Drain the envelope with two frames just ahead of
-        // the note (frame two flushes frame one into effect on the one-message-late
-        // unit); the note-on then restores the real release. This pushes the attack
-        // back by the drain window, and only kicks in when a recent release is
-        // still ringing, so ordinary notes are untouched.
-        if (freshAttack) {
-            const int rel = paramInt(pp.release);
-            if (rel > 0 && (target - lastGateOffMs) < sidReleaseMs(rel)) {
-                const auto hr = asidPlayer.hardRestartFrames(voice);
-                if (hr.size() == 2) {
-                    const double flushAt = target + kHardRestartMs * 0.5;
-                    addFrame(out, hr[0], juce::jmax(0, juce::roundToInt(target - nowMs)));
-                    addFrame(out, hr[1], juce::jmax(0, juce::roundToInt(flushAt - nowMs)));
-                    target = flushAt + kHardRestartMs * 0.5;  // attack once the envelope has drained
-                    voiceClockMs = target;
+        // Hard restart: drain the envelope to zero, with the gate held low and the
+        // release forced to 0, before a fresh attack whose ADSR counter could still be
+        // parked at a large value (see kAdsrWrapMs). Two frames, because the second
+        // commits the first on the one-message-late unit; the note-on itself rewrites
+        // the real release.
+        //
+        // The window is the release time PLUS the wrap. Keying it off the release
+        // nibble alone missed the case that actually drops notes: sustain 15 with a
+        // long decay and release 0. There the generator sits in the long decay phase
+        // while the note sounds, so the counter is large even though the release is the
+        // fastest there is - and the old `rel > 0` guard skipped that case entirely.
+        if (freshAttack && (target - lastGateOffMs) < sidReleaseMs(paramInt(pp.release)) + kAdsrWrapMs) {
+            const auto hr = asidPlayer.hardRestartFrames(voice);
+            if (hr.size() == 2) {
+                const double preroll = kHardRestartFlushMs + kHardRestartMs;
+                // Put the drain BEFORE the note so the note keeps its time. There is
+                // room whenever the frame was aligned into the host's render lookahead,
+                // and also whenever the user has dialled in an Output Latency of at
+                // least this pre-roll, since that shifts every note into the future by
+                // the same amount. Live at zero latency, or on a retrigger so fast that
+                // the previous note's frames are still in the way, there is no room -
+                // and then the attack moves back instead, which is still better than a
+                // note that never sounds.
+                const double earliest = juce::jmax(nowMs, voiceClockMs);
+                double drainAt = target - preroll;
+                if (drainAt < earliest) {
+                    drainAt = earliest;
+                    target = drainAt + preroll;
                 }
+                addFrame(out, hr[0], posOf(drainAt));
+                addFrame(out, hr[1], posOf(drainAt + kHardRestartFlushMs));
+                voiceClockMs = target;
             }
         }
 
         const auto frames = on ? asidPlayer.noteOn(ch, m.getNoteNumber(), m.getVelocity())
                                : asidPlayer.noteOff(ch, m.getNoteNumber());
-        const int posMs = juce::jmax(0, juce::roundToInt(target - nowMs));
+        const int posMs = posOf(target);
         for (const auto& f : frames) addFrame(out, f, posMs);
         voiceClockMs = target;
 
@@ -853,7 +871,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
             // nothing left to flush it: add a benign settle frame just after.
             if (fellBackTo < 0) {
                 const double settleTarget = target + kSettleMs;
-                addFrame(out, asidPlayer.settleFrame(voice), juce::jmax(0, juce::roundToInt(settleTarget - nowMs)));
+                addFrame(out, asidPlayer.settleFrame(voice), posOf(settleTarget));
                 voiceClockMs = settleTarget;
             }
         }
@@ -875,7 +893,14 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // not re-gate it before the transport's own notes play.
     if (const int rg = AsidShared::get().releaseGen(voice); rg != lastReleaseGen) {
         lastReleaseGen = rg;
-        if (asidPlayer.currentNoteOf(voice) >= 0) { asidPlayer.allNotesOff(); glidePitch = -1.0; }
+        if (asidPlayer.currentNoteOf(voice) >= 0) {
+            asidPlayer.allNotesOff();
+            glidePitch = -1.0;
+            // The watchdog gated the voice off behind our back, which leaves the ADSR
+            // counter parked exactly as a normal release would. Record it, or the next
+            // attack skips its hard restart and can come out silent.
+            lastGateOffMs = juce::Time::getMillisecondCounterHiRes();
+        }
     }
 
     // Any instance opening the shared device bumps the generation; re-push then.
