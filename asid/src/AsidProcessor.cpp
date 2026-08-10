@@ -405,6 +405,17 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
 
     const int curNote = asidPlayer.currentNoteOf(voice);
 
+    // Park the envelope once the fade has finished (see parkAtMs). Checked every block,
+    // not just on a modulation tick, and before the idle early-return below - a voice
+    // with nothing modulating is exactly the one that needs parking. The frames are the
+    // same pair the pre-roll drain uses: fast release, then the write that commits it.
+    // Neither touches the stored registers, so the next note-on restores the real
+    // release, which it always writes as part of its attack frame.
+    if (parkPending && curNote < 0 && nowMs >= parkAtMs) {
+        parkPending = false;
+        for (const auto& f : asidPlayer.hardRestartFrames(voice)) sendAsid(f);
+    }
+
     // Ownership and active-state bookkeeping (every block, so hand-offs are prompt).
     const bool wtOn = paramInt(pp.wtOn) != 0;
     const bool wtActive = wtOn && curNote >= 0;
@@ -778,6 +789,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         glidePitch = -1.0;
         lastGateOffMs = nowMs;  // a forced release still leaves the ADSR counter parked
         releaseTailUntilMs = -1.0e18;  // hard gate-off, so there is no fade to follow
+        parkPending = false;
     }
 
     for (const auto meta : midiMessages) {
@@ -807,6 +819,7 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
         bool freshAttack = false;
         if (on) {
             releaseTailUntilMs = -1.0e18;  // a new note supersedes any fading tail
+            parkPending = false;           // ...and its park, or it would land mid-note
             const bool wasHeld = asidPlayer.currentNoteOf(voice) >= 0;
             freshAttack = !wasHeld;  // nothing sounding = a real attack, not a legato overlap
             if (freshAttack) noteOnMs = nowMs;  // restart the LFO fade-in on a fresh attack
@@ -880,8 +893,10 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer& midiMessages, int voic
                 // Keep the frequency stream alive for the fade, at the pitch that was
                 // actually sounding, so the vibrato carries on through the release.
                 releaseTailNote = glidePitch;
-                releaseTailUntilMs = target + juce::jmin(sidReleaseMs(paramInt(pp.release)),
-                                                         kMaxReleaseTailMs);
+                const double fadeMs = sidReleaseMs(paramInt(pp.release));
+                releaseTailUntilMs = target + juce::jmin(fadeMs, kMaxReleaseTailMs);
+                parkAtMs = target + fadeMs;  // uncapped: never park a fade that is still audible
+                parkPending = true;
             }
             // A note-off's gate-low needs a message behind it. Every sounding voice
             // streams its frequency and that stream stops on release, so there is
@@ -914,6 +929,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float>& buffer,
             asidPlayer.allNotesOff();
             glidePitch = -1.0;
             releaseTailUntilMs = -1.0e18;
+            parkPending = false;
             // The watchdog gated the voice off behind our back, which leaves the ADSR
             // counter parked exactly as a normal release would. Record it, or the next
             // attack skips its hard restart and can come out silent.

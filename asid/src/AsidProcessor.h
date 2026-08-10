@@ -264,6 +264,18 @@ private:
     // wrote - audibly detuned. Holds the pitch that was sounding and when the fade ends.
     double releaseTailNote = -1.0;
     double releaseTailUntilMs = -1.0e18;
+    // Envelope parking, the other half of the ADSR-bug defence. Once the fade has
+    // finished, the release nibble is forced to 0: inaudible, since the envelope is
+    // already at zero, but it leaves the counter cycling on a SHORT period, so the next
+    // attack needs no wrap however long the gap. Where the pre-roll drain needs room
+    // ahead of a note, this uses the time after one, of which there is plenty.
+    //
+    // Emitted from the per-block path rather than scheduled ahead: a long release would
+    // put the frame up to 24 s into the queue, where a note starting first would have
+    // its own release yanked to 0 mid-flight. parkAtMs is the UNCAPPED fade end, unlike
+    // releaseTailUntilMs, so a slow fade is never cut short.
+    double parkAtMs = 0.0;
+    bool parkPending = false;
     // Bounds the tail so a 24-second release nibble cannot stream for 24 seconds on a
     // MIDI port three voices share. Past this the tail freezes, which by then is far
     // enough down the fade to be inaudible on any normal patch.
