@@ -13,7 +13,6 @@
 #include <juce_audio_utils/juce_audio_utils.h>
 
 #include <atomic>
-#include <map>
 
 #include "MidiHub.h"
 #include "sidstation/Asid.h"
@@ -24,6 +23,11 @@ public:
         virtual ~Client() = default;
         // Read AsidShared::get() values and apply them to this instance.
         virtual void sharedUpdated() = 0;
+        // Which SID voice this instance drives (0..2), or -1 until it registers one.
+        // It lives on the client, and is atomic, so setting it needs no lock: the
+        // voice is an automatable parameter, so the audio thread can set it, and the
+        // client-list lock is held across sharedUpdated callbacks (see publish).
+        std::atomic<int> sharedVoice{-1};
     };
 
     static AsidShared& get() {
@@ -85,23 +89,21 @@ public:
     void removeClient(Client* c) {
         const juce::ScopedLock sl(lock);
         clients.removeFirstMatchingValue(c);
-        clientVoice.erase(c);
     }
 
     // ---- Voice ownership (which instance drives which SID voice 0..2) ----
     // Each instance registers the voice it drives, so the editor can mark and block
     // voices already taken by another instance (one instance per voice).
-    void setClientVoice(Client* c, int voice) {
-        const juce::ScopedLock sl(lock);
-        clientVoice[c] = voice;
+    static void setClientVoice(Client* c, int voice) {
+        if (c != nullptr) c->sharedVoice.store(voice, std::memory_order_relaxed);
     }
     // How many instances drive a voice, optionally excluding one (to answer "is any
-    // OTHER instance already on this voice?").
+    // OTHER instance already on this voice?"). Message thread (the editor's timer).
     int usersOnVoice(int voice, const Client* except = nullptr) const {
         const juce::ScopedLock sl(lock);
         int n = 0;
-        for (const auto& kv : clientVoice)
-            if (kv.second == voice && kv.first != except) ++n;
+        for (auto* c : clients)
+            if (c != except && c->sharedVoice.load(std::memory_order_relaxed) == voice) ++n;
         return n;
     }
 
@@ -118,10 +120,30 @@ public:
         modRate.store(modRate_);
         hasData.store(true);
 
-        juce::Array<Client*> copy;
-        { const juce::ScopedLock sl(lock); copy = clients; }
-        for (auto* c : copy)
-            if (c != source) c->sharedUpdated();
+        // Notify while HOLDING the lock. Copying the list and calling afterwards left
+        // a window where an instance could run its whole destructor (including
+        // removeClient) between the copy and the call, leaving us to invoke
+        // sharedUpdated on freed memory.
+        //
+        // Safe to hold here because every other user of this lock does short,
+        // callback-free work on the message thread (addClient, removeClient,
+        // usersOnVoice), and nothing on the audio thread takes it at all - which is
+        // why setClientVoice moved onto the client as an atomic. juce::CriticalSection
+        // is re-entrant, so a client that sets a parameter and comes back round
+        // through parameterChanged -> publish on this same thread does not deadlock;
+        // its echo guard (value already equals valueFor(id)) stops it recursing.
+        //
+        // Indexed loop, re-reading size(): a future client that registers from inside
+        // sharedUpdated would then append rather than invalidate an iterator.
+        //
+        // Residual trade-off: a host automating a shared parameter calls this on the
+        // AUDIO thread, so it can wait on a UI-driven publish that is holding the lock
+        // across setValueNotifyingHost. Short in practice. The clean answer, if it ever
+        // bites, is to defer the notification to the message thread, which is where
+        // setValueNotifyingHost belongs anyway.
+        const juce::ScopedLock sl(lock);
+        for (int i = 0; i < clients.size(); ++i)
+            if (auto* c = clients[i]; c != nullptr && c != source) c->sharedUpdated();
     }
 
     int valueFor(const juce::String& id) const {
@@ -234,10 +256,10 @@ private:
         }
     };
 
+    // Guards the client list, and is held across sharedUpdated notifications so a
+    // client cannot be destroyed while one is in flight. Message thread only.
     mutable juce::CriticalSection lock;
     juce::Array<Client*> clients;
-    // Which SID voice each instance currently drives (for the "voice in use" marks).
-    std::map<Client*, int> clientVoice;
     // Stuck-note watchdog state (see reportVoiceNote).
     std::atomic<int> voiceNote[3];
     std::atomic<double> voiceSeenMs[3];
