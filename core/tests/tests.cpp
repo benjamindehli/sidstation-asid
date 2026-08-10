@@ -532,18 +532,28 @@ static void testLfo() {
     lfo.advance(0.75, 1.0);  // crosses 1.0 -> wraps to 0.25
     CHECK(std::abs(lfo.phase() - 0.25) < 1e-9, "advance wraps the phase into 0..1");
 
-    // Sample & Hold holds one value between wraps and changes across one.
+    // setPhase takes the song position in CYCLES, so 1.05 is "just into cycle 1".
+    // Sample & Hold holds one value per cycle and takes a new one at each boundary.
     lfo.setShape(LfoShape::SampleHold);
     lfo.reset();
     lfo.setPhase(0.1);
     const double a = lfo.value();
     lfo.setPhase(0.4);
     CHECK(std::abs(lfo.value() - a) < 1e-12, "sample & hold holds its value within a cycle");
-    lfo.setPhase(0.05);  // wrapped back below the previous phase
-    CHECK(std::abs(lfo.value() - a) > 1e-12, "sample & hold picks a new value on a wrap");
-    CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "sample & hold stays bipolar");
+    lfo.setPhase(1.05);  // into the next cycle
+    const double b = lfo.value();
+    CHECK(std::abs(b - a) > 1e-12, "sample & hold picks a new value on a cycle boundary");
+    CHECK(b >= -1.0 && b <= 1.0, "sample & hold stays bipolar");
 
-    // Random glides within a cycle and stays continuous across the wrap.
+    // A backward jump is the transport looping, not a new cycle: going back inside an
+    // earlier cycle must not re-roll the value, which is what made a looped bar sound
+    // different on every pass.
+    lfo.setPhase(0.5);  // loop back into cycle 0
+    CHECK(std::abs(lfo.value() - b) < 1e-12, "a backward jump does not re-roll sample & hold");
+    lfo.setPhase(1.5);  // forward across the boundary again
+    CHECK(std::abs(lfo.value() - b) > 1e-12, "crossing forward again does advance it");
+
+    // Random glides within a cycle and stays continuous across a boundary.
     lfo.setShape(LfoShape::Random);
     lfo.reset();
     lfo.setPhase(0.0);
@@ -552,9 +562,32 @@ static void testLfo() {
     CHECK(std::abs(lfo.value() - g0) > 1e-9, "random glides within a cycle, it does not hold");
     lfo.setPhase(0.999);
     const double gEnd = lfo.value();
-    lfo.setPhase(0.001);  // wrap: rndFrom becomes the previous rndTo
-    CHECK(std::abs(gEnd - lfo.value()) < 0.05, "random is continuous across the wrap");
+    lfo.setPhase(1.001);  // boundary: rndFrom becomes the previous rndTo
+    CHECK(std::abs(gEnd - lfo.value()) < 0.05, "random is continuous across the boundary");
     CHECK(lfo.value() >= -1.0 && lfo.value() <= 1.0, "random glide stays bipolar");
+
+    // A step covering several cycles must advance the endpoints once per cycle, not
+    // once per call. Reachable when the modulation clock resumes after a gap (dt is
+    // clamped to 4x its interval) at a high rate. Compare against stepping one cycle
+    // at a time: same number of boundaries must give the same value.
+    Lfo fast, slow;
+    fast.setShape(LfoShape::SampleHold);
+    slow.setShape(LfoShape::SampleHold);
+    fast.reset();
+    slow.reset();
+    fast.advance(0.16, 20.0);  // 3.2 cycles in one step
+    for (int i = 0; i < 3; ++i) slow.advance(0.05, 20.0);  // 1 cycle at a time, 3 times
+    CHECK(std::abs(fast.phase() - 0.2) < 1e-9, "a multi-cycle step lands on the right phase");
+    CHECK(std::abs(fast.value() - slow.value()) < 1e-12,
+          "a multi-cycle step wraps once per cycle crossed");
+
+    // Zero and negative movement leave the phase alone rather than wrapping.
+    Lfo still;
+    still.reset();
+    still.advance(0.0, 20.0);
+    CHECK(std::abs(still.phase()) < 1e-12, "advancing by nothing does not move the phase");
+    still.advance(0.1, -5.0);
+    CHECK(std::abs(still.phase()) < 1e-12, "a negative rate does not move the phase backwards");
 }
 
 static void testWaveTable() {
