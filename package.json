@@ -1,0 +1,12 @@
+{
+    "name": "sidstation-asid",
+    "private": true,
+    "description": "Dev tooling only. The plugin ships no JavaScript; this file exists so Prettier is pinned to one version for everyone, since it changes its output between releases. Prefer `make format` over calling these scripts directly, so the C++ and Python are covered too.",
+    "scripts": {
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "prettier": "3.9.6"
+    }
+}
