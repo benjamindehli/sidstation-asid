@@ -5,6 +5,7 @@
 #   make format-check    fail if anything is unformatted or fails lint (CI runs this)
 #   make images          rebuild the responsive docs screenshots from assets/screenshots
 #   make images-check    fail if a screenshot derivative is missing or stale (CI runs this)
+#   make links-check     fail if a local link in the docs site points at nothing (CI runs this)
 #   make tools           install the pinned formatters, without running them
 #   make test            run the core protocol tests
 #
@@ -27,7 +28,7 @@ PRETTIER := npx --no-install prettier
 # Deleted-but-not-yet-committed files are filtered out by the wildcard.
 CPP_FILES = $(wildcard $(shell git ls-files '*.cpp' '*.h'))
 
-.PHONY: format format-check images images-check tools python-tools node-tools test clean
+.PHONY: format format-check images images-check links-check tools python-tools node-tools test clean
 
 tools: python-tools node-tools
 
@@ -82,6 +83,12 @@ images: python-tools
 
 images-check: python-tools
 	$(PYTHON) packaging/make-screenshots.py --check
+
+# Pages sit at two depths (docs/index.html and docs/protocol/index.html), so the
+# same asset has a different correct relative path in each. That has already
+# shipped one 404, hence a check rather than care.
+links-check:
+	python3 packaging/check-links.py
 
 test:
 	$(MAKE) -C core test

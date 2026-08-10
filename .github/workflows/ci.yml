@@ -37,6 +37,10 @@ jobs:
       # encoder, which would otherwise publish a stale screenshot.
       - name: Check generated screenshots are up to date
         run: make images-check
+      # Catches an asset path that did not follow a page to a new depth, which
+      # renders fine locally and 404s once published.
+      - name: Check docs links resolve
+        run: make links-check
 
   core-tests:
     name: Core protocol tests
