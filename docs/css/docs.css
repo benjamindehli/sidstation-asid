@@ -337,6 +337,18 @@ footer .pixel {
     font-size: 14px;
     color: var(--fg);
 }
+/* The brand line is a standalone heading rather than a link inside a sentence,
+   so it carries no underline at rest. It gets one on hover and on keyboard
+   focus, so it is never colour alone that marks it as a link. */
+footer .pixel a {
+    color: inherit;
+    text-decoration: none;
+}
+footer .pixel a:hover,
+footer .pixel a:focus-visible {
+    color: var(--hot);
+    text-decoration: underline;
+}
 footer a {
     color: var(--fg);
 }
