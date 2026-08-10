@@ -32,6 +32,11 @@ jobs:
       # and .venv, so this is the same command run the same way as locally.
       - name: Check formatting and lint
         run: make format-check
+      # The docs screenshots are generated but committed, since GitHub Pages has
+      # no build step. This catches a source updated without re-running the
+      # encoder, which would otherwise publish a stale screenshot.
+      - name: Check generated screenshots are up to date
+        run: make images-check
 
   core-tests:
     name: Core protocol tests

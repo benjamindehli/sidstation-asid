@@ -39,25 +39,25 @@ The dark strip along the top is the same on every tab. It holds the MIDI output 
 
 ### Voice
 
-![The Voice tab](docs/sidstation-asid-voice-tab.webp)
+![The Voice tab](docs/assets/screenshots/sidstation-asid-voice-tab_932.webp)
 
 Everything that shapes a single voice. Oscillator has the four combinable waveforms with Sync, Ring, Test and Pulse Width. Tuning has coarse and fine pitch, the bend range, the glide time, and the glide trigger (Legato or Always) and type (Smooth or Step) switches. Amp Envelope is the ADSR.
 
 ### Wavetable
 
-![The Wavetable tab](docs/sidstation-asid-wavetable-tab.webp)
+![The Wavetable tab](docs/assets/screenshots/sidstation-asid-wavetable-tab_932.webp)
 
 An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed, length and the loop point. Each step row carries its waveform (Tri, Saw, Pulse, Noise), Sync, Ring and Test, a pulse width fader, and an arpeggio offset. The loop point and the playing step are marked on the left.
 
 ### Modulation
 
-![The Modulation tab](docs/sidstation-asid-modulation-tab.webp)
+![The Modulation tab](docs/assets/screenshots/sidstation-asid-modulation-tab_932.webp)
 
 Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, a rate that is free in Hz or locked to the host tempo as a note division, a depth, a Mod Wheel switch so the wheel scales the depth, and a fade in Delay. Set the shape to Off and the LFO stops.
 
 ### Global
 
-![The Global tab](docs/sidstation-asid-global-tab.webp)
+![The Global tab](docs/assets/screenshots/sidstation-asid-global-tab_932.webp)
 
 The settings the SID shares across all three voices. Filter has per voice routing (V1, V2, V3), the external input, the combinable LP, BP and HP modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.
 
@@ -101,6 +101,16 @@ make format
 ```
 
 clang-format handles the C++ in stock LLVM style, Prettier the docs site and Markdown and workflow YAML, and Ruff formats and lints the Python tools. The first run installs them into `node_modules` and `.venv`, pinned so a local run and a CI run agree. CI runs `make format-check`, which is the same thing without writing.
+
+## Docs screenshots
+
+The full resolution PNGs live in `assets/screenshots/`. To rebuild the responsive set the site serves:
+
+```sh
+make images
+```
+
+That writes AVIF and WebP at 466, 932 and 1444 wide into `docs/assets/screenshots/`, which the `<picture>` elements in `docs/index.html` point at. The output is committed, because GitHub Pages serves `docs/` as static files with no build step, so CI runs `make images-check` to catch a source updated without re-encoding. Replace a PNG in `assets/screenshots/` and re-run to update a screenshot.
 
 ## Hardware notes
 

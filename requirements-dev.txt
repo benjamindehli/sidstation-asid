@@ -14,3 +14,10 @@ ruff==0.14.5
 # wheel, which is how it gets pinned without asking everyone to install LLVM.
 # The npm package of the same name is not used: it is stuck on clang-format 15.
 clang-format==21.1.8
+
+# Image tooling. Pillow encodes the responsive screenshot set
+# (packaging/make-screenshots.py) and draws the social card
+# (packaging/make-og.py), which also needs fonttools to read the pixel font.
+# Pillow 11.3 and later can write AVIF without a separate plugin.
+pillow==12.3.0
+fonttools==4.60.1

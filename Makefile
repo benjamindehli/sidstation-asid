@@ -3,6 +3,8 @@
 #
 #   make format         rewrite every tracked source file in the house style
 #   make format-check    fail if anything is unformatted or fails lint (CI runs this)
+#   make images          rebuild the responsive docs screenshots from assets/screenshots
+#   make images-check    fail if a screenshot derivative is missing or stale (CI runs this)
 #   make tools           install the pinned formatters, without running them
 #   make test            run the core protocol tests
 #
@@ -17,6 +19,7 @@
 VENV := .venv
 CLANG_FORMAT := $(VENV)/bin/clang-format
 RUFF := $(VENV)/bin/ruff
+PYTHON := $(VENV)/bin/python
 PRETTIER := npx --no-install prettier
 
 # Tracked files only, so build output, the vendored JUCE checkout and anything
@@ -24,7 +27,7 @@ PRETTIER := npx --no-install prettier
 # Deleted-but-not-yet-committed files are filtered out by the wildcard.
 CPP_FILES = $(wildcard $(shell git ls-files '*.cpp' '*.h'))
 
-.PHONY: format format-check tools python-tools node-tools test clean
+.PHONY: format format-check images images-check tools python-tools node-tools test clean
 
 tools: python-tools node-tools
 
@@ -69,6 +72,16 @@ format-check: tools
 	$(PRETTIER) --check --log-level warn .
 	$(RUFF) format --check .
 	$(RUFF) check .
+
+# The generated screenshots are committed, because GitHub Pages serves docs/ as
+# static files and has no build step to run this in. So the check below is what
+# stops the site from being published with a screenshot that no longer matches
+# its source in assets/screenshots.
+images: python-tools
+	$(PYTHON) packaging/make-screenshots.py
+
+images-check: python-tools
+	$(PYTHON) packaging/make-screenshots.py --check
 
 test:
 	$(MAKE) -C core test
