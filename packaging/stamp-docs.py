@@ -6,6 +6,7 @@ honest:
   docs/index.html   the JSON-LD softwareVersion and dateModified
   docs/sitemap.xml  the lastmod of each page
   docs/llms.txt     the "Current release is X.Y.Z (date)" line
+  CITATION.cff      the version and date-released
 
 Two dates, not one. They drifted apart the moment the site started changing
 between releases:
@@ -43,6 +44,7 @@ CMAKE = os.path.join(ROOT, "CMakeLists.txt")
 INDEX = os.path.join(ROOT, "docs", "index.html")
 SITEMAP = os.path.join(ROOT, "docs", "sitemap.xml")
 LLMS = os.path.join(ROOT, "docs", "llms.txt")
+CITATION = os.path.join(ROOT, "CITATION.cff")
 
 
 def released_date():
@@ -110,6 +112,13 @@ def main():
                 # Every page, since a shared stylesheet or nav change touches all
                 # of them. lastmod is a freshness hint, not a per byte audit.
                 (r"(<lastmod>)[^<]*(</lastmod>)", rf"\g<1>{page_date}\g<2>"),
+            ],
+        ),
+        (
+            CITATION,
+            [
+                (r"(?m)^(version:\s*)\d+\.\d+\.\d+", rf"\g<1>{version}"),
+                (r'(?m)^(date-released:\s*")\d{4}-\d{2}-\d{2}(")', rf"\g<1>{date}\g<2>"),
             ],
         ),
         (

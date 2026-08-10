@@ -1,0 +1,35 @@
+# Citation metadata, in Citation File Format. GitHub reads this and offers a
+# "Cite this repository" button from it.
+#
+# The version and date below are stamped by packaging/stamp-docs.py along with
+# the docs site, so a release cannot leave them behind. Do not edit them by hand.
+cff-version: 1.2.0
+title: SidStation ASID
+message: If you refer to this software, please cite it using this metadata.
+type: software
+abstract: >-
+    A cross platform audio plugin (VST3, AU and Standalone) that plays the three
+    SID voices of the Elektron SidStation hardware synthesiser from a DAW. It
+    streams raw MOS6581 register writes over the ASID protocol rather than sending
+    MIDI CC, so each voice gets its own pitch, gate and register control, one
+    plugin instance per voice. It requires the hardware and contains no emulation.
+authors:
+    - family-names: Dehli
+      given-names: Benjamin
+      website: https://www.dehlimusikk.no/
+repository-code: https://github.com/benjamindehli/sidstation-asid
+url: https://benjamindehli.github.io/sidstation-asid/
+license: GPL-3.0-only
+version: 1.1.0
+date-released: "2026-08-09"
+keywords:
+    - SidStation
+    - Elektron
+    - ASID
+    - SID
+    - MOS6581
+    - chiptune
+    - audio plugin
+    - VST3
+    - audio unit
+    - JUCE

@@ -165,7 +165,7 @@ jobs:
           git checkout -B main origin/main
           python3 packaging/stamp-docs.py \
             --version "${{ steps.ver.outputs.version }}" --date "${PUBLISHED_AT%%T*}"
-          if git diff --quiet -- docs; then
+          if git diff --quiet -- docs CITATION.cff; then
             echo "docs already current, nothing to push"
             exit 0
           fi
@@ -174,8 +174,8 @@ jobs:
           # Stage whatever the script wrote, not a hand kept list. A hardcoded
           # list silently drops any file the script learns to stamp later,
           # which is how llms.txt sat at 1.0.0 through the 1.1.0 release.
-          git add -A docs
-          git commit -m "Stamp the docs site for $TAG"
+          git add -A docs CITATION.cff
+          git commit -m "Stamp the docs site and citation for $TAG"
           git push origin main
 
   linux:
