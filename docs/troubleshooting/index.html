@@ -117,8 +117,8 @@
                     <h3>The MIDI output is picked in the plugin, not routed in the DAW</h3>
                     <p class="lead">
                         The plugin opens the MIDI port itself rather than relying on the host to route MIDI to the hardware, which is what makes it
-                        behave the same in every DAW and in Standalone. Press Scan in the plugin's top strip and choose your interface there. Routing
-                        the plugin's MIDI output to the SidStation in your DAW instead will not do it.
+                        behave the same way regardless of the host, and in Standalone. Press Scan in the plugin's top strip and choose your interface
+                        there. Routing the plugin's MIDI output to the SidStation in your DAW instead will not do it.
                     </p>
                     <h3>The sound comes out of the SidStation, not the plugin</h3>
                     <p class="lead">
@@ -189,8 +189,7 @@
                     </p>
                     <p class="lead">
                         Mod Rate in the top strip is the dial. <strong>PAL 50 Hz is the sweet spot</strong> and the default. HiFi 100 Hz sends faster
-                        than the unit can apply and can drop, so it is worth trying only when a single voice is playing. Eco 25 Hz halves the traffic
-                        when you are running all three voices with modulation on each.
+                        than the unit can apply and can drop. Eco 25 Hz halves the traffic.
                     </p>
                     <p class="lead">
                         The MIDI load meter matters because all three voices share one MIDI port, and it is not a fast one. If the meter is high,
@@ -210,7 +209,8 @@
                     <p class="lead">
                         If several instances drift apart from each other rather than from the mix, that is a different problem and the plugin handles
                         it. Hosts do not render every instrument track at the same point relative to the playhead, so the instances share a common
-                        reference and schedule their notes against it. Set the same Latency on all of them and they stay together.
+                        reference and schedule their notes against it. Latency is itself a shared setting, so changing it in one instance changes it
+                        in all of them and they stay together on their own.
                     </p>
                     <p class="lead">
                         Panic releases every voice, which is the quickest way out of a note left hanging by a crash or an interrupted transport.
@@ -222,9 +222,9 @@
                 <div class="wrap">
                     <h2>A patch editor or Direct Program does nothing</h2>
                     <p class="lead">
-                        On OS 1.11 R34 firmware the documented SysEx Direct Program path is dead. Messages are accepted on the wire and change nothing
-                        audible, which is exactly what it looks like when you have the address wrong. Patch dumps over SysEx do still work on the same
-                        firmware, and so does ASID.
+                        On OS 1.11 R34 firmware the documented SysEx Direct Program path is dead. The messages arrive intact and the unit ignores
+                        them, which is exactly what it looks like when you have the address wrong. Reading patch dumps over SysEx does still work on
+                        the same firmware, and so does ASID. Writing a patch back to the unit is untested on this firmware.
                     </p>
                     <p class="lead">
                         If you are writing something of your own against the SidStation, the <a href="../protocol/">protocol notes</a> cover that

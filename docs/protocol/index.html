@@ -115,10 +115,12 @@
                         work.
                     </p>
                     <p class="lead">
-                        On OS 1.11 R34 firmware the unit does not honour it. Direct Program messages are accepted on the wire and change nothing
-                        audible. Patch dumps over SysEx do work on the same firmware, and so does ASID mode, which is what made the difference. This
-                        single finding is the reason the plugin streams raw SID registers rather than editing patch parameters, and it is worth
-                        knowing before you spend time building against the documented path.
+                        On OS 1.11 R34 firmware the unit does not honour it. Direct Program messages arrive intact, and the unit ignores them. That
+                        was confirmed by sending a cutoff and a transpose value, storing the patch on the unit and dumping it back: the patch still
+                        read the previously stored values, so Direct Program reaches not even the edit buffer. Reading patch dumps over SysEx does
+                        work on the same firmware, and so does ASID mode, which is what made the difference. This single finding is the reason the
+                        plugin streams raw SID registers rather than editing patch parameters, and it is worth knowing before you spend time building
+                        against the documented path.
                     </p>
                 </div>
             </section>
@@ -158,8 +160,8 @@
                     </p>
                     <h3>Patch dump layout</h3>
                     <p class="lead">
-                        A compact 143 byte structure used for reading and writing a whole patch, nibble encoded on the wire. Oscillator 1 sits at
-                        index 36 and LFO 1 at index 99.
+                        A compact structure of 143 bytes and up, used for a whole patch, nibble encoded on the wire. Oscillator 1 sits at index 36 and
+                        LFO 1 at index 99.
                     </p>
                     <p class="lead">
                         The first 0x24 bytes (name, direct controllers, filter, mode) coincide between the two. Oscillators and LFOs diverge, so a
@@ -182,8 +184,9 @@
                     <h3>Sending a bank is destructive, sending a patch is not</h3>
                     <p class="lead">
                         A bank file is one PatchAllClear (0x01) followed by, for each of 128 slots, either a PatchDump (0x02) or a SkipPatch (0x03).
-                        Because it opens by wiping patch memory, sending a whole bank file destroys what is on the unit. A single patch is one 0x02
-                        message and is safe.
+                        Because it opens by wiping patch memory, sending a whole bank file would clear the unit before writing anything. That is read
+                        off the file structure rather than tested: sending patches to a unit on this firmware is untested here, and may not work at
+                        all, so treat a bank file as destructive and keep a backup either way.
                     </p>
                     <h3>The size field is unreliable</h3>
                     <p class="lead">

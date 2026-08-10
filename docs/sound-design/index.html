@@ -198,8 +198,8 @@
                     <h2>Voice 3 as a modulator</h2>
                     <p class="lead">
                         Since ring modulation and hard sync both take the previous voice as their source, a voice can be spent driving another rather
-                        than being heard. Voice 3 Off silences it for exactly that: it keeps running as a modulation source for voice 1's ring and
-                        sync while contributing nothing audible itself.
+                        than being heard. Voice 3 Off silences it for exactly that: it keeps running as a modulation source for the voice that takes
+                        it as one, while contributing nothing audible itself.
                     </p>
                     <p class="lead">That is the trade the chip forces. Three voices, and metallic ring modulated timbres cost you one of them.</p>
                 </div>
@@ -215,8 +215,9 @@
                     <p class="lead">They live under your user application data folder, in DehliMusikk, SidStation ASID, Presets.</p>
                     <p class="lead">
                         What a preset holds is the voice sound: the oscillator, envelope, wavetable and LFO settings. It deliberately leaves out the
-                        things that are not part of a sound, which is the shared filter and master volume, the voice selection, and the tempo. Loading
-                        a preset on an instance therefore does not disturb the other two voices or move a track onto a different voice.
+                        things that are not part of one voice's sound: everything shared across the three voices, which is the filter, master volume,
+                        Voice 3 Off, Mod Rate and Latency, plus the voice selection and the tempo. Loading a preset on an instance therefore does not
+                        disturb the other two voices or move a track onto a different voice.
                     </p>
                     <p class="lead spaced">
                         <strong>Init</strong> returns the voice to the default sound, which is the quickest way to stop fighting a patch and start
