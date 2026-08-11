@@ -1,0 +1,14 @@
+# Blank issues are off so the forms get used. The forms exist because timing
+# bugs here depend on conditions that are easy to leave out of a free text
+# report, and chasing them afterwards costs more than asking up front.
+blank_issues_enabled: false
+contact_links:
+  - name: Nothing plays, notes drop out, or the timing is off
+    url: https://benjamindehli.github.io/sidstation-asid/troubleshooting/
+    about: Start here. Several of these turn out to be the SID chip or the unit rather than the plugin, and the page says which.
+  - name: Writing your own software for the SidStation
+    url: https://benjamindehli.github.io/sidstation-asid/protocol/
+    about: The protocol notes and the ASID timing page cover the frame format and the hardware behaviour to design around.
+  - name: Reporting a security problem
+    url: https://github.com/benjamindehli/sidstation-asid/security
+    about: Please report privately here rather than opening an issue. See SECURITY.md.

@@ -1,0 +1,49 @@
+name: Hardware or firmware report
+description: What your unit does, particularly if it differs from OS 1.11 R34
+labels: [hardware]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful thing anyone else can send. Everything known about the SidStation here comes from a single unit on OS 1.11 R34, and several things that read like protocol facts are really one machine's behaviour.
+
+        The [protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) say what was found. If your unit disagrees with any of it, that is worth knowing even if nothing is broken for you.
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: Shown on the unit.
+      placeholder: "OS 1.11 R34"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: areas
+    attributes:
+      label: What did you try
+      options:
+        - label: SysEx Direct Program, setting a single parameter
+        - label: Reading a patch dump from the unit
+        - label: Writing a patch back to the unit
+        - label: ASID mode
+        - label: Something else
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you sent, what the unit did, and how you confirmed it. Storing a patch and dumping it back is the way to tell an edit that landed from one that did not.
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: How the unit is connected
+      description: The interface between your computer and the unit, and whether anything sits in the middle. Some interfaces and bridges handle SysEx differently.
+
+  - type: markdown
+    attributes:
+      value: |
+        If you are testing anything that writes to the unit, back your patches up first. Patch memory is RAM, and a bank file clears it before writing.

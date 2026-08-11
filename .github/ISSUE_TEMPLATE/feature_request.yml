@@ -1,0 +1,28 @@
+name: Feature request
+description: Something the plugin could do and does not
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Worth knowing what is already ruled out. There is no SID emulation and there will not be, the plugin needs the hardware. One instance drives one voice, which is the design rather than a limitation to remove. Factory presets and reading a patch back off the unit are both known gaps rather than things nobody has thought of.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What would you like it to do
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What are you trying to get done
+      description: The musical or practical problem behind it. There is often more than one way to solve it, and the problem is more useful than the proposed solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you work around it now

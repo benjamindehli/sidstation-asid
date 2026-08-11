@@ -1,0 +1,111 @@
+name: Bug report
+description: Something the plugin does that it should not
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, it is worth a look at [troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/). Silence, notes dropping out on fast parts and uneven modulation are covered there, and several of them turn out to be the chip or the unit rather than the plugin.
+
+        The fields below are asked for because timing bugs here depend on them. A report without the conditions attached usually cannot be reproduced.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you heard, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce it
+      description: The shortest sequence that shows it. If it only happens sometimes, say roughly how often.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: Shown on the release you installed, for example 1.1.2.
+      placeholder: "1.1.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Windows
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: format
+    attributes:
+      label: Plugin format
+      options:
+        - Standalone
+        - VST3
+        - AU
+    validations:
+      required: true
+
+  - type: input
+    id: host
+    attributes:
+      label: Host and version
+      description: Leave blank if you were using the Standalone build.
+      placeholder: "Logic Pro 11.1"
+
+  - type: input
+    id: firmware
+    attributes:
+      label: SidStation firmware
+      description: Shown on the unit. Everything here was developed against OS 1.11 R34, so a different version is useful to know about on its own.
+      placeholder: "OS 1.11 R34"
+
+  - type: dropdown
+    id: instances
+    attributes:
+      label: How many instances were loaded
+      description: Several problems only appear with more than one voice playing.
+      options:
+        - "1"
+        - "2"
+        - "3"
+        - More than 3
+        - Not sure
+
+  - type: dropdown
+    id: modrate
+    attributes:
+      label: Mod Rate
+      description: In the top strip. PAL 50 Hz is the default.
+      options:
+        - Eco 25 Hz
+        - PAL 50 Hz
+        - NTSC 60 Hz
+        - HiFi 100 Hz
+        - Not sure
+
+  - type: textarea
+    id: conditions
+    attributes:
+      label: Anything else about the conditions
+      description: Whether the part was fast, whether the track was selected in the host, what the decay and sustain were set to, and whether the MIDI load meter was high. Any of these can be the difference between reproducing it and not.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: The unit was in ASID mode, entered from its front panel
+          required: true
+        - label: The MIDI output was chosen inside the plugin, with Scan, rather than routed in the host
+          required: true
