@@ -65,6 +65,10 @@ private:
   void setupKnob(juce::Component &parent, juce::Slider &,
                  const juce::String &name, const juce::String &paramId,
                  std::unique_ptr<SliderAtt> &);
+  // Binds (or re-binds) a value bar to a parameter, double-click default
+  // included. The two knobs that switch parameter at runtime go through this.
+  void bindKnob(juce::Slider &, std::unique_ptr<SliderAtt> &,
+                const juce::String &paramId);
   void setTab(int t); // show one page, hide the others
   void refreshPresets(
       const juce::String &selectName = {}); // rebuild the preset list

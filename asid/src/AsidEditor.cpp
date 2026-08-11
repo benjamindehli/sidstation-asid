@@ -66,9 +66,20 @@ void AsidEditor::setupKnob(juce::Component &parent, juce::Slider &s,
   s.addMouseListener(&sliderHover,
                      false); // repaint on move for the hover preview
   parent.addAndMakeVisible(s);
+  bindKnob(s, att, paramId);
+}
+
+// Points a value bar at a parameter, and at that parameter's default for a
+// double-click reset. Two bars are re-pointed while the editor is open (an
+// LFO's Rate to its Division, the wavetable's Rate to its Division), and the
+// default has to move with them: the reset value is a number in the bound
+// parameter's own range, so leaving it behind resets a division to a leftover
+// from the Hz range. Same reason the attachment is rebuilt rather than reused.
+void AsidEditor::bindKnob(juce::Slider &s, std::unique_ptr<SliderAtt> &att,
+                          const juce::String &paramId) {
+  att.reset();
   att = std::make_unique<SliderAtt>(state, paramId, s);
-  if (auto *p =
-          state.getParameter(paramId)) // double-click resets to the default
+  if (auto *p = state.getParameter(paramId))
     s.setDoubleClickReturnValue(
         true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
 }
@@ -175,30 +186,23 @@ void AsidEditor::setupLfo(juce::Component &parent, LfoControls &u,
 }
 
 void AsidEditor::configureRateKnob(LfoControls &u, bool synced) {
-  u.rateAtt.reset();
-  if (synced) { // bind to the tempo Division choice: stepped, shows 1/4 etc.
-    u.rateAtt =
-        std::make_unique<SliderAtt>(state, u.prefix + "Div", u.rateKnob);
-  } else { // bind to the free Hz rate, shown to 3 decimals
-    u.rateAtt =
-        std::make_unique<SliderAtt>(state, u.prefix + "Rate", u.rateKnob);
+  // Synced: the tempo Division choice, stepped, showing 1/4 and so on from the
+  // parameter itself. Free: the Hz rate, to 3 decimals. The attachment installs
+  // its own text function, so the override goes after it and only in the Hz
+  // case, where it replaces the division's.
+  bindKnob(u.rateKnob, u.rateAtt, u.prefix + (synced ? "Div" : "Rate"));
+  if (!synced)
     u.rateKnob.textFromValueFunction = [](double v) {
       return juce::String(v, 3);
     };
-  }
   u.rateKnob.updateText();
   u.rateMode = synced ? 1 : 0;
 }
 
 void AsidEditor::configureWtSpeedKnob(bool synced) {
-  wtSpeedAtt.reset();
   // Keeps the name "Rate" in both modes, like the LFO rate knobs: the Sync
   // toggle beside it is what says whether the value is frames or a division.
-  const juce::String id = synced ? "wtDiv" : "wtSpeed";
-  wtSpeedAtt = std::make_unique<SliderAtt>(state, id, wtSpeedKnob);
-  if (auto *p = state.getParameter(id)) // double-click resets to this default
-    wtSpeedKnob.setDoubleClickReturnValue(
-        true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
+  bindKnob(wtSpeedKnob, wtSpeedAtt, synced ? "wtDiv" : "wtSpeed");
   wtSpeedKnob.updateText();
   wtSpeedMode = synced ? 1 : 0;
 }
