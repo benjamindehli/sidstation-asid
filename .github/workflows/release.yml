@@ -101,6 +101,18 @@ jobs:
           bash packaging/make-pkg.sh "${{ steps.ver.outputs.version }}" "$ART" "$PKG"
           ls -la build/dist
 
+      # By this point the universal build tree is by far the largest thing on the
+      # runner: JUCE's checkout plus objects for three plugin formats across two
+      # architectures. Nothing after the .pkg reads any of it, since notarization,
+      # the DMG, the upload and the release attachment all work from build/dist.
+      # hdiutil needs room for a compressed copy of its source folder, and on a
+      # runner image that starts with little free space that is what ran out.
+      - name: Reclaim disk before packaging further
+        run: |
+          df -h / | tail -1
+          find build -mindepth 1 -maxdepth 1 ! -name dist -exec rm -rf {} +
+          df -h / | tail -1
+
       - name: Notarize and staple the package
         if: env.HAVE_SIGNING == 'true'
         timeout-minutes: 60
