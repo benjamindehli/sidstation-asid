@@ -359,6 +359,15 @@ private:
   // frequency stream has to keep running or the tail freezes at whatever pitch
   // the vibrato last wrote - audibly detuned. Holds the pitch that was sounding
   // and when the fade ends.
+  //
+  // It runs for the WHOLE fade, up to the 24 s of release nibble 15. That was
+  // capped at 4 s once, on the theory that a long tail would hog a MIDI port
+  // three voices share, but the cap bought no headroom: a voice streams a held
+  // note or a tail, never both (a note-on cancels its own tail below, and the
+  // tail is only armed once the voice falls idle), so three fading voices cost
+  // exactly what three held ones do. What the cap did instead was freeze the
+  // vibrato and the wavetable a fifth of the way into a release-15 fade, which
+  // is plainly audible. Playing again reclaims the bandwidth immediately.
   double releaseTailNote = -1.0;
   double releaseTailUntilMs = -1.0e18;
   // Envelope parking, the other half of the ADSR-bug defence. Once the fade has
@@ -370,14 +379,10 @@ private:
   //
   // Emitted from the per-block path rather than scheduled ahead: a long release
   // would put the frame up to 24 s into the queue, where a note starting first
-  // would have its own release yanked to 0 mid-flight. parkAtMs is the UNCAPPED
-  // fade end, unlike releaseTailUntilMs, so a slow fade is never cut short.
+  // would have its own release yanked to 0 mid-flight. Shares its deadline with
+  // releaseTailUntilMs, so the park lands as the modulation stops.
   double parkAtMs = 0.0;
   bool parkPending = false;
-  // Bounds the tail so a 24-second release nibble cannot stream for 24 seconds
-  // on a MIDI port three voices share. Past this the tail freezes, which by
-  // then is far enough down the fade to be inaudible on any normal patch.
-  static constexpr double kMaxReleaseTailMs = 4000.0;
   bool lfoOwnedPw = false; // PW LFO drives pulse width, skip the static send
   bool lfoOwnedCutoff =
       false; // cutoff LFO drives the shared cutoff, skip the static send

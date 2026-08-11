@@ -1142,10 +1142,11 @@ void AsidProcessor::scheduleNotes(const juce::MidiBuffer &midiMessages,
         // Keep the frequency stream alive for the fade, at the pitch that was
         // actually sounding, so the vibrato carries on through the release.
         releaseTailNote = glidePitch;
+        // The whole release is audible, so the stream and the park share one
+        // deadline: modulation runs for exactly as long as there is something
+        // to hear, and the park lands the moment there is not.
         const double fadeMs = sidReleaseMs(paramInt(pp.release));
-        releaseTailUntilMs = target + juce::jmin(fadeMs, kMaxReleaseTailMs);
-        parkAtMs = target +
-                   fadeMs; // uncapped: never park a fade that is still audible
+        releaseTailUntilMs = parkAtMs = target + fadeMs;
         parkPending = true;
       }
       // A note-off's gate-low needs a message behind it. Every sounding voice
