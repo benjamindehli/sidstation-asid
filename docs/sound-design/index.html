@@ -146,19 +146,27 @@
                     </p>
                     <p class="lead">
                         Eight steps, each carrying its own waveform selection, sync, ring, test bit, pulse width and an arpeggio offset in semitones.
-                        Three controls govern playback: <strong>Speed</strong> is frames per step, so 1 is a new step on every frame, roughly 50 per
+                        Three controls govern playback: <strong>Rate</strong> is frames per step, so 1 is a new step on every frame, roughly 50 per
                         second at PAL. <strong>Length</strong> is how many steps play. <strong>Loop</strong> is the step it jumps back to after the
                         last one, which is what separates a one-shot attack from a sustained texture.
                     </p>
                     <p class="lead">
-                        Two classic uses fall out of that. Put semitone offsets on successive steps at speed 1 and you get the C64 arpeggio, a chord
+                        <strong>Sync</strong> times a step by a note division at the host tempo instead of by frames, which is what keeps an arpeggio
+                        table in time when the tempo changes. Rate becomes the division while it is on and reads as 1/16 and so on, down to 1/64,
+                        which at 120 BPM is a 31 ms step and so close to the frame rate the table was built around. Boundaries still land on the
+                        modulation clock, so a step can turn over a tick early or late, but the leftover time carries into the next step rather than
+                        piling up as drift.
+                    </p>
+                    <p class="lead">
+                        Two classic uses fall out of that. Put semitone offsets on successive steps at rate 1 and you get the C64 arpeggio, a chord
                         implied by one voice cycling through its notes faster than the ear separates them. Or set a short length with the loop
                         pointing past the first steps, so those steps become a transient: a couple of frames of noise or a different waveform at the
                         front of the note, then a loop over the sustained part.
                     </p>
                     <p class="lead">
-                        The table restarts at step 0 on each note-on and stops on release. Switch it off and the oscillator's own waveform, sync, ring
-                        and pulse width controls take back over.
+                        The table restarts at step 0 on each note-on and stops on release, whether or not it is synced: the step length follows the
+                        tempo, the position follows the note, the way a tracker table and an arpeggiator do. Switch it off and the oscillator's own
+                        waveform, sync, ring and pulse width controls take back over.
                     </p>
                 </div>
             </section>

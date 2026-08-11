@@ -18,7 +18,7 @@ Per voice:
 - ADSR envelope, pulse width, coarse and fine tuning, and pitch bend with an adjustable range.
 - Hard sync, ring modulation, and the raw TEST bit.
 - Portamento, with a legato or always trigger and a smooth or stepped glide.
-- An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus speed, length and a loop point.
+- An eight step wavetable, each step with its own waveform, sync, ring, test, pulse width and arpeggio offset, plus a step length in frames or as a host tempo synced note division, a length and a loop point.
 - Three LFOs (pitch, pulse width, cutoff) with several shapes, a free Hz or host tempo synced rate, depth, mod wheel scaling, and a fade in delay.
 
 Shared across the three voices, since the chip has one of each:
