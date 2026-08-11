@@ -34,6 +34,10 @@
 
 html {
     scroll-behavior: smooth;
+    /* Clears the pinned nav, so a jump to #modulation or #tabs does not land the
+       heading underneath it. Generous enough to cover the nav wrapping to two
+       lines on a narrow screen, since CSS cannot read its height. */
+    scroll-padding-top: 76px;
 }
 
 body {
@@ -72,20 +76,42 @@ a:hover {
     padding: 0 24px;
 }
 
-/* Site navigation. Sits above the hero on both pages, so the sections are
-   addressable rather than only scrollable, and so the protocol notes are one
-   click from anywhere. --fg on --bg is 7.33:1. */
+/* Site navigation, above the hero on every page, so any page is one click from
+   anywhere. --fg on --bg is 7.33:1.
+
+   It stays pinned to the top of the viewport. Sticky rather than fixed: it is the
+   first element in the body, so it pins from the start either way, but sticky
+   keeps its place in the flow, which means no spacer under it and nothing to get
+   wrong when the links wrap to a second line on a narrow screen. The z-index is
+   needed because the hero that follows is a positioned element and would
+   otherwise paint over it.
+
+   The bottom edge is --dim (the palette's border tone) rather than --panel, and
+   there is no shadow. Pinned, the bar keeps its --bg fill over whatever scrolls
+   under it, and --bg on a normal section is the same colour at 1.00, so the edge
+   is the only thing marking where the bar ends: --panel manages 1.21 against the
+   body and disappears, where --dim is 2.45 there and 1.60 over the hero. A
+   shadow was tried here and read as a stripe, since the site is otherwise flat
+   and the h1's drop shadow only works because it sits on letterforms. */
 .topnav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
     background: var(--bg);
-    border-bottom: 2px solid var(--panel);
+    border-bottom: 2px solid var(--dim);
     font-family: "SidStationC64", monospace;
     text-transform: uppercase;
     font-size: 12px;
     letter-spacing: 0.05em;
 }
+/* Spread across the same .wrap the text and screenshots use, so the first and
+   last link sit flush with the content edges either side. The gap becomes a
+   minimum rather than the actual spacing, and still sets the row gap for the
+   narrow screens where five links do not fit on one line. */
 .topnav .wrap {
     display: flex;
     flex-wrap: wrap;
+    justify-content: space-between;
     gap: 6px 20px;
     padding-top: 13px;
     padding-bottom: 13px;
@@ -98,16 +124,6 @@ a:hover {
 .topnav a:focus-visible,
 .topnav a[aria-current="page"] {
     color: var(--hot);
-}
-/* Second row on the home page only: jump links to its own sections, kept out of
-   the nav above so that one stays the same on every page as pages are added. */
-.topnav.onpage {
-    background: var(--panel);
-    border-bottom-width: 0;
-}
-/* --fg, not --muted: --muted is only safe on --bg, and would be 4.08 here. */
-.topnav.onpage a {
-    color: var(--fg);
 }
 
 /* Hero */
