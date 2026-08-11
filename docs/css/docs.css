@@ -104,17 +104,19 @@ a:hover {
     font-size: 12px;
     letter-spacing: 0.05em;
 }
+.topnav .wrap {
+    padding-top: 13px;
+    padding-bottom: 13px;
+}
 /* Spread across the same .wrap the text and screenshots use, so the first and
    last link sit flush with the content edges either side. The gap becomes a
-   minimum rather than the actual spacing, and still sets the row gap for the
-   narrow screens where five links do not fit on one line. */
-.topnav .wrap {
+   minimum rather than the actual spacing, and still sets the row gap if a link
+   ever wraps. */
+.topnav .navlinks {
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     gap: 6px 20px;
-    padding-top: 13px;
-    padding-bottom: 13px;
 }
 .topnav a {
     color: var(--fg);
@@ -124,6 +126,53 @@ a:hover {
 .topnav a:focus-visible,
 .topnav a[aria-current="page"] {
     color: var(--hot);
+}
+
+/* The Menu button. Hidden by default, and revealed only inside the narrow-screen
+   query below, and there only when scripting is on: .js is set inline in each
+   page's head so the swap happens before first paint rather than as a flash of
+   the wide layout. With JS off nothing here applies and the links stay a plain
+   wrapping row, which is what the site did before the button existed. Styled off
+   --panel and --dim like every other field on the site (--fg on --panel is
+   6.07:1). */
+.navtoggle {
+    display: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--fg);
+    background: var(--panel);
+    border: 2px solid var(--dim);
+    padding: 8px 14px;
+    cursor: pointer;
+}
+.navtoggle:hover,
+.navtoggle[aria-expanded="true"] {
+    color: var(--hot);
+}
+
+/* Five links stop fitting on one line at about 900px, where space-between starts
+   spreading a half-empty second row. Below that they collapse behind the button.
+   The .98 keeps a fractional viewport width, which browser zoom produces, from
+   landing in the gap between the two layouts. */
+@media (max-width: 899.98px) {
+    .js .navtoggle {
+        display: block;
+    }
+    .js .navlinks {
+        display: none;
+    }
+    /* Open: a stacked list under the button. Column, so space-between has nothing
+       to spread, and the padding gives each link a comfortable tap target. */
+    .js .navlinks.open {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding-top: 6px;
+    }
+    .js .navlinks.open a {
+        padding: 10px 0;
+    }
 }
 
 /* Hero */

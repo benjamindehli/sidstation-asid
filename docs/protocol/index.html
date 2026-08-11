@@ -84,15 +84,22 @@
             }
         </script>
         <link rel="stylesheet" href="../css/docs.css" />
+        <!-- Lets the CSS collapse the nav behind its button only when this can be opened again. -->
+        <script>
+            document.documentElement.classList.add("js");
+        </script>
     </head>
     <body>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
-                <a href="../">Overview</a>
-                <a href="../sound-design/">Sound design</a>
-                <a href="../troubleshooting/">Troubleshooting</a>
-                <a href="../protocol/" aria-current="page">Protocol notes</a>
-                <a href="../asid-timing/">ASID timing</a>
+                <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
+                <div class="navlinks" id="navlinks">
+                    <a href="../">Overview</a>
+                    <a href="../sound-design/">Sound design</a>
+                    <a href="../troubleshooting/">Troubleshooting</a>
+                    <a href="../protocol/" aria-current="page">Protocol notes</a>
+                    <a href="../asid-timing/">ASID timing</a>
+                </div>
             </div>
         </nav>
         <header class="hero">
@@ -243,5 +250,6 @@
                 </p>
             </div>
         </footer>
+        <script src="../js/nav.js" defer></script>
     </body>
 </html>
