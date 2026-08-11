@@ -50,6 +50,49 @@ jobs:
       - name: Build and run core tests
         run: make -C core test
 
+  # The plugin is developed on macOS, so until now Windows and Linux were first
+  # compiled during a tag build. That is the worst place to find a break: the tag
+  # is already public and half the release is done. These two jobs run the same
+  # configure and build lines the release workflow does, on the same images, so a
+  # missing include MSVC wants or a stricter GCC warning fails a pull request
+  # instead. They build the wrappers too, which the macOS job below does not.
+  #
+  # Build only, no test run. The JUCE-linked tests instantiate the processor,
+  # which opens MIDI devices, and a headless runner with no sound stack is a poor
+  # place to judge that. macOS runs them.
+  plugin-build-linux:
+    name: Plugin build (Linux)
+    # The image the release tarball is built on, not ubuntu-latest, so this
+    # checks the environment that actually ships.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install JUCE build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev libjack-jackd2-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev \
+            libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+      - name: Configure and build (VST3 + Standalone)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
+  plugin-build-windows:
+    name: Plugin build (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash # match the release job, so the commands are the same ones
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure and build (VST3 + Standalone)
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --config Release
+
   plugin-build:
     name: Plugin build + JUCE-linked tests (macOS)
     runs-on: macos-latest

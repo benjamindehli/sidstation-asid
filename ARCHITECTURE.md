@@ -72,7 +72,7 @@ The core tests build with a compiler and a Makefile, no CMake and no JUCE:
 make -C core test
 ```
 
-CI runs three jobs. Formatting and lint first, because it is the cheapest signal. Then the core tests on Linux. Then a macOS job that configures with `-DSID_BUILD_TESTS=ON` and builds `SidStationAsidTests`, a console target that compiles the full processor and editor and links the core, so it validates that the plugin compiles as well as running the JUCE linked tests.
+CI runs five jobs. Formatting and lint first, because it is the cheapest signal. Then the core tests on Linux. Then a macOS job that configures with `-DSID_BUILD_TESTS=ON` and builds `SidStationAsidTests`, a console target that compiles the full processor and editor and links the core, so it validates that the plugin compiles as well as running the JUCE linked tests. Last, a Linux and a Windows job that run the same configure and build lines the release workflow does, on the same images, so a platform specific break fails a pull request rather than a tag build. Those two build the plugin wrappers but do not run the tests, since the processor opens MIDI devices on construction and a headless runner is a poor place to judge that.
 
 ## The docs site and its tooling
 
