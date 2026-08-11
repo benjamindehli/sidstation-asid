@@ -104,6 +104,64 @@ public:
   bool showTooltips() const { return tooltipsOn; }
   void setShowTooltips(bool on) { tooltipsOn = on; }
 
+  // Modulation stream interval in ms for the "modRate" choice. Public because
+  // the editor needs it to tell whether a synced wavetable step is shorter than
+  // one tick of this clock, which is when steps start being skipped.
+  static double modIntervalForRate(int idx) {
+    switch (idx) {
+    case 0:
+      return 40.0; // Eco 25 Hz
+    case 1:
+      return 20.0; // PAL 50 Hz
+    case 2:
+      return 1000.0 / 60.0; // NTSC 60 Hz
+    case 3:
+      return 10.0; // HiFi 100 Hz
+    }
+    return 20.0;
+  }
+
+  // Note division to beats, for a tempo-synced LFO phase and wavetable step.
+  // The index is a "*Div" / "wtDiv" choice, and the two short divisions at the
+  // end exist for the wavetable, whose steps run far faster than an LFO cycle:
+  // 1/64 at 120 BPM is a 31 ms step, close to the PAL frame the table was
+  // designed around. They are offered to the LFOs too, which costs nothing and
+  // keeps one list.
+  //
+  // APPEND ONLY. The index is what presets and automation store, so inserting a
+  // division here would silently move every saved one. StateTests pins this.
+  static double beatsForDivision(int idx) {
+    switch (idx) {
+    case 0:
+      return 4.0; // 1/1
+    case 1:
+      return 2.0; // 1/2
+    case 2:
+      return 1.0; // 1/4
+    case 3:
+      return 2.0 / 3.0; // 1/4 triplet
+    case 4:
+      return 0.5; // 1/8
+    case 5:
+      return 1.0 / 3.0; // 1/8 triplet
+    case 6:
+      return 0.25; // 1/16
+    case 7:
+      return 1.0 / 6.0; // 1/16 triplet
+    case 8:
+      return 0.125; // 1/32
+    case 9:
+      return 0.0625; // 1/64
+    }
+    return 1.0;
+  }
+  // The choices behind those indices, shared by the LFOs and the wavetable so
+  // the two cannot drift apart.
+  static juce::StringArray divisionChoices() {
+    return {"1/1",  "1/2",  "1/4",   "1/4T", "1/8",
+            "1/8T", "1/16", "1/16T", "1/32", "1/64"};
+  }
+
 private:
   // Cached parameter pointers, resolved once at construction.
   //

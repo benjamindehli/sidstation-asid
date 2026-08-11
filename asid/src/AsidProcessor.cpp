@@ -14,21 +14,6 @@ juce::AudioParameterInt *intParam(const char *id, const char *name, int lo,
                                      def);
 }
 
-// Modulation stream interval in ms for the update-rate choice.
-double modIntervalForRate(int idx) {
-  switch (idx) {
-  case 0:
-    return 40.0; // Eco 25 Hz
-  case 1:
-    return 20.0; // PAL 50 Hz
-  case 2:
-    return 1000.0 / 60.0; // NTSC 60 Hz
-  case 3:
-    return 10.0; // HiFi 100 Hz
-  }
-  return 20.0;
-}
-
 // Approximate 6581 envelope release time in ms (full-level to zero) per release
 // nibble 0..15. Used to tell whether a just-released note is still ringing when
 // a new note attacks, which is when the ADSR bug bites and a hard restart is
@@ -37,44 +22,6 @@ double sidReleaseMs(int r) {
   static const double t[16] = {6,   24,  48,   72,   114,  168,  204,   240,
                                300, 750, 1500, 2400, 3000, 9000, 15000, 24000};
   return t[r < 0 ? 0 : (r > 15 ? 15 : r)];
-}
-
-// Note division to beats, for a tempo-synced LFO phase and wavetable step. The
-// two short divisions at the end exist for the wavetable, whose steps run far
-// faster than an LFO cycle: 1/64 at 120 BPM is a 31 ms step, close to the PAL
-// frame the table was designed around. They are offered to the LFOs too, which
-// costs nothing and keeps one list.
-double beatsForDivision(int idx) {
-  switch (idx) {
-  case 0:
-    return 4.0; // 1/1
-  case 1:
-    return 2.0; // 1/2
-  case 2:
-    return 1.0; // 1/4
-  case 3:
-    return 2.0 / 3.0; // 1/4 triplet
-  case 4:
-    return 0.5; // 1/8
-  case 5:
-    return 1.0 / 3.0; // 1/8 triplet
-  case 6:
-    return 0.25; // 1/16
-  case 7:
-    return 1.0 / 6.0; // 1/16 triplet
-  case 8:
-    return 0.125; // 1/32
-  case 9:
-    return 0.0625; // 1/64
-  }
-  return 1.0;
-}
-
-// The choices behind those indices, shared by the LFOs and the wavetable so the
-// two cannot drift apart. Append only: the index is what gets saved.
-juce::StringArray divisionChoices() {
-  return {"1/1",  "1/2",  "1/4",   "1/4T", "1/8",
-          "1/8T", "1/16", "1/16T", "1/32", "1/64"};
 }
 } // namespace
 

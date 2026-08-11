@@ -153,9 +153,16 @@
                     <p class="lead">
                         <strong>Sync</strong> times a step by a note division at the host tempo instead of by frames, which is what keeps an arpeggio
                         table in time when the tempo changes. Rate becomes the division while it is on and reads as 1/16 and so on, down to 1/64,
-                        which at 120 BPM is a 31 ms step and so close to the frame rate the table was built around. Boundaries still land on the
-                        modulation clock, so a step can turn over a tick early or late, but the leftover time carries into the next step rather than
-                        piling up as drift.
+                        which at 120 BPM is a 31 ms step, the same territory as the 20 ms PAL frame the table was built around.
+                    </p>
+                    <p class="lead">
+                        Steps can only turn over on a tick of the Clock in the top strip, which sets the ceiling on how short a synced step can
+                        usefully be. Two things follow from that. A step lasting a few ticks turns over a tick early or late, and no worse than that,
+                        because the leftover time carries into the next step instead of piling up as drift. A step shorter than a single tick is
+                        different: the table crosses whole steps between ticks, and a step crossed that way is never written to the chip, so it is
+                        skipped rather than shortened. The plugin says so on the Rate control when that is happening. 1/64 is the one to watch: it
+                        starts skipping above roughly 94 BPM on Eco 25 Hz and roughly 188 BPM on PAL 50 Hz, while HiFi 100 Hz keeps it clean all the
+                        way to 300. Raising the Clock or picking a longer division are the two ways out.
                     </p>
                     <p class="lead">
                         Two classic uses fall out of that. Put semitone offsets on successive steps at rate 1 and you get the C64 arpeggio, a chord
@@ -194,8 +201,8 @@
                         actually routed through the filter, so a cutoff LFO on an unrouted patch is silent by design rather than broken.
                     </p>
                     <p class="lead">
-                        All three run on one modulation clock, set by Mod Rate in the top strip. If the movement sounds like it is stepping rather
-                        than gliding, that is the clock rather than the LFO, and
+                        All three run on one modulation clock, set by Clock in the top strip. If the movement sounds like it is stepping rather than
+                        gliding, that is the clock rather than the LFO, and
                         <a href="../troubleshooting/#modulation">the rate is the thing to change</a>.
                     </p>
                 </div>
@@ -224,7 +231,7 @@
                     <p class="lead">
                         What a preset holds is the voice sound: the oscillator, envelope, wavetable and LFO settings. It deliberately leaves out the
                         things that are not part of one voice's sound: everything shared across the three voices, which is the filter, master volume,
-                        Voice 3 Off, Mod Rate and Latency, plus the voice selection and the tempo. Loading a preset on an instance therefore does not
+                        Voice 3 Off, Clock and Latency, plus the voice selection and the tempo. Loading a preset on an instance therefore does not
                         disturb the other two voices or move a track onto a different voice.
                     </p>
                     <p class="lead spaced">

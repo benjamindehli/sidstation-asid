@@ -38,6 +38,17 @@ void toggleInCol(juce::Rectangle<int> col, juce::ToggleButton &b) {
       juce::jmin(col.getWidth() - 8, kCtrlWMax), kCtrlH));
 }
 
+// The wavetable Rate hint, in its two forms. Held as strings so the enablement
+// pass can swap them by refcount instead of building one every tick. The second
+// one is the warning: a synced step shorter than one tick of the modulation
+// clock cannot be written, because the table crosses whole steps between ticks.
+const juce::String kWtRateHint =
+    "How long a step lasts: frames per step, or the note division when Sync is "
+    "on.";
+const juce::String kWtRateSkipHint =
+    "This division is shorter than one Clock tick at this tempo, so some steps "
+    "are skipped. Raise Clock, or pick a longer division.";
+
 } // namespace
 
 void AsidEditor::setupKnob(juce::Component &parent, juce::Slider &s,
@@ -110,8 +121,11 @@ void AsidEditor::buildParamRefs() {
   pr.portaType = at("portaType");
   pr.wtOn = at("wtOn");
   pr.wtTempoSync = at("wtTempoSync");
+  pr.wtDiv = at("wtDiv");
   pr.wtLength = at("wtLength");
   pr.wtLoop = at("wtLoop");
+  pr.modRate = at("modRate");
+  pr.bpm = at("bpm");
   for (int i = 0; i < AsidProcessor::kWtSteps; ++i)
     pr.wtNoise[i] = at("wtNoise" + juce::String(i));
 }
@@ -700,10 +714,9 @@ AsidEditor::AsidEditor(AsidProcessor &p)
             "Time each step by a note division at the host tempo instead of by "
             "frames.",
             wtOff);
-  hints.add(wtSpeedKnob,
-            "How long a step lasts: frames per step, or the note division when "
-            "Sync is on.",
-            wtOff);
+  // Swapped for kWtRateSkipHint by updateEnablement when the synced step is
+  // shorter than a Clock tick.
+  hints.add(wtSpeedKnob, kWtRateHint, wtOff);
   hints.add(wtLengthKnob, "Number of steps that play.", wtOff);
   hints.add(wtLoopKnob, "Step the table loops back to.", wtOff, left);
 
@@ -798,9 +811,22 @@ void AsidEditor::updateEnablement() {
   wtTempoSyncButton.setEnabled(wtOn);
   // Re-bind the Rate knob when Sync toggles (frames per step vs the stepped
   // tempo division), the same way the LFO rate knobs work below.
-  if (const bool wtSynced = boolOf(pr.wtTempoSync);
-      (wtSynced ? 1 : 0) != wtSpeedMode)
+  const bool wtSynced = boolOf(pr.wtTempoSync);
+  if ((wtSynced ? 1 : 0) != wtSpeedMode)
     configureWtSpeedKnob(wtSynced);
+  // A synced step shorter than one modulation tick cannot all be played: the
+  // table crosses whole steps between ticks and those steps never reach the
+  // chip. The threshold is the tick itself, since above it every step gets a
+  // tick of its own. Tempo can move under the plugin, so this is re-checked
+  // here rather than only when a control changes, and it says so on the Rate
+  // knob instead of letting steps go missing silently.
+  const double bpm =
+      proc.hostBpm() > 0.0 ? proc.hostBpm() : (double)intOf(pr.bpm);
+  const double stepMs = AsidProcessor::beatsForDivision(intOf(pr.wtDiv)) *
+                        60000.0 / juce::jmax(1.0, bpm);
+  const double tickMs = AsidProcessor::modIntervalForRate(intOf(pr.modRate));
+  hints.setText(wtSpeedKnob,
+                (wtSynced && stepMs < tickMs) ? kWtRateSkipHint : kWtRateHint);
   for (auto &h : wtWaveHead)
     h.setEnabled(wtOn);
   for (auto *h : {&wtSyncHead, &wtRingHead, &wtTestHead, &wtPwHead, &wtArpHead})

@@ -41,7 +41,8 @@ private:
     P asidVoice{}, sustain{};
     P waveTri{}, wavePulse{}, waveNoise{};
     P portaTime{}, portaTrigger{}, portaType{};
-    P wtOn{}, wtTempoSync{}, wtLength{}, wtLoop{};
+    P wtOn{}, wtTempoSync{}, wtDiv{}, wtLength{}, wtLoop{};
+    P modRate{}, bpm{}; // to size a synced wavetable step against the mod clock
     P wtNoise[AsidProcessor::kWtSteps]{}; // per-step noise drives the row
                                           // greying
   };
@@ -208,6 +209,13 @@ private:
              const juce::String &disabledText, int placement = anySide) {
       entries[&c] = {enabledText, disabledText, placement};
       c.addMouseListener(this, true);
+    }
+    // Replaces the enabled text of an already-registered control, for a hint
+    // that depends on the current settings rather than being fixed. The text is
+    // read at hover time, so setting it from the enablement pass is enough.
+    void setText(juce::Component &c, const juce::String &t) {
+      if (auto it = entries.find(&c); it != entries.end())
+        it->second.enabled = t;
     }
     void mouseEnter(const juce::MouseEvent &e) override {
       if (!active)
