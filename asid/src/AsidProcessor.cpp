@@ -602,10 +602,18 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
       sendAsid(f);
   }
 
+  // A released note is not a finished note: the gate is low but the envelope is
+  // still fading, audibly, until releaseTailUntilMs. Everything that has to
+  // keep playing through that fade keys off this - the pitch stream further
+  // down, and the wavetable, which would otherwise stop on whatever step the
+  // release landed on while the vibrato carried on moving.
+  const bool releasing =
+      curNote < 0 && releaseTailNote >= 0.0 && nowMs < releaseTailUntilMs;
+
   // Ownership and active-state bookkeeping (every block, so hand-offs are
   // prompt).
   const bool wtOn = paramInt(pp.wtOn) != 0;
-  const bool wtActive = wtOn && curNote >= 0;
+  const bool wtActive = wtOn && (curNote >= 0 || releasing);
   if (wtActive)
     wtPlayer.configure(paramInt(pp.wtLength), paramInt(pp.wtLoop),
                        paramInt(pp.wtSpeed));
@@ -618,7 +626,7 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
   // controls when the wavetable is switched off (its on->off edge), even with
   // no note playing, so the SID does not stay stuck on the last table waveform.
   // We do this on the switch-off edge, not merely on a note release: on release
-  // the envelope is still sounding, so the table's last values play through it.
+  // the envelope is still sounding, so the table plays on through the fade.
   // sent.*=-1 forces applyControlChanges to resend the oscillator settings.
   if (lastWtOn && !wtOn) {
     sent.wave = sent.sync = sent.ring = sent.pw = sent.test = -1;
@@ -668,11 +676,10 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
   // (it depends on the continuous stream through its held portions, not just
   // the sliding part). Dropping this to modulating-only broke glide playback.
   //
-  // It also keeps running through the release: the gate is low but the envelope
-  // is still fading, and stopping the stream there froze the tail at whatever
-  // pitch the vibrato last wrote, so a released note faded out detuned.
-  const bool releasing =
-      curNote < 0 && releaseTailNote >= 0.0 && nowMs < releaseTailUntilMs;
+  // It also keeps running through the release (see `releasing` above): the gate
+  // is low but the envelope is still fading, and stopping the stream there
+  // froze the tail at whatever pitch the vibrato last wrote, so a released note
+  // faded out detuned.
   const bool pitchOn = curNote >= 0 || releasing;
   const bool anyMod = pitchOn || pwOn || cutOn || wtActive;
 
