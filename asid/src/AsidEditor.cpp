@@ -109,6 +109,7 @@ void AsidEditor::buildParamRefs() {
   pr.portaTrigger = at("portaTrigger");
   pr.portaType = at("portaType");
   pr.wtOn = at("wtOn");
+  pr.wtTempoSync = at("wtTempoSync");
   pr.wtLength = at("wtLength");
   pr.wtLoop = at("wtLoop");
   for (int i = 0; i < AsidProcessor::kWtSteps; ++i)
@@ -173,6 +174,19 @@ void AsidEditor::configureRateKnob(LfoControls &u, bool synced) {
   }
   u.rateKnob.updateText();
   u.rateMode = synced ? 1 : 0;
+}
+
+void AsidEditor::configureWtSpeedKnob(bool synced) {
+  wtSpeedAtt.reset();
+  // Keeps the name "Rate" in both modes, like the LFO rate knobs: the Sync
+  // toggle beside it is what says whether the value is frames or a division.
+  const juce::String id = synced ? "wtDiv" : "wtSpeed";
+  wtSpeedAtt = std::make_unique<SliderAtt>(state, id, wtSpeedKnob);
+  if (auto *p = state.getParameter(id)) // double-click resets to this default
+    wtSpeedKnob.setDoubleClickReturnValue(
+        true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
+  wtSpeedKnob.updateText();
+  wtSpeedMode = synced ? 1 : 0;
 }
 
 void AsidEditor::layoutLfo(LfoControls &u, juce::Rectangle<int> area) {
@@ -504,7 +518,13 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   // ---- WAVE page: wavetable config and the per-step rows ----
   wtPage.addAndMakeVisible(wtOnButton);
   wtOnAtt = std::make_unique<ButtonAtt>(state, "wtOn", wtOnButton);
-  setupKnob(wtPage, wtSpeedKnob, "Speed", "wtSpeed", wtSpeedAtt);
+  wtPage.addAndMakeVisible(wtTempoSyncButton);
+  wtTempoSyncAtt =
+      std::make_unique<ButtonAtt>(state, "wtTempoSync", wtTempoSyncButton);
+  // Rate knob: set up the shell, then bind it (frames per step by default, or
+  // the stepped tempo division when Sync is on - see configureWtSpeedKnob).
+  setupKnob(wtPage, wtSpeedKnob, "Rate", "wtSpeed", wtSpeedAtt);
+  configureWtSpeedKnob(false);
   setupKnob(wtPage, wtLengthKnob, "Length", "wtLength", wtLengthAtt);
   setupKnob(wtPage, wtLoopKnob, "Loop", "wtLoop", wtLoopAtt);
   const char *wtHeads[4] = {"Tri", "Saw", "Pul", "Noi"};
@@ -676,7 +696,14 @@ AsidEditor::AsidEditor(AsidProcessor &p)
 
   // --- Wavetable ---
   const juce::String wtOff = "Disabled: turn the wavetable On first.";
-  hints.add(wtSpeedKnob, "Wavetable speed (frames per step).", wtOff);
+  hints.add(wtTempoSyncButton,
+            "Time each step by a note division at the host tempo instead of by "
+            "frames.",
+            wtOff);
+  hints.add(wtSpeedKnob,
+            "How long a step lasts: frames per step, or the note division when "
+            "Sync is on.",
+            wtOff);
   hints.add(wtLengthKnob, "Number of steps that play.", wtOff);
   hints.add(wtLoopKnob, "Step the table loops back to.", wtOff, left);
 
@@ -768,6 +795,12 @@ void AsidEditor::updateEnablement() {
   const bool wtOn = boolOf(pr.wtOn);
   for (auto *s : {&wtSpeedKnob, &wtLengthKnob, &wtLoopKnob})
     s->setEnabled(wtOn);
+  wtTempoSyncButton.setEnabled(wtOn);
+  // Re-bind the Rate knob when Sync toggles (frames per step vs the stepped
+  // tempo division), the same way the LFO rate knobs work below.
+  if (const bool wtSynced = boolOf(pr.wtTempoSync);
+      (wtSynced ? 1 : 0) != wtSpeedMode)
+    configureWtSpeedKnob(wtSynced);
   for (auto &h : wtWaveHead)
     h.setEnabled(wtOn);
   for (auto *h : {&wtSyncHead, &wtRingHead, &wtTestHead, &wtPwHead, &wtArpHead})
@@ -1211,16 +1244,18 @@ void AsidEditor::layoutSharedPage(juce::Rectangle<int> area) {
 void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
   const int H = kCtrlH, titleH = 22, sabove = 24;
   area.removeFromTop(sabove); // 24px above the WAVETABLE title (from the tabs)
-  { // WAVETABLE config: On, Speed, Length, Loop. Box wraps title + one row
-    // tightly (no extra bottom padding) so STEPS sits a clean 24px below, like
-    // other sections.
+  { // WAVETABLE config: On, Sync, Rate, Length, Loop. Five columns in the
+    // same single row (134px each), so the section keeps its height and STEPS
+    // below it does not move. Box wraps title + one row tightly (no extra
+    // bottom padding) so STEPS sits a clean 24px below, like other sections.
     auto box = area.removeFromTop(titleH + H);
     wtConfigGroup.setBounds(box);
     auto c = box.withTrimmedTop(titleH);
-    toggleInCol(colOf(c, 0, 4), wtOnButton);
-    knobInCol(colOf(c, 1, 4), wtSpeedKnob);
-    knobInCol(colOf(c, 2, 4), wtLengthKnob);
-    knobInCol(colOf(c, 3, 4), wtLoopKnob);
+    toggleInCol(colOf(c, 0, 5), wtOnButton);
+    toggleInCol(colOf(c, 1, 5), wtTempoSyncButton);
+    knobInCol(colOf(c, 2, 5), wtSpeedKnob);
+    knobInCol(colOf(c, 3, 5), wtLengthKnob);
+    knobInCol(colOf(c, 4, 5), wtLoopKnob);
   }
   area.removeFromTop(sabove); // 24px above the STEPS title
   { // STEPS. Each row (24px tall, 4px apart): loop+number (40), then seven 32px

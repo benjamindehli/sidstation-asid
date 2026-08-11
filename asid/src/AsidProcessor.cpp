@@ -39,7 +39,11 @@ double sidReleaseMs(int r) {
   return t[r < 0 ? 0 : (r > 15 ? 15 : r)];
 }
 
-// Note division to beats, for tempo-synced LFO phase.
+// Note division to beats, for a tempo-synced LFO phase and wavetable step. The
+// two short divisions at the end exist for the wavetable, whose steps run far
+// faster than an LFO cycle: 1/64 at 120 BPM is a 31 ms step, close to the PAL
+// frame the table was designed around. They are offered to the LFOs too, which
+// costs nothing and keeps one list.
 double beatsForDivision(int idx) {
   switch (idx) {
   case 0:
@@ -58,8 +62,19 @@ double beatsForDivision(int idx) {
     return 0.25; // 1/16
   case 7:
     return 1.0 / 6.0; // 1/16 triplet
+  case 8:
+    return 0.125; // 1/32
+  case 9:
+    return 0.0625; // 1/64
   }
   return 1.0;
+}
+
+// The choices behind those indices, shared by the LFOs and the wavetable so the
+// two cannot drift apart. Append only: the index is what gets saved.
+juce::StringArray divisionChoices() {
+  return {"1/1",  "1/2",  "1/4",   "1/4T", "1/8",
+          "1/8T", "1/16", "1/16T", "1/32", "1/64"};
 }
 } // namespace
 
@@ -171,11 +186,8 @@ AsidProcessor::makeLayout() {
     layout.add(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID{prefix + "Rate", 1}, name + " Rate",
         juce::NormalisableRange<float>(0.05f, 20.0f, 0.0f, 0.35f), 2.0f));
-    layout.add(std::make_unique<C>(
-        juce::ParameterID{prefix + "Div", 1}, name + " Division",
-        juce::StringArray{"1/1", "1/2", "1/4", "1/4T", "1/8", "1/8T", "1/16",
-                          "1/16T"},
-        2));
+    layout.add(std::make_unique<C>(juce::ParameterID{prefix + "Div", 1},
+                                   name + " Division", divisionChoices(), 2));
     layout.add(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID{prefix + "Depth", 1}, name + " Depth", 0, 100, 50));
     // Mod-wheel control (depth becomes the maximum, scaled by the wheel) and a
@@ -210,7 +222,18 @@ AsidProcessor::makeLayout() {
   layout.add(std::make_unique<juce::AudioParameterBool>(
       juce::ParameterID{"wtOn", 1}, "Wavetable On", false));
   layout.add(std::unique_ptr<juce::AudioParameterInt>(
-      intParam("wtSpeed", "WT Speed", 1, 16, 2)));
+      intParam("wtSpeed", "WT Rate", 1, 16, 2))); // id kept, label follows the
+                                                  // UI's Rate knob
+  // Tempo sync: the step lasts a note division instead of `wtSpeed` frames, so
+  // an arpeggio table stays in time when the tempo changes. Named TempoSync,
+  // not Sync, because wtSync0..7 are already the per-step SID hard-sync bits.
+  // The table still restarts from step 0 on each note-on rather than locking
+  // its position to the bar, which is how tracker tables and arpeggiators
+  // behave.
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID{"wtTempoSync", 1}, "WT Tempo Sync", false));
+  layout.add(std::make_unique<Choice>(juce::ParameterID{"wtDiv", 1},
+                                      "WT Division", divisionChoices(), 6));
   layout.add(std::unique_ptr<juce::AudioParameterInt>(
       intParam("wtLength", "WT Length", 1, kWtSteps, 1)));
   layout.add(std::unique_ptr<juce::AudioParameterInt>(
@@ -290,6 +313,8 @@ void AsidProcessor::buildParamPtrs() {
   pp.bpm = at("bpm");
   pp.wtOn = at("wtOn");
   pp.wtSpeed = at("wtSpeed");
+  pp.wtTempoSync = at("wtTempoSync");
+  pp.wtDiv = at("wtDiv");
   pp.wtLength = at("wtLength");
   pp.wtLoop = at("wtLoop");
 
@@ -674,7 +699,8 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
   };
 
   // Wavetable: apply the current step's waveform, then advance for the next
-  // tick (wtSpeed counts ticks). Its arpeggio folds into the pitch below.
+  // tick (wtSpeed counts ticks, or the step lasts a note division when tempo
+  // sync is on). Its arpeggio folds into the pitch below.
   if (wtActive) {
     if (const int step = wtPlayer.currentStep(); step >= 0 && step < kWtSteps) {
       const auto &sp = pp.wt[step];
@@ -691,7 +717,15 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
       wtArp = paramInt(sp.arp);
       wtStepDisplay.store(step, std::memory_order_relaxed); // for the editor
     }
-    wtPlayer.advanceFrame();
+    // Tempo sync clocks the step in time rather than in ticks. Step boundaries
+    // can still only land on a modulation tick, so a step is quantised to 10-40
+    // ms depending on Mod Rate; the player carries the remainder, so that shows
+    // up as jitter on a boundary and never as drift.
+    if (paramInt(pp.wtTempoSync) != 0)
+      wtPlayer.advanceSeconds(dt, (bpm / 60.0) /
+                                      beatsForDivision(paramInt(pp.wtDiv)));
+    else
+      wtPlayer.advanceFrame();
   }
 
   // Pitch: portamento glide + vibrato + wavetable arpeggio, one frequency

@@ -130,7 +130,7 @@ private:
     P modeLP{}, modeBP{}, modeHP{}, voice3off{};
     P cutoff{}, resonance{}, volume{};
     P latency{}, modRate{}, bpm{};
-    P wtOn{}, wtSpeed{}, wtLength{}, wtLoop{};
+    P wtOn{}, wtSpeed{}, wtTempoSync{}, wtDiv{}, wtLength{}, wtLoop{};
     // One block per LFO target and per wavetable step, so the hot paths index
     // in rather than concatenating an id.
     struct Lfo {

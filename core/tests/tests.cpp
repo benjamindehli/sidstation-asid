@@ -817,6 +817,70 @@ static void testWaveTable() {
   CHECK(!wt.active(), "stop halts the wavetable");
 }
 
+static void testWaveTableTempoSync() {
+  WaveTablePlayer wt;
+
+  // Tempo sync: 4 steps per second (a 1/16 step at 240 BPM), clocked at 50 Hz.
+  // The step lasts 250 ms, so it holds for 12 frames of 20 ms and turns over on
+  // the 13th (the boundary at 250 ms is where the next step begins).
+  wt.configure(4, 0, 1);
+  wt.trigger();
+  for (int i = 0; i < 12; ++i)
+    wt.advanceSeconds(0.02, 4.0);
+  CHECK(wt.currentStep() == 0, "synced step holds until its time is up");
+  wt.advanceSeconds(0.02, 4.0);
+  CHECK(wt.currentStep() == 1, "synced step advances on the boundary");
+
+  // The remainder carries, so boundaries do not drift when the step length is
+  // not a whole number of frames: 3 steps per second is 333.3 ms, which no
+  // multiple of 20 ms lands on. Nine boundaries have passed by 3.1 s, so a
+  // 4-step table looping to 0 sits on step 1 (9 mod 4). Counting frames instead
+  // of carrying the remainder would have lost a step by then.
+  wt.configure(4, 0, 1);
+  wt.trigger();
+  for (int i = 0; i < 155; ++i) // 155 * 20 ms = 3.1 s
+    wt.advanceSeconds(0.02, 3.0);
+  CHECK(wt.currentStep() == 1, "fractional step lengths do not drift");
+
+  // Faster than the frame rate: one call covering several steps advances by all
+  // of them, so a division below the modulation rate still plays the table
+  // (coarsely) rather than stalling.
+  wt.configure(4, 0, 1);
+  wt.trigger();
+  wt.advanceSeconds(0.02, 160.0); // 3.2 steps in one frame
+  CHECK(wt.currentStep() == 3, "one frame can cover several synced steps");
+
+  // The loop point applies to the synced clock too, and speed is ignored there.
+  wt.configure(4, 2, 8);
+  wt.trigger();
+  for (int i = 0; i < 4; ++i)
+    wt.advanceSeconds(0.25, 4.0); // one step per call
+  CHECK(wt.currentStep() == 2, "synced playback loops to the loop point");
+
+  // A stopped table, a zero rate and a zero dt all hold the step.
+  wt.configure(4, 0, 1);
+  wt.trigger();
+  wt.advanceSeconds(0.02, 0.0);
+  wt.advanceSeconds(0.0, 4.0);
+  wt.advanceSeconds(0.02, -4.0);
+  CHECK(wt.currentStep() == 0, "no rate and no time do not move the step");
+  wt.stop();
+  wt.advanceSeconds(10.0, 4.0);
+  CHECK(!wt.active() && wt.currentStep() == -1,
+        "a stopped table ignores the synced clock");
+
+  // Re-triggering clears the part-elapsed step, so a new note starts step 0
+  // with a full step ahead of it.
+  wt.configure(4, 0, 1);
+  wt.trigger();
+  wt.advanceSeconds(0.2, 4.0); // 80% into step 0
+  wt.trigger();
+  wt.advanceSeconds(0.2, 4.0);
+  CHECK(wt.currentStep() == 0, "trigger resets the part-elapsed step");
+  wt.advanceSeconds(0.06, 4.0);
+  CHECK(wt.currentStep() == 1, "and the step still turns over on time");
+}
+
 static void testWaveformBits() {
   using namespace sid;
   // Bits OR together.
@@ -854,6 +918,7 @@ int main() {
   testHardRestart();
   testLfo();
   testWaveTable();
+  testWaveTableTempoSync();
   testWaveformBits();
 
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);

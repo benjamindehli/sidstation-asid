@@ -20,19 +20,36 @@ void WaveTablePlayer::configure(int length, int loopPoint, int speed) {
 void WaveTablePlayer::trigger() {
   pos_ = 0;
   frames_ = 0;
+  acc_ = 0.0;
   active_ = length_ > 0;
 }
 
 void WaveTablePlayer::stop() { active_ = false; }
+
+void WaveTablePlayer::step() {
+  if (++pos_ >= length_)
+    pos_ = loop_;
+}
 
 void WaveTablePlayer::advanceFrame() {
   if (!active_)
     return;
   if (++frames_ >= speed_) {
     frames_ = 0;
-    if (++pos_ >= length_)
-      pos_ = loop_;
+    step();
   }
+}
+
+void WaveTablePlayer::advanceSeconds(double dtSeconds, double stepsPerSecond) {
+  if (!active_ || dtSeconds <= 0.0 || stepsPerSecond <= 0.0)
+    return;
+  acc_ += dtSeconds * stepsPerSecond;
+  for (int i = 0; i < kMaxStepsPerCall && acc_ >= 1.0; ++i) {
+    acc_ -= 1.0;
+    step();
+  }
+  if (acc_ >= 1.0)
+    acc_ = 0.0; // hit the bound: drop the backlog rather than carry it forward
 }
 
 } // namespace sidstation

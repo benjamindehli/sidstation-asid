@@ -41,7 +41,7 @@ private:
     P asidVoice{}, sustain{};
     P waveTri{}, wavePulse{}, waveNoise{};
     P portaTime{}, portaTrigger{}, portaType{};
-    P wtOn{}, wtLength{}, wtLoop{};
+    P wtOn{}, wtTempoSync{}, wtLength{}, wtLoop{};
     P wtNoise[AsidProcessor::kWtSteps]{}; // per-step noise drives the row
                                           // greying
   };
@@ -104,6 +104,9 @@ private:
   // The rate knob drives the free Hz rate, or the stepped tempo division when
   // Tempo Sync is on. Re-binds it to the matching parameter.
   void configureRateKnob(LfoControls &, bool synced);
+  // Same idea for the wavetable's Rate knob: frames per step, or the note
+  // division when Sync is on.
+  void configureWtSpeedKnob(bool synced);
 
   static constexpr int kBorder = 16; // C64 screen border, left/right
   static constexpr int kBorderY =
@@ -358,8 +361,14 @@ private:
   juce::GroupComponent wtConfigGroup, wtStepsGroup;
   juce::ToggleButton wtOnButton{"On"};
   std::unique_ptr<ButtonAtt> wtOnAtt;
+  // Beside Rate, the same tempo-sync switch the LFOs have (labelled "Sync"
+  // here, where the shorter column has no room for "BPM Sync"). Not to be
+  // confused with wtSyncTog below, which is the SID hard-sync bit per step.
+  juce::ToggleButton wtTempoSyncButton{"Sync"};
+  std::unique_ptr<ButtonAtt> wtTempoSyncAtt;
   juce::Slider wtSpeedKnob, wtLengthKnob, wtLoopKnob;
   std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
+  int wtSpeedMode = -1; // -1 uninit, 0 frames per step, 1 tempo division
   // Per-step indicator: the step number, dim when the step is beyond the table
   // length, an accent outline at the loop point, and an accent fill while it
   // plays. An 8px loop indicator (accent box at the loop-point step) followed

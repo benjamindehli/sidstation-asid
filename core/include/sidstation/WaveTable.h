@@ -11,6 +11,11 @@ namespace sidstation {
 // The step CONTENTS (which waveform, what arpeggio offset) live in the host, as
 // parameters. This class only owns the timing: advance one step every `speed`
 // frames and jump back to `loopPoint` at the end.
+//
+// A step can also be given a length in time instead of in frames, which is what
+// tempo sync uses (a note division converted to steps per second). The two are
+// alternative clocks for the same position, so the caller picks one per frame
+// and the step, length and loop behaviour is identical either way.
 class WaveTablePlayer {
 public:
   // length: number of active steps (0 = table empty/off).
@@ -21,13 +26,26 @@ public:
   void trigger();      // note-on: restart at step 0
   void stop();         // note-off: go inactive
   void advanceFrame(); // call once per frame; advances the step per `speed`
+  // Tempo sync: advance by dtSeconds at stepsPerSecond, stepping each time the
+  // accumulated fraction of a step crosses a boundary. The remainder is kept,
+  // so step boundaries do not drift even though the caller's frames land on a
+  // coarser grid than the step length. A non-positive rate holds the step.
+  void advanceSeconds(double dtSeconds, double stepsPerSecond);
 
   int currentStep() const { return active_ ? pos_ : -1; } // -1 when inactive
   bool active() const { return active_; }
 
 private:
+  void step(); // advance one step, looping at the end
+
+  // A single call can cover many steps if the step length is short next to the
+  // caller's frame interval. Bounded so the loop stays finite: past this the
+  // table has cycled several times over anyway.
+  static constexpr int kMaxStepsPerCall = 64;
+
   int length_ = 0, loop_ = 0, speed_ = 1;
   int pos_ = 0, frames_ = 0;
+  double acc_ = 0.0; // tempo sync only: fraction of the current step elapsed
   bool active_ = false;
 };
 
