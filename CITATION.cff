@@ -20,8 +20,8 @@ authors:
 repository-code: https://github.com/benjamindehli/sidstation-asid
 url: https://benjamindehli.github.io/sidstation-asid/
 license: GPL-3.0-only
-version: 1.1.2
-date-released: "2026-08-11"
+version: 1.2.0
+date-released: "2026-08-12"
 keywords:
     - SidStation
     - Elektron
