@@ -66,6 +66,7 @@ The settings the SID shares across all three voices. Filter has per voice routin
 ## Docs
 
 - [Overview](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs, install steps and screenshots.
+- [DAW setup](https://benjamindehli.github.io/sidstation-asid/daw-setup/): running it in Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio, what the three instances share, and getting the hardware's audio back into the mix. Pro Tools loads AAX only, so it cannot load this plugin at all.
 - [Sound design](https://benjamindehli.github.io/sidstation-asid/sound-design/): the wavetable, the three LFOs, presets, and the SID rules that decide which waveform, ring and sync combinations do anything.
 - [Troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/): no sound, only one voice, notes dropping on fast passages, uneven modulation, and trimming note timing against a DAW.
 - [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/): the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and what four real patch banks revealed.

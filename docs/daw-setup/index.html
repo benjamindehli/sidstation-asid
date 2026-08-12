@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>SidStation ASID in your DAW: Ableton, Logic, Cubase and more</title>
+        <meta
+            name="description"
+            content="Setting up three instances on three tracks in Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio, plus why Pro Tools cannot load it."
+        />
+        <meta name="author" content="Benjamin Dehli" />
+        <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+        <meta name="theme-color" content="#463ea4" />
+        <meta name="color-scheme" content="dark" />
+        <link rel="canonical" href="https://benjamindehli.github.io/sidstation-asid/daw-setup/" />
+
+        <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="../favicon-16.png" />
+        <link rel="apple-touch-icon" href="../apple-touch-icon.png" />
+        <link rel="manifest" href="../site.webmanifest" />
+        <link rel="preload" href="../assets/fonts/SidStationC64.woff2" as="font" type="font/woff2" crossorigin />
+
+        <!-- Open Graph -->
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="SidStation ASID" />
+        <meta property="og:title" content="SidStation ASID in your DAW: Ableton, Logic, Cubase and more" />
+        <meta
+            property="og:description"
+            content="Three instances on three tracks, the MIDI output picked in the plugin rather than routed by the host, and the SidStation's audio coming back in on its own track."
+        />
+        <meta property="og:url" content="https://benjamindehli.github.io/sidstation-asid/daw-setup/" />
+        <meta property="og:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta property="og:image:type" content="image/png" />
+        <meta property="og:image:alt" content="SidStation ASID, a plugin that plays the three SID voices of the Elektron SidStation" />
+        <meta property="og:locale" content="en_US" />
+
+        <!-- Twitter / X Card -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="SidStation ASID in your DAW: Ableton, Logic, Cubase and more" />
+        <meta
+            name="twitter:description"
+            content="Three instances on three tracks, the MIDI output picked in the plugin rather than routed by the host, and the SidStation's audio coming back in on its own track."
+        />
+        <meta name="twitter:image" content="https://benjamindehli.github.io/sidstation-asid/og-cover.png" />
+        <meta name="twitter:site" content="@BenjaminDehli" />
+        <meta name="twitter:creator" content="@BenjaminDehli" />
+
+        <script type="application/ld+json">
+            {
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "TechArticle",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/daw-setup/#article",
+                        "headline": "SidStation ASID in your DAW: Ableton, Logic, Cubase and more",
+                        "description": "How to run SidStation ASID in a DAW: three instances on three tracks with one SID voice each, the MIDI output picked inside the plugin rather than routed by the host, and the SidStation's own audio outputs coming back in on a separate track. Covers Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio, and why Pro Tools cannot load it at all.",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/daw-setup/",
+                        "inLanguage": "en",
+                        "datePublished": "2026-08-12",
+                        "dateModified": "2026-08-12",
+                        "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
+                        "publisher": { "@id": "https://www.dehlimusikk.no/" },
+                        "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "keywords": "SidStation Ableton Live, SidStation Logic Pro, SidStation Cubase, SidStation Reaper, SidStation Bitwig, SidStation FL Studio, SidStation Pro Tools, AAX, VST3, AU, external hardware, MIDI setup, Elektron SidStation",
+                        "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+                        "mainEntityOfPage": "https://benjamindehli.github.io/sidstation-asid/daw-setup/"
+                    },
+                    {
+                        "@type": "BreadcrumbList",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/daw-setup/#breadcrumb",
+                        "itemListElement": [
+                            {
+                                "@type": "ListItem",
+                                "position": 1,
+                                "name": "SidStation ASID",
+                                "item": "https://benjamindehli.github.io/sidstation-asid/"
+                            },
+                            { "@type": "ListItem", "position": 2, "name": "DAW setup" }
+                        ]
+                    },
+                    {
+                        "@type": "Person",
+                        "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
+                        "name": "Benjamin Dehli",
+                        "url": "https://www.dehlimusikk.no/"
+                    },
+                    {
+                        "@type": "Organization",
+                        "@id": "https://www.dehlimusikk.no/",
+                        "name": "Dehli Musikk",
+                        "url": "https://www.dehlimusikk.no/"
+                    }
+                ]
+            }
+        </script>
+        <link rel="stylesheet" href="../css/docs.css" />
+        <!-- Lets the CSS collapse the nav behind its button only when this can be opened again. -->
+        <script>
+            document.documentElement.classList.add("js");
+        </script>
+    </head>
+    <body>
+        <nav class="topnav" aria-label="Pages">
+            <div class="wrap">
+                <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
+                <div class="navlinks" id="navlinks">
+                    <a href="../">Overview</a>
+                    <a href="../daw-setup/" aria-current="page">DAW setup</a>
+                    <a href="../sound-design/">Sound design</a>
+                    <a href="../troubleshooting/">Troubleshooting</a>
+                    <a href="../protocol/">Protocol notes</a>
+                    <a href="../asid-timing/">ASID timing</a>
+                </div>
+            </div>
+        </nav>
+        <header class="hero">
+            <div class="wrap">
+                <h1>DAW setup</h1>
+                <p class="tag">Three instances, three tracks, and the audio coming back from the hardware. The same shape in every host.</p>
+                <div>
+                    <a class="btn ghost" href="../">Back to SidStation ASID</a>
+                    <a class="btn ghost" href="../troubleshooting/">Troubleshooting</a>
+                </div>
+            </div>
+        </header>
+        <main>
+            <section id="shape">
+                <div class="wrap">
+                    <h2>The same in every host</h2>
+                    <p class="lead">
+                        Two things about this plugin decide how a session is put together, and neither is how a software instrument normally behaves.
+                        Get them straight once and the host specific parts are small.
+                    </p>
+                    <p class="lead">
+                        <strong>The plugin opens the MIDI port itself.</strong> Press Scan in the top strip and choose your interface there. Do not
+                        route the track's MIDI output to the SidStation in the host as well. The port is shared by every instance in the session, so
+                        you pick it once, in whichever instance you happen to have open, and the others follow.
+                    </p>
+                    <p class="lead">
+                        <strong>The plugin makes no sound.</strong> Its track stays silent by design, because the audio is at the SidStation's own
+                        outputs. Getting that back into the mix is a separate audio track fed by the interface input the unit is plugged into. Nothing
+                        you do to the plugin's track affects what you hear.
+                    </p>
+                    <p class="lead">Everything else follows from one instance driving one voice:</p>
+                    <ol class="steps">
+                        <li>Connect the SidStation over MIDI, and its audio output to an input on your interface.</li>
+                        <li>Put it in ASID mode from its own front panel. Nothing sent over MIDI can do this for you.</li>
+                        <li>Load an instance on each of three instrument tracks and set a different voice on each from the top strip.</li>
+                        <li>In any one of them, press Scan and pick the SidStation as the MIDI output.</li>
+                        <li>Add an audio track whose input is where the SidStation is plugged in, and turn its monitoring on.</li>
+                    </ol>
+                    <p class="lead spaced">
+                        Three tracks is only worth it if you want three voices. One instance is a perfectly good monosynth, and a lot of SID music is
+                        one voice doing the work while the other two hold a chord.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="shared">
+                <div class="wrap">
+                    <h2>What the three instances share</h2>
+                    <p class="lead">
+                        The SID has one filter and one volume for all three voices, so those controls are shared between the instances rather than
+                        copied. Changing the cutoff in one moves it in all three, and it moves in the hardware once. That is the chip, not a
+                        limitation of the plugin.
+                    </p>
+                    <p class="lead">
+                        Shared: the filter (cutoff, resonance, per voice routing, external input, and the LP, BP and HP modes), master volume, the
+                        cutoff modulation LFO, Voice 3 Off, Clock and Latency. Everything that belongs to one voice's sound stays local to its
+                        instance, which is the oscillator, the envelope, the wavetable and the pitch and pulse width LFOs.
+                    </p>
+                    <p class="lead spaced">
+                        Presets follow the same line. A preset is one voice's sound, so loading one on a track leaves the other two voices alone and
+                        does not move a track onto a different voice. <a href="../sound-design/#presets">Sound design</a> has the detail.
+                    </p>
+                </div>
+            </section>
+
+            <section id="hosts">
+                <div class="wrap">
+                    <h2>Host by host</h2>
+                    <p class="lead">
+                        What differs between hosts is the plugin format, and where the audio return lives. Menu names move between versions, so these
+                        are the parts that matter rather than a click by click path.
+                    </p>
+
+                    <h3>Logic Pro</h3>
+                    <p class="lead">
+                        Use the AU. Logic does not load VST3 at all, so the AU is the only format that will appear, under DehliMusikk in the
+                        instrument list. Logic validates new Audio Units on the first launch after installing, which takes a moment and only happens
+                        once.
+                    </p>
+                    <p class="lead">
+                        Three software instrument tracks, one instance each. For the audio return, an audio track or an aux with its input set to the
+                        interface input, with software monitoring on. Reach for the External Instrument plugin only if you know why you want it: it
+                        exists to send MIDI to hardware and bring audio back, and the MIDI half of that job is already done inside this plugin.
+                    </p>
+
+                    <h3>Ableton Live</h3>
+                    <p class="lead">
+                        Use the VST3, or the AU on macOS. Three MIDI tracks, one instance each. Add an audio track, set its input to the interface
+                        input carrying the SidStation, and set monitoring to In so you hear it whether or not the track is armed.
+                    </p>
+                    <p class="lead">
+                        If the plugin does not show up after installing, rescan in the plugin preferences. Live caches what it found last time.
+                    </p>
+
+                    <h3>Reaper</h3>
+                    <p class="lead">
+                        Use the VST3, or the AU on macOS. Three tracks with an instance each, and a fourth track with the hardware input selected,
+                        record armed and monitoring on, which is how Reaper passes an input through to the mix.
+                    </p>
+                    <p class="lead">Reaper rescans on demand rather than automatically, so scan for new plugins if it is not in the list.</p>
+
+                    <h3>Bitwig Studio</h3>
+                    <p class="lead">
+                        Use the VST3. Three instrument tracks, one instance each, and an audio track with the hardware input for the return. The
+                        Hardware Instrument device is not the route here, for the same reason as Logic's External Instrument: the plugin sends its own
+                        MIDI.
+                    </p>
+
+                    <h3>Cubase and Nuendo</h3>
+                    <p class="lead">
+                        Use the VST3. Steinberg's hosts are VST only, so there is no AU to look for on macOS. Three instrument tracks, one instance
+                        each, and an audio track with the hardware input for the return, monitoring on.
+                    </p>
+                    <p class="lead">
+                        Cubase has its own External Instrument, set up in the audio connections rather than as a plugin. Same answer as Logic: it
+                        exists to send MIDI out to hardware and bring audio back, and this plugin already sends its own MIDI, so a plain audio track
+                        is the simpler return.
+                    </p>
+
+                    <h3>FL Studio</h3>
+                    <p class="lead">
+                        Use the VST3, or the AU on macOS. FL only finds new plugins when you tell it to, so run a scan in the plugin manager if it is
+                        not in the list. Three instances, one voice each, and a mixer track with the interface input assigned for the return.
+                    </p>
+                    <p class="lead">
+                        One thing to watch, since this plugin is silent by design: if you use Smart Disable, and instances seem to stop streaming to
+                        the unit when they are not receiving notes, turn it off for them. A plugin that never produces audio is exactly the sort of
+                        thing that kind of feature is looking for.
+                    </p>
+
+                    <h3>Pro Tools</h3>
+                    <p class="lead">
+                        <strong>It does not load.</strong> Pro Tools takes AAX and nothing else, and this plugin ships AU, VST3 and Standalone. There
+                        is no AAX build, and there is no setting that will make one appear.
+                    </p>
+                    <p class="lead">
+                        Two ways around it. Run the Standalone app next to Pro Tools, play the SidStation from it, and record the audio return into
+                        the session like any other outboard synth. Or load the VST3 inside an AAX plugin host, of which a few are sold, and which pass
+                        MIDI and audio through to a plugin Pro Tools cannot see by itself.
+                    </p>
+                    <p class="lead">
+                        Building an AAX version is not a matter of ticking a format in the build. It needs Avid's SDK, and a plugin has to be signed
+                        through PACE before a released Pro Tools will load it at all, which is a wall a free project does not get over on its own.
+                    </p>
+
+                    <h3>Standalone</h3>
+                    <p class="lead">
+                        The Standalone app skips all of this. There is no host, so set the tempo by hand in the top strip, and monitor the SidStation
+                        however you normally would. It is the quickest way to check the unit is talking before you build a session around it.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="lining-up">
+                <div class="wrap">
+                    <h2>Lining the hardware up with the mix</h2>
+                    <p class="lead">
+                        MIDI to outboard hardware never lands at the same instant as audio rendered inside the DAW, and the plugin does not report a
+                        latency figure to the host for it to compensate, because the delay is in the cable and the unit rather than in the plugin.
+                        Latency in the top strip is the manual trim: 0 to 500 ms added to each note's scheduled time, so you can push the SidStation
+                        back into line with everything else.
+                    </p>
+                    <p class="lead">
+                        Set it by ear against a steady reference. It is shared across the instances, so trimming one trims all three and they stay
+                        together on their own. If the instances drift apart from each other rather than from the mix, that is already handled: hosts
+                        do not render every track at the same point relative to the playhead, so the instances schedule against a common reference.
+                    </p>
+                    <p class="lead">
+                        A little Latency is also worth having on fast parts for an unrelated reason. It gives the plugin room to clear the 6581
+                        envelope before an attack, which is what stops notes disappearing.
+                        <a href="../troubleshooting/#dropped-notes">Troubleshooting</a> covers that, and
+                        <a href="../asid-timing/#envelope">ASID timing</a> covers why the chip does it.
+                    </p>
+                    <p class="lead">
+                        Anything a host does to save CPU on a silent track is worth knowing about, because a sounding voice has to keep being streamed
+                        to. Freezing an instance, disabling its track, or a feature that suspends plugins producing no audio all cut the stream, and
+                        the note that was playing goes with it. <a href="../asid-timing/#even-flow">ASID timing</a> covers why the streaming has to
+                        continue.
+                    </p>
+                    <p class="lead spaced">
+                        Bouncing is the other consequence of the audio living outside the DAW. An offline or faster than real time bounce will not
+                        capture the SidStation, since the hardware plays in real time and only what arrives at your interface input can be recorded.
+                        Record the audio return to a track first, then bounce as usual.
+                    </p>
+                </div>
+            </section>
+
+            <section id="clock">
+                <div class="wrap">
+                    <h2>Clock, and how hard to push the port</h2>
+                    <p class="lead">
+                        All three voices share one MIDI port, and it is not a fast one. Clock in the top strip sets how often the plugin sends: Eco 25
+                        Hz, PAL 50 Hz, NTSC 60 Hz and HiFi 100 Hz. PAL 50 Hz is the default and the native SID rate, and it is the right answer almost
+                        always.
+                    </p>
+                    <p class="lead">
+                        Going higher does not buy smoother modulation. The unit applies roughly one update per SID frame and drops the rest rather
+                        than queuing them, so HiFi mostly adds traffic. Watch the MIDI load meter in the top strip: if it is high, come down a
+                        setting. Eco 25 Hz halves the traffic and is there for busy sessions.
+                    </p>
+                    <p class="lead spaced">
+                        Tempo synced wavetable steps and LFO rates read the host tempo, so they follow tempo changes in the session with no setup. If
+                        a host reports no tempo at all, the plugin notices and gives you an editable BPM field instead, the same one Standalone uses.
+                        <a href="../asid-timing/#update-rate">ASID timing</a> has the measurements behind the Clock settings.
+                    </p>
+                </div>
+            </section>
+        </main>
+        <footer>
+            <div class="wrap">
+                <p class="pixel"><a href="https://www.dehlimusikk.no/">Dehli Musikk</a></p>
+                <p>
+                    SidStation ASID by Benjamin Dehli. <a href="https://github.com/benjamindehli/sidstation-asid">Source on GitHub</a>, licensed under
+                    the <a href="https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE">GNU GPL v3</a>.
+                </p>
+                <p>
+                    An independent project, not affiliated with, endorsed or supported by Elektron. SidStation and SID are trademarks of their
+                    respective owners.
+                </p>
+            </div>
+        </footer>
+        <script src="../js/nav.js" defer></script>
+    </body>
+</html>

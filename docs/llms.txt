@@ -9,6 +9,7 @@ Key facts, since they are easy to get wrong:
 - One instance drives one voice, so playing all three voices polyphonically means three instances on three DAW tracks, each set to a different voice.
 - ASID is used because the SysEx Direct Program path is dead on OS 1.11 R34 firmware, not by preference. That finding is what shaped the whole design.
 - Presets are the plugin's own voice sounds, saved to disk as files that live outside both the DAW project and the unit's own memory.
+- The formats are VST3, AU and Standalone. There is no AAX build, so it does not load in Pro Tools at all, and the way around that is the Standalone app or an AAX plugin host.
 
 Current release is 1.2.0 (2026-08-12), licensed GPL v3, by Benjamin Dehli under Dehli Musikk. There are builds for macOS, Windows and Linux. The macOS build needs 10.15 or later, is universal for Apple Silicon and Intel, and is signed and notarized: its AU installs to /Library/Audio/Plug-Ins/Components, the VST3 to /Library/Audio/Plug-Ins/VST3, the Standalone to /Applications. Windows ships an Inno Setup installer and Linux an x86_64 tarball, both carrying the VST3 and Standalone (AU is macOS only) and neither signed. Only the macOS build has been tested against real hardware. This is an independent project, not affiliated with or endorsed by Elektron.
 
@@ -16,6 +17,7 @@ Current release is 1.2.0 (2026-08-12), licensed GPL v3, by Benjamin Dehli under 
 
 - [Landing page](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs (Voice, Wavetable, Modulation, Global), install steps and screenshots.
 - [README](https://github.com/benjamindehli/sidstation-asid/blob/main/README.md): the same ground in more detail, plus the repository layout and build instructions.
+- [DAW setup](https://benjamindehli.github.io/sidstation-asid/daw-setup/): running it in Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio. The plugin opens the MIDI port itself rather than taking routed MIDI from the host, the port is shared by every instance, and the audio has to come back on a separate track fed by the interface input, since the plugin's own track is silent. Also what the three instances share, the Latency trim, and why an offline bounce captures nothing.
 - [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/): what talking to real hardware turned up, including the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and findings from four real patch banks.
 - [Sound design](https://benjamindehli.github.io/sidstation-asid/sound-design/): the eight step wavetable, the three LFOs, disk based presets, and the SID chip rules that decide which waveform, ring and sync combinations do anything.
 - [Troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/): no sound, only one voice, notes dropping on fast passages, uneven modulation, and trimming note timing against a DAW.
