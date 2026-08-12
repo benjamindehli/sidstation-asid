@@ -5,7 +5,8 @@
 #   make format-check    fail if anything is unformatted or fails lint (CI runs this)
 #   make images          rebuild the responsive docs screenshots from assets/screenshots
 #   make images-check    fail if a screenshot derivative is missing or stale (CI runs this)
-#   make links-check     fail if a local link in the docs site points at nothing (CI runs this)
+#   make links-check     fail if a local link in the docs site or the Markdown points at
+#                        nothing (CI runs this)
 #   make tools           install the pinned formatters, without running them
 #   make test            run the core protocol tests
 #
@@ -86,7 +87,9 @@ images-check: python-tools
 
 # Pages sit at two depths (docs/index.html and docs/protocol/index.html), so the
 # same asset has a different correct relative path in each. That has already
-# shipped one 404, hence a check rather than care.
+# shipped one 404, hence a check rather than care. It covers the Markdown too,
+# because the README embeds the same generated screenshots the site does, and
+# images-check cannot see who points at the set it builds.
 links-check:
 	python3 packaging/check-links.py
 

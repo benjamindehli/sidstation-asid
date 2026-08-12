@@ -31,7 +31,7 @@ Run the same checks CI runs:
 make format        # rewrite everything in the house style
 make format-check  # what CI runs, the same thing without writing
 make test          # core protocol tests
-make links-check   # every local link in the docs site resolves
+make links-check   # every local link in the docs site and the Markdown resolves
 make images-check  # the docs screenshots match their sources
 ```
 
@@ -39,7 +39,7 @@ make images-check  # the docs screenshots match their sources
 
 If your change touches `core/`, add a case to `core/tests/tests.cpp`. It is a dependency free harness and adding to it costs a few lines. Protocol behaviour that is not covered there tends to regress quietly.
 
-If your change touches the docs site, remember it is served as static files with no build step, so generated output has to be committed. `make images` after replacing a screenshot source, and `make links-check` after moving a page between directories.
+If your change touches the docs site, remember it is served as static files with no build step, so generated output has to be committed. `make images` after replacing a screenshot source, and `make links-check` after moving a page between directories or changing the screenshot widths, which the README embeds too.
 
 ## Writing the docs
 
