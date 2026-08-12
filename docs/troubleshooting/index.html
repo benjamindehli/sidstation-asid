@@ -82,6 +82,77 @@
                         ]
                     },
                     {
+                        "@type": "FAQPage",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#faq",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/",
+                        "name": "SidStation ASID troubleshooting",
+                        "inLanguage": "en",
+                        "about": { "@id": "https://github.com/benjamindehli/sidstation-asid#software" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#no-sound",
+                                "name": "Why is there no sound at all?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#no-sound",
+                                    "text": "Four things have to be true, and the first two catch almost everything. The unit has to be in ASID mode, switched on from the SidStation's own front panel, because nothing sent over MIDI can put it there. The MIDI output has to be picked in the plugin with Scan rather than routed to the hardware in the DAW, since the plugin opens the port itself. The sound comes out of the SidStation's own outputs, not the plugin, which contains no SID emulation and leaves its DAW track silent by design. And the hardware is required, as there is no demo mode and no emulation fallback."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#one-voice",
+                                "name": "Why does only one note sound at a time?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#one-voice",
+                                    "text": "That is the design. One instance drives one SID voice, so a single instance is monophonic no matter what you play into it. For three note chords, put an instance on each of three DAW tracks and set a different voice on each from the voice selector in the top strip. The filter, master volume and cutoff modulation stay shared, because the SID chip has one of each, so changing them in any instance changes them for all three."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#dropped-notes",
+                                "name": "Why do notes drop out on fast passages?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#dropped-notes",
+                                    "text": "This is a real MOS6581 hardware bug, not the plugin missing a message. The envelope generator shares one rate counter, and a fast retrigger can arrive while that counter is parked at a high value, so the next attack waits up to about 33 ms at PAL speed and the note comes out silent. What drives it is the decay setting rather than how loud the note was: decay 0 never drops, higher decay values drop more. At sustain 15 the plugin already sends decay 0 and greys the knob out, which clears the common case. What is left is a high decay with sustain below 15, so keep decay lower on fast parts. Raising Latency also helps, because the plugin drains the envelope before an attack and that drain needs a few milliseconds of room ahead of the note."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#modulation",
+                                "name": "Why does modulation sound uneven, or the MIDI load meter stay pegged?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#modulation",
+                                    "text": "In ASID mode the unit applies roughly one update per SID frame, about 50 per second at PAL. Push more than that at it and updates are dropped rather than queued, which sounds like modulation lurching between values instead of gliding. Clock in the top strip is the dial: PAL 50 Hz is the sweet spot and the default, HiFi 100 Hz sends faster than the unit can apply and can drop, and Eco 25 Hz halves the traffic. All three voices share one slow MIDI port, so if the load meter is high, lower Clock before suspecting anything else."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#timing",
+                                "name": "Why do notes sit early or late against the rest of the mix?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#timing",
+                                    "text": "MIDI to outboard hardware never lands at the same instant as audio rendered inside the DAW. Latency in the top strip is the manual trim: it adds milliseconds to each note's scheduled time, so you can push the SidStation back into line with everything else. If several instances drift apart from each other rather than from the mix, the plugin already handles that, since the instances schedule their notes against a shared reference and Latency is itself a shared setting. Panic releases every voice, which is the quickest way out of a note left hanging."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#other-editors",
+                                "name": "Why does a patch editor or SysEx Direct Program do nothing?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#other-editors",
+                                    "text": "On OS 1.11 R34 firmware the documented SysEx Direct Program path is dead. The messages arrive intact and the unit ignores them, which is exactly what it looks like when you have the address wrong. Reading patch dumps over SysEx does still work on the same firmware, and so does ASID. Writing a patch back to the unit is untested on this firmware."
+                                }
+                            }
+                        ]
+                    },
+                    {
                         "@type": "Person",
                         "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
                         "name": "Benjamin Dehli",
