@@ -237,7 +237,8 @@
                     </p>
                     <p class="lead">
                         The filter, master volume and cutoff modulation are shared, because the SID chip has one of each. Changing them in any
-                        instance changes them for all three.
+                        instance changes them for all three. <a href="../sound-design/">Sound design</a> covers what to do with a voice once it is
+                        playing, including using voice 3 as a modulator rather than as a third note.
                     </p>
                 </div>
             </section>
@@ -269,6 +270,10 @@
                         room that already exists, from the host's render lookahead or from the Latency you have dialled in. It never delays the note
                         to make room. So if notes still drop on fast parts, raising Latency gives the drain somewhere to happen.
                     </p>
+                    <p class="lead">
+                        The measurements behind all of that, and the rest of what the counter does, are in
+                        <a href="../asid-timing/#envelope">ASID timing</a>.
+                    </p>
                 </div>
             </section>
 
@@ -285,7 +290,8 @@
                     </p>
                     <p class="lead">
                         The MIDI load meter matters because all three voices share one MIDI port, and it is not a fast one. If the meter is high,
-                        lower Clock before suspecting anything else.
+                        lower Clock before suspecting anything else. <a href="../asid-timing/#update-rate">ASID timing</a> has the measured rates the
+                        Clock settings are picked from.
                     </p>
                 </div>
             </section>

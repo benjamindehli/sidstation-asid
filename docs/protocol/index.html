@@ -165,6 +165,10 @@
                         The unit has to be put into ASID mode from its front panel first. Nothing on the MIDI side can do it for you, which is the
                         most common reason a correctly built ASID stream produces silence.
                     </p>
+                    <p class="lead">
+                        Getting the frame right is only half of it. When the writes land, how many of them the unit will take, and what the envelope
+                        does to a fast retrigger are in <a href="../asid-timing/">ASID timing</a>.
+                    </p>
                 </div>
             </section>
 
@@ -237,7 +241,8 @@
                         into named parameters would need.
                     </p>
                     <p class="lead">
-                        Table data for the arpeggiator and waveform sequences, at Direct Program positions from 0x176 up, is not modelled.
+                        Table data for the arpeggiator and waveform sequences, at Direct Program positions from 0x176 up, is not modelled. The plugin
+                        runs its own eight step wavetable over ASID instead, which <a href="../sound-design/#wavetable">sound design</a> covers.
                     </p>
                     <p class="lead">
                         All of this comes from one unit on OS 1.11 R34. If your firmware behaves differently, particularly if Direct Program works for

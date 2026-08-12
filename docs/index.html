@@ -344,7 +344,8 @@
                         <p>
                             An eight step table that drives the waveform and more, one step per tick. The top row sets whether it runs, plus speed,
                             length and the loop point. Each step row carries its waveform, Sync, Ring and Test, a pulse width fader, and an arpeggio
-                            offset. The loop point and the playing step are marked on the left.
+                            offset. The loop point and the playing step are marked on the left. What to put in those steps is its own subject, which
+                            <a href="sound-design/">sound design</a> takes up along with the LFOs and the chip rules behind them.
                         </p>
                         <picture>
                             <source
@@ -503,7 +504,8 @@
                     </ol>
 
                     <p class="lead spaced">
-                        One instance drives one voice, so load three instances on three tracks and set each to a different voice.
+                        One instance drives one voice, so load three instances on three tracks and set each to a different voice. If the unit stays
+                        silent, or only one note sounds, <a href="troubleshooting/">troubleshooting</a> covers what usually causes it.
                     </p>
                 </div>
             </section>
@@ -527,7 +529,8 @@ cmake --build build</pre>
                     <p class="lead spaced">
                         Talking to the hardware turned up a fair amount the manual does not cover, including the reason this plugin uses ASID at all:
                         Direct Program is dead on OS 1.11 R34. The <a href="protocol/">protocol notes</a> write up the ASID frame format, the two
-                        address spaces, and what four real patch banks revealed.
+                        address spaces, and what four real patch banks revealed, and <a href="asid-timing/">ASID timing</a> covers the write behaviour
+                        anything driving the unit from a DAW has to work around.
                     </p>
                 </div>
             </section>
