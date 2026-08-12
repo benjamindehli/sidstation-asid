@@ -4,6 +4,8 @@ A cross platform plugin (VST3, AU, Standalone) for the Elektron SidStation, the 
 
 Control the three Elektron SidStation voices individually from your DAW.
 
+The documentation site is at [benjamindehli.github.io/sidstation-asid](https://benjamindehli.github.io/sidstation-asid/), and builds for macOS, Windows and Linux are on the [releases page](https://github.com/benjamindehli/sidstation-asid/releases/latest).
+
 ## What it is
 
 SidStation ASID streams raw SID registers over the ASID protocol instead of sending MIDI CC, so every register is reachable and each voice gets its own pitch and gate. One instance drives one voice. Put an instance on each of three DAW tracks, pick a voice per track, and the three voices become three monosynths you can sequence apart. Getting that out of the SidStation on its own is awkward.
@@ -61,6 +63,14 @@ Two LFOs for this voice, one on pitch and one on pulse width. Each has a shape, 
 
 The settings the SID shares across all three voices. Filter has per voice routing (V1, V2, V3), the external input, the combinable LP, BP and HP modes, and Cutoff and Resonance. Cutoff Modulation is a third LFO on the filter cutoff. Master has the Voice 3 Off switch, Volume, Latency and Panic.
 
+## Docs
+
+- [Overview](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs, install steps and screenshots.
+- [Sound design](https://benjamindehli.github.io/sidstation-asid/sound-design/): the wavetable, the three LFOs, presets, and the SID rules that decide which waveform, ring and sync combinations do anything.
+- [Troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/): no sound, only one voice, notes dropping on fast passages, uneven modulation, and trimming note timing against a DAW.
+- [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/): the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and what four real patch banks revealed.
+- [ASID timing](https://benjamindehli.github.io/sidstation-asid/asid-timing/): the write behaviour to design around when streaming ASID from a DAW.
+
 ## Status
 
 - Usable for playing the three voices.
@@ -114,4 +124,4 @@ That writes AVIF and WebP at 466, 932 and 1444 wide into `docs/assets/screenshot
 
 ## Hardware notes
 
-`core/README.md` records what came out of testing against a real unit. The one that shaped the whole plugin: on OS 1.11 R34 firmware the SysEx Direct Program path is dead, so streaming raw SID registers over ASID is the only way in.
+`core/README.md` records what came out of testing against a real unit, and the [protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) write the same ground up for reading. The finding that shaped the whole plugin: on OS 1.11 R34 firmware the SysEx Direct Program path is dead, so streaming raw SID registers over ASID is the only way in.
