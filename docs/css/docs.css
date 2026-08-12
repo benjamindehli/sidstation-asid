@@ -71,7 +71,7 @@ a:hover {
 }
 
 .wrap {
-    max-width: 980px;
+    max-width: 1024px;
     margin: 0 auto;
     padding: 0 24px;
 }
@@ -151,11 +151,17 @@ a:hover {
     color: var(--hot);
 }
 
-/* Five links stop fitting on one line at about 900px, where space-between starts
+/* Six links stop fitting on one line at about 1017px, where space-between starts
    spreading a half-empty second row. Below that they collapse behind the button.
    The .98 keeps a fractional viewport width, which browser zoom produces, from
-   landing in the gap between the two layouts. */
-@media (max-width: 899.98px) {
+   landing in the gap between the two layouts.
+
+   That figure is measured rather than guessed, and it moves whenever a link is
+   added or renamed: the nav font is a monospace at 12px with 0.05em of letter
+   spacing, so a label costs 12.6px per character, and the row costs the labels
+   plus 20px per gap. Six labels come to 969px, which is why .wrap is 1024 (976
+   of content) and why this query sits at 969 + 48 of padding. */
+@media (max-width: 1016.98px) {
     .js .navtoggle {
         display: block;
     }

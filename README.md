@@ -121,7 +121,7 @@ The full resolution PNGs live in `assets/screenshots/`. To rebuild the responsiv
 make images
 ```
 
-That writes AVIF and WebP at 466, 932 and 1444 wide into `docs/assets/screenshots/`, which the `<picture>` elements in `docs/index.html` point at. The output is committed, because GitHub Pages serves `docs/` as static files with no build step, so CI runs `make images-check` to catch a source updated without re-encoding. Replace a PNG in `assets/screenshots/` and re-run to update a screenshot.
+That writes AVIF and WebP at 488, 976 and 1444 wide into `docs/assets/screenshots/`, which the `<picture>` elements in `docs/index.html` point at. The output is committed, because GitHub Pages serves `docs/` as static files with no build step, so CI runs `make images-check` to catch a source updated without re-encoding. Replace a PNG in `assets/screenshots/` and re-run to update a screenshot.
 
 ## Hardware notes
 

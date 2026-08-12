@@ -22,9 +22,9 @@ with hard edges.
 The sources are the plugin window at its native 1444x1204, so 1444 is the
 sharpest tier that exists. Widths wider than a given source are skipped rather
 than upscaled, which means this list already has room in it: re-capture the
-screenshots on a HiDPI display at 2888x2408 and the 1864 tier starts being
+screenshots on a HiDPI display at 2888x2408 and the 1952 tier starts being
 produced on the next run, with no change here. The <picture> markup would then
-need 1864 adding to its srcset to actually serve it.
+need 1952 adding to its srcset to actually serve it.
 """
 
 import argparse
@@ -37,11 +37,15 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC_DIR = ROOT / "assets/screenshots"
 OUT_DIR = ROOT / "docs/assets/screenshots"
 
-# 932 is the widest the image is ever displayed: .wrap in docs/css/docs.css is
-# 980px with 24px of padding either side, and .shot img is width 100%. 466 is
+# 976 is the widest the image is ever displayed: .wrap in docs/css/docs.css is
+# 1024px with 24px of padding either side, and .shot img is width 100%. 488 is
 # that halved, for narrow phones. 1444 covers HiDPI displays as far as the
-# source allows. See the note above about 1864.
-WIDTHS = [466, 932, 1444, 1864]
+# source allows. See the note above about 1952.
+#
+# These track .wrap. Widen it again and the 1x tier has to follow, or a 1x
+# display skips the tier meant for it and pulls the 1444 instead, because the
+# sizes attribute asks for more pixels than the tier holds.
+WIDTHS = [488, 976, 1444, 1952]
 
 # Chosen by encoding this repo's screenshots and comparing against the source at
 # 100% zoom. Below AVIF 60 the dot matrix LED font starts to smear.
