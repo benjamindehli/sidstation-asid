@@ -2,6 +2,24 @@
 
 All notable changes to SidStation ASID are recorded here. This project follows [semantic versioning](https://semver.org) and the format of [Keep a Changelog](https://keepachangelog.com). The full notes for each release are in [release-notes/](release-notes/).
 
+## [1.2.0] - 2026-08-12
+
+### Added
+
+- BPM sync for the wavetable. A step can last a note division at the host tempo instead of a number of frames, so an arpeggio table keeps time when the tempo changes. The Rate control becomes the division when it is on, and the table still restarts from step 0 on each note-on.
+- Two shorter note divisions, 1/32 and 1/64, offered to the wavetable and to the LFOs. A wavetable step is far shorter than an LFO cycle, and 1/64 at 120 BPM lands near the PAL frame the table was designed around.
+
+### Fixed
+
+- Modulation stopping partway through a long release. 1.1.1 kept vibrato moving through the envelope's fade, but only for the first 4 seconds of it, so on release 13, 14 and 15, which fade for 9, 15 and 24 seconds, the movement froze while the note was still clearly sounding. It now runs for the whole fade. The old limit saved no bandwidth: a voice streams a held note or a fading one, never both.
+- The wavetable stopping on whichever step a note-off landed on, rather than playing on through the envelope's fade like the rest of the voice. Its arpeggio offset was dropped at the same moment, so a note released on an offset step snapped back in pitch as it faded.
+
+### Notes
+
+- The wavetable's Speed control is now called Rate, matching the LFOs. Only the label changed, so automation and presets that used it carry over.
+- Two parameters were added, WT Tempo Sync and WT Division. Presets and automation from 1.1.2 carry over, and a preset saved before this version loads with BPM sync off, which is the previous behaviour.
+- Step boundaries still land on the modulation clock, so a step is quantised to between 10 and 40 ms depending on Clock. The remainder carries from step to step, so a step of a few ticks turns over a tick early or late rather than drifting. A step shorter than one tick is skipped instead, since the table crosses it between ticks, and the Rate control's hint says so when that happens. 1/64 starts skipping above roughly 94 BPM on Eco 25 Hz and 188 BPM on PAL 50 Hz.
+
 ## [1.1.2] - 2026-08-11
 
 No changes to the plugin. The macOS package failed to build in 1.1.1, so that version published without a DMG and this one carries the same fixes to macOS users.
@@ -56,6 +74,7 @@ First stable release: a cross platform plugin (VST3, AU, Standalone) that plays 
 - A Commodore 64 styled pixel interface with per voice colour coding, voice sound presets, an Init and a Panic, a tempo readout, a MIDI load meter, and hover hints that can be toggled from the preset bar.
 - A signed and notarized universal macOS installer (a .pkg inside a .dmg).
 
+[1.2.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.0
 [1.1.2]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.1
 [1.1.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.0
