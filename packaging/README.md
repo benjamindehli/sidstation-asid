@@ -30,8 +30,8 @@ The `.pkg` installs:
 You need an Apple Developer account and two certificates from
 [developer.apple.com](https://developer.apple.com/account/resources/certificates):
 
-- **Developer ID Application** — signs the plugin/app bundles and the DMG.
-- **Developer ID Installer** — signs the `.pkg`.
+- **Developer ID Application** signs the plugin/app bundles and the DMG.
+- **Developer ID Installer** signs the `.pkg`.
 
 Export the **Application** certificate (with its private key) from Keychain
 Access as a `.p12`, then add these as repository secrets
@@ -62,7 +62,7 @@ packaging, but it will not install cleanly on other machines).
    `SidStation-ASID-x.y.z.dmg` to the release.
 
 To dry-run the packaging without a release, trigger the workflow manually
-(Actions -> Release -> Run workflow); it uploads the `.dmg` as a build artifact.
+(Actions -> Release -> Run workflow). It uploads the `.dmg` as a build artifact.
 
 ## Building the installer locally
 
