@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
-"""Generate the Open Graph / social card at docs/og-cover.png.
+"""Generate the Open Graph / social cards under docs/.
+
+Three cards are written, all with the same wording and palette:
+
+    og-cover.png       1200x630   16:9, used for Open Graph and Twitter
+    og-cover-4x3.png   1200x900   4:3
+    og-cover-1x1.png   1200x1200  1:1
+
+Google picks between aspect ratios when it builds an article rich result, so all
+three are listed in each page's JSON-LD. The taller two are laid out from
+scratch rather than cropped from the 16:9 card, which would cut the text.
 
 The site uses the PETSCII pixel font (asid/assets/SidStationC64.ttf). That font
 builds each glyph from one separate rectangle per pixel row, so letting FreeType
@@ -22,16 +32,16 @@ from PIL import Image, ImageDraw
 ROOT = Path(__file__).resolve().parent.parent
 FONT = ROOT / "asid/assets/SidStationC64.ttf"
 ICON = ROOT / "asid/assets/AppIcon.png"
-OUT = ROOT / "docs/og-cover.png"
+OUT_DIR = ROOT / "docs"
 
-W, H = 1200, 630  # the Open Graph standard size
 SCREEN = (70, 62, 164)  # SID screen blue (matches the site --screen)
 WHITE = (255, 255, 255)
 TEAL = (60, 184, 166)
 LIGHT = (183, 179, 238)
 DIM = (150, 145, 205)
 
-# (text, scale = output pixels per font pixel, colour, top-left position)
+# (text, scale = output pixels per font pixel, colour) for the 16:9 card, with
+# the top-left position it is pasted at.
 TEXT = [
     ("SIDSTATION", 10, WHITE, (70, 150)),
     ("ASID", 10, TEAL, (70, 258)),
@@ -39,6 +49,17 @@ TEXT = [
     ("VOICES INDIVIDUALLY FROM YOUR DAW", 3, LIGHT, (72, 444)),
     ("DEHLI MUSIKK  /  VST3 . AU . STANDALONE", 2, DIM, (72, 566)),
 ]
+
+# The taller cards use the same lines centred in a single column under the icon.
+# (text, scale, colour, gap in pixels above this line)
+STACK = [
+    ("SIDSTATION", 10, WHITE, 44),
+    ("ASID", 10, TEAL, 38),
+    ("CONTROL THE THREE ELEKTRON SIDSTATION", 3, LIGHT, 80),
+    ("VOICES INDIVIDUALLY FROM YOUR DAW", 3, LIGHT, 15),
+]
+FOOTER = ("DEHLI MUSIKK  /  VST3 . AU . STANDALONE", 2, DIM)
+FOOTER_MARGIN = 50  # from the footer baseline row to the bottom edge
 
 # The font is on an 800-unit em, 100 units per pixel. Sample cell centres: 8
 # columns across, and the 7 rows the glyphs occupy (top y 0..700), top to bottom.
@@ -96,15 +117,52 @@ def text_layer(text, scale, color):
     return layer
 
 
-def main():
-    card = Image.new("RGB", (W, H), SCREEN)
-    icon = Image.open(ICON).convert("RGBA").resize((250, 250), Image.LANCZOS)
+def icon_layer(size):
+    return Image.open(ICON).convert("RGBA").resize((size, size), Image.LANCZOS)
+
+
+def wide_card():
+    """The 16:9 card: text ranged left, icon in the top right corner."""
+    card = Image.new("RGB", (1200, 630), SCREEN)
+    icon = icon_layer(250)
     card.paste(icon, (890, 74), icon)
     for text, scale, color, pos in TEXT:
         layer = text_layer(text, scale, color)
         card.paste(layer, pos, layer)
-    card.save(OUT, "PNG")
-    print(f"wrote {OUT} ({OUT.stat().st_size // 1024} KB)")
+    return card
+
+
+def stacked_card(height, icon_size):
+    """A taller card: one centred column, icon on top, footer along the bottom."""
+    card = Image.new("RGB", (1200, height), SCREEN)
+    icon = icon_layer(icon_size)
+    layers = [(text_layer(t, s, c), gap) for t, s, c, gap in STACK]
+
+    foot = text_layer(*FOOTER)
+    foot_top = height - FOOTER_MARGIN - foot.height
+    stack_h = icon_size + sum(layer.height + gap for layer, gap in layers)
+    y = (foot_top - stack_h) // 2
+
+    card.paste(icon, ((1200 - icon_size) // 2, y), icon)
+    y += icon_size
+    for layer, gap in layers:
+        y += gap
+        card.paste(layer, ((1200 - layer.width) // 2, y), layer)
+        y += layer.height
+    card.paste(foot, ((1200 - foot.width) // 2, foot_top), foot)
+    return card
+
+
+def main():
+    cards = [
+        ("og-cover.png", wide_card()),
+        ("og-cover-4x3.png", stacked_card(900, 260)),
+        ("og-cover-1x1.png", stacked_card(1200, 320)),
+    ]
+    for name, card in cards:
+        out = OUT_DIR / name
+        card.save(out, "PNG")
+        print(f"wrote {out} ({card.width}x{card.height}, {out.stat().st_size // 1024} KB)")
 
 
 if __name__ == "__main__":
