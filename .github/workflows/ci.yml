@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read # least privilege: CI only checks out and builds
 
+# A second push to the same branch makes the first run's answer irrelevant, so
+# stop it rather than pay for two builds on three platforms. Keyed by ref, so
+# branches never cancel each other. Not applied to the release workflow: a tag
+# build halfway through notarization is not something to interrupt.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Runs first because it is the cheapest signal: no compiler, no JUCE checkout,
   # under a minute. Checks formatting for all three languages and lints the
@@ -17,6 +25,12 @@ jobs:
   format:
     name: Formatting and lint
     runs-on: ubuntu-latest
+    # Every job here caps its own wall clock. The default is GitHub's 6 h, which
+    # is not a timeout so much as a blank cheque: a wedged network fetch (apt
+    # mirror, JUCE clone) stops being a failure and becomes a job that burns a
+    # day of runner minutes before anyone notices. Each cap is a few times the
+    # normal run, so it only ever fires on something genuinely stuck.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -45,6 +59,7 @@ jobs:
   core-tests:
     name: Core protocol tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Build and run core tests
@@ -65,16 +80,12 @@ jobs:
     # The image the release tarball is built on, not ubuntu-latest, so this
     # checks the environment that actually ships.
     runs-on: ubuntu-22.04
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Install JUCE build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libasound2-dev libjack-jackd2-dev \
-            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
-            libxinerama-dev libxrandr-dev libxrender-dev \
-            libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+        timeout-minutes: 10
+        run: bash .github/scripts/install-linux-deps.sh
       - name: Configure and build (VST3 + Standalone)
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
@@ -83,6 +94,7 @@ jobs:
   plugin-build-windows:
     name: Plugin build (Windows)
     runs-on: windows-latest
+    timeout-minutes: 60 # the slowest of the three, and MSVC is not quick
     defaults:
       run:
         shell: bash # match the release job, so the commands are the same ones
@@ -96,6 +108,7 @@ jobs:
   plugin-build:
     name: Plugin build + JUCE-linked tests (macOS)
     runs-on: macos-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Configure
