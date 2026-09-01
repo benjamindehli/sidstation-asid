@@ -8,12 +8,12 @@
 # an unpinned version would let `make format-check` pass locally and fail in CI.
 
 # Lints and formats the Python. See ruff.toml.
-ruff==0.16.2
+ruff==0.16.5
 
 # Formats the C++. See .clang-format. This is the LLVM binary shipped as a
 # wheel, which is how it gets pinned without asking everyone to install LLVM.
 # The npm package of the same name is not used: it is stuck on clang-format 15.
-clang-format==22.1.8
+clang-format==23.1.0
 
 # Image tooling. Pillow encodes the responsive screenshot set
 # (packaging/make-screenshots.py) and draws the social card
