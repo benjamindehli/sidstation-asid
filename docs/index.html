@@ -187,7 +187,7 @@
                     <span class="badge">Standalone</span>
                 </div>
                 <div>
-                    <a class="btn" href="https://github.com/benjamindehli/sidstation-asid/releases/latest">Download</a>
+                    <a class="btn" href="#download">Download</a>
                     <a class="btn ghost" href="https://github.com/benjamindehli/sidstation-asid">View on GitHub</a>
                 </div>
                 <!-- Through /login rather than straight to the repo, so a logged out visitor lands back
@@ -419,13 +419,67 @@
                 </div>
             </section>
 
-            <section class="alt" id="install">
+            <section class="alt" id="download">
+                <div class="wrap">
+                    <h2>Download</h2>
+                    <p class="lead">
+                        Version 1.2.0, free and GPL v3. One file per platform, each carrying every plugin format that platform has. The
+                        <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">releases page</a> keeps the earlier versions and
+                        the source archives, and the
+                        <a href="https://github.com/benjamindehli/sidstation-asid/blob/main/CHANGELOG.md">changelog</a> says what changed in each.
+                    </p>
+                    <div class="cards">
+                        <div class="card">
+                            <h3>macOS</h3>
+                            <p>10.15 or later, Apple Silicon and Intel. Signed and notarized, so it opens without a Gatekeeper warning.</p>
+                            <p>
+                                Installs the AU, the VST3 and the Standalone. The largest of the three files, since it carries universal builds of all
+                                three.
+                            </p>
+                            <p><code>SidStation-ASID-1.2.0.dmg</code></p>
+                            <a class="btn" href="https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.0/SidStation-ASID-1.2.0.dmg"
+                                >Download for macOS</a
+                            >
+                        </div>
+                        <div class="card v2">
+                            <h3>Windows</h3>
+                            <p>An Inno Setup installer. Unsigned, so SmartScreen may warn: choose More info, then Run anyway.</p>
+                            <p>Installs the VST3 and the Standalone. There is no AU, which is a macOS format.</p>
+                            <p><code>SidStation-ASID-1.2.0-setup.exe</code></p>
+                            <a
+                                class="btn"
+                                href="https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.0/SidStation-ASID-1.2.0-setup.exe"
+                                >Download for Windows</a
+                            >
+                        </div>
+                        <div class="card v3">
+                            <h3>Linux</h3>
+                            <p>
+                                An x86_64 tarball, unsigned. Nothing is installed for you: copy the VST3 into place and run the Standalone where it
+                                lands.
+                            </p>
+                            <p>Carries the VST3 and the Standalone, plus install notes and the licence.</p>
+                            <p><code>SidStation-ASID-1.2.0-linux-x86_64.tar.gz</code></p>
+                            <a
+                                class="btn"
+                                href="https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.0/SidStation-ASID-1.2.0-linux-x86_64.tar.gz"
+                                >Download for Linux</a
+                            >
+                        </div>
+                    </div>
+                    <p class="lead spaced">
+                        All three need an Elektron SidStation. The plugin contains no SID emulation and makes no sound on its own. Only the macOS
+                        build has been tested against real hardware so far. <a href="#install">Install steps</a> are below.
+                    </p>
+                </div>
+            </section>
+
+            <section id="install">
                 <div class="wrap">
                     <h2>Install</h2>
                     <p class="lead">
-                        Builds for macOS, Windows and Linux are on
-                        <a href="https://github.com/benjamindehli/sidstation-asid/releases/latest">the latest release</a>. The macOS build is signed
-                        and notarized. The Windows and Linux builds are provided but not yet hardware-tested.
+                        The three files are in <a href="#download">download</a> above. The macOS build is signed and notarized. The Windows and Linux
+                        builds are provided but not yet hardware-tested.
                     </p>
 
                     <h3>macOS</h3>
@@ -433,7 +487,7 @@
                         macOS 10.15 or later, Apple Silicon or Intel. The package is signed and notarized, so it opens without a Gatekeeper warning.
                     </p>
                     <ol class="steps">
-                        <li>Download the DMG from the latest release and open it.</li>
+                        <li>Open the DMG from <a href="#download">download</a> above.</li>
                         <li>Run the installer inside. It asks for your admin password, since the plugins go in the system plugin folders.</li>
                         <li>Restart your DAW. Logic revalidates the AU on the next launch, which takes a moment the first time.</li>
                         <li>Connect the SidStation over MIDI and put it in ASID mode from the front panel.</li>
@@ -461,7 +515,7 @@
                     <h3>Windows</h3>
                     <ol class="steps">
                         <li>
-                            Download the setup .exe from the latest release and run it. It is unsigned, so SmartScreen may warn: choose More info,
+                            Run the setup .exe from <a href="#download">download</a> above. It is unsigned, so SmartScreen may warn: choose More info,
                             then Run anyway.
                         </li>
                         <li>The installer places the VST3 in <code>Common Files\VST3</code> and the Standalone in <code>Program Files</code>.</li>
@@ -471,7 +525,7 @@
 
                     <h3>Linux</h3>
                     <ol class="steps">
-                        <li>Download the .tar.gz from the latest release and extract it.</li>
+                        <li>Extract the .tar.gz from <a href="#download">download</a> above.</li>
                         <li>
                             Copy <code>SidStation ASID.vst3</code> into <code>~/.vst3</code> (or <code>/usr/lib/vst3</code> for all users), and run
                             the Standalone from the extracted folder.
@@ -488,7 +542,7 @@
                 </div>
             </section>
 
-            <section id="build">
+            <section class="alt" id="build">
                 <div class="wrap">
                     <h2>Build from source</h2>
                     <p class="lead">

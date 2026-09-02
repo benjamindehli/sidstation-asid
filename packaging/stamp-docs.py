@@ -3,11 +3,19 @@
 
 Values in the docs site that go stale on their own, and nothing else keeps
 honest:
-  docs/index.html      the JSON-LD softwareVersion and dateModified
+  docs/index.html      the JSON-LD softwareVersion and dateModified, and the
+                       download section's version, file names and asset URLs
   docs/*/index.html    the JSON-LD dateModified of each article page
   docs/sitemap.xml     the lastmod of each page
   docs/llms.txt        the "Current release is X.Y.Z (date)" line
   CITATION.cff         the version and date-released
+
+The download section is the reason this script matters more than it used to.
+Every release asset carries the version in its own file name, so there is no
+/releases/latest/download/ URL that stays correct: the page has to name
+SidStation-ASID-1.2.0.dmg and the v1.2.0 tag outright. Stamped from the same
+version as everything else, those links move with the release. Left to a human
+they would be three silent 404s on the one page that matters.
 
 Two kinds of date, because they mean different things:
 
@@ -299,6 +307,14 @@ def main():
             [
                 (r'("softwareVersion":\s*")[^"]*(")', rf"\g<1>{version}\g<2>"),
                 date_rule("dateModified", date),
+                # The download section, which names the release outright: the
+                # visible version, then the tag in each asset URL, then the file
+                # names, which appear twice each (once as the link target, once
+                # as the code element under it). Each of these replaces every
+                # occurrence, so adding a fourth platform needs no change here.
+                (r"(Version )\d+\.\d+\.\d+", rf"\g<1>{version}"),
+                (r"(releases/download/v)\d+\.\d+\.\d+", rf"\g<1>{version}"),
+                (r"(SidStation-ASID-)\d+\.\d+\.\d+", rf"\g<1>{version}"),
             ],
         ),
         (

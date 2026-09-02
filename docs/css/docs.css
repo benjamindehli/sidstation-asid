@@ -426,6 +426,30 @@ section h2 {
     margin-bottom: 9px;
 }
 
+/* Download cards. The same block as the feature cards, so they inherit the
+   --panel fill, the coloured top rule and the three-across grid that collapses
+   to one on a narrow screen. What differs is that each ends in a button, and
+   carries prose rather than a list, so the spacing is set here instead of by
+   .card ul. */
+#download .card p {
+    margin: 0 0 14px;
+}
+/* The file names are long and unbroken: the Linux one is 41 characters, which
+   at this size is wider than a card at the grid's 260px minimum. Nothing in a
+   file name is a break opportunity to a browser, not even the hyphens, so
+   without this it would simply overflow the card. #ddd9ff is 7.86:1 on
+   --panel, the same code colour the install table uses. */
+#download .card code {
+    color: #ddd9ff;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+/* .btn carries 6px of margin for the hero, where buttons sit side by side. In a
+   card it is the last thing in the box and needs no side margin. */
+#download .card .btn {
+    margin: 2px 0 0;
+}
+
 /* Tabs / screenshots */
 .shot {
     margin-top: 46px;
