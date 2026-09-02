@@ -69,7 +69,7 @@ The settings the SID shares across all three voices. Filter has per voice routin
 - [DAW setup](https://benjamindehli.github.io/sidstation-asid/daw-setup/): running it in Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio, what the three instances share, and getting the hardware's audio back into the mix. Pro Tools loads AAX only, so it cannot load this plugin at all.
 - [Sound design](https://benjamindehli.github.io/sidstation-asid/sound-design/): the wavetable, the three LFOs, presets, and the SID rules that decide which waveform, ring and sync combinations do anything.
 - [Troubleshooting](https://benjamindehli.github.io/sidstation-asid/troubleshooting/): no sound, only one voice, notes dropping on fast passages, uneven modulation, and trimming note timing against a DAW.
-- [Protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/): the ASID frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and what four real patch banks revealed.
+- [ASID protocol](https://benjamindehli.github.io/sidstation-asid/protocol/): the frame format, the two address spaces, the dead Direct Program path on OS 1.11 R34, and what four real patch banks revealed.
 - [ASID timing](https://benjamindehli.github.io/sidstation-asid/asid-timing/): the write behaviour to design around when streaming ASID from a DAW.
 
 ## Status
@@ -125,4 +125,4 @@ That writes AVIF and WebP at 488, 976 and 1444 wide into `docs/assets/screenshot
 
 ## Hardware notes
 
-`core/README.md` records what came out of testing against a real unit, and the [protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) write the same ground up for reading. The finding that shaped the whole plugin: on OS 1.11 R34 firmware the SysEx Direct Program path is dead, so streaming raw SID registers over ASID is the only way in.
+`core/README.md` records what came out of testing against a real unit, and the [ASID protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) write the same ground up for reading. The finding that shaped the whole plugin: on OS 1.11 R34 firmware the SysEx Direct Program path is dead, so streaming raw SID registers over ASID is the only way in.

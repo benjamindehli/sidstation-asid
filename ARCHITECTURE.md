@@ -1,6 +1,6 @@
 # Architecture
 
-How SidStation ASID is put together and why it is put together that way. If you are looking for what the plugin does, the [README](README.md) covers that. If you are looking for what the hardware does, the [protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) cover that.
+How SidStation ASID is put together and why it is put together that way. If you are looking for what the plugin does, the [README](README.md) covers that. If you are looking for what the hardware does, the [ASID protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) cover that.
 
 ## The shape of the repository
 
@@ -55,7 +55,7 @@ Instead, every instance reports the offset it sees between the playhead and the 
 
 The manual documents a SysEx Direct Program message that sets one parameter at a time, and on the firmware this was developed against that message does nothing at all. ASID, which streams raw SID register writes, does work, and it reaches parameters that MIDI CC cannot touch while giving each voice its own frequency and gate.
 
-That is not a preference, it is what the hardware left available. The [protocol notes](https://benjamindehli.github.io/sidstation-asid/protocol/) and [ASID timing](https://benjamindehli.github.io/sidstation-asid/asid-timing/) pages record the findings behind it, including the write behaviour the whole design has to work around.
+That is not a preference, it is what the hardware left available. The [ASID protocol](https://benjamindehli.github.io/sidstation-asid/protocol/) and [ASID timing](https://benjamindehli.github.io/sidstation-asid/asid-timing/) pages record the findings behind it, including the write behaviour the whole design has to work around.
 
 ## Building and testing
 
