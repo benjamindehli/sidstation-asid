@@ -32,7 +32,12 @@ jobs:
     # normal run, so it only ever fires on something genuinely stuck.
     timeout-minutes: 10
     steps:
+      # Full history, because stamp-check dates each docs page from the last
+      # commit that touched it. The default depth of 1 would resolve every path
+      # to HEAD, so every page would look modified today: plausible, and wrong.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
@@ -55,6 +60,12 @@ jobs:
       # renders fine locally and 404s once published.
       - name: Check docs links resolve
         run: make links-check
+      # The sitemap lastmod and the JSON-LD dateModified of each page are what
+      # search engines read as freshness, and nothing about editing a page keeps
+      # them right. This catches the page that changed without its date, which
+      # is how the whole site sat two weeks behind after 1.2.0.
+      - name: Check docs dates match git history
+        run: make stamp-check
 
   core-tests:
     name: Core protocol tests

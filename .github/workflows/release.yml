@@ -37,7 +37,12 @@ jobs:
       ART: build/asid/SidStationAsid_artefacts/Release
       NAME: SidStation ASID
     steps:
+      # Full history, because the docs stamping step at the end of this job
+      # dates each page from the last commit that touched it, and the default
+      # depth of 1 would date every page to HEAD.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - name: Resolve version and check the tag
         id: ver
@@ -165,9 +170,11 @@ jobs:
         run: gh release upload "$TAG" build/dist/SidStation-ASID-*.dmg --clobber
 
       # The docs site advertises a version and a date in the landing page
-      # structured data, the sitemap and llms.txt. Stamp them from the release
-      # that just shipped, so the site cannot drift from what is actually
-      # downloadable. stamp-docs.py owns the list of files and lines that get
+      # structured data, the sitemap, llms.txt and CITATION.cff. Stamp them from
+      # the release that just shipped, so the site cannot drift from what is
+      # actually downloadable. Only the release values come from here: each
+      # page's own date comes from git history, which is why this job checks out
+      # the full history. stamp-docs.py owns the list of files and lines that get
       # stamped, and this step commits all of them. Runs last: if the
       # build or notarization failed there is nothing to advertise. The version
       # is the one checked against the tag above, not whatever main says now.
