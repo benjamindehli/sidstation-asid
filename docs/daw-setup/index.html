@@ -120,6 +120,7 @@
         </script>
     </head>
     <body>
+        <a class="skip" href="#main">Skip to content</a>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
                 <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
@@ -143,7 +144,19 @@
                 </div>
             </div>
         </header>
-        <main>
+        <main id="main" tabindex="-1">
+            <nav class="toc" aria-labelledby="toc-title">
+                <div class="wrap">
+                    <h2 id="toc-title">On this page</h2>
+                    <ol>
+                        <li><a href="#shape">The same in every host</a></li>
+                        <li><a href="#shared">What the three instances share</a></li>
+                        <li><a href="#hosts">Host by host</a></li>
+                        <li><a href="#lining-up">Lining the hardware up with the mix</a></li>
+                        <li><a href="#clock">Clock, and how hard to push the port</a></li>
+                    </ol>
+                </div>
+            </nav>
             <section id="shape">
                 <div class="wrap">
                     <h2>The same in every host</h2>

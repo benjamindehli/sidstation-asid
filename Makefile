@@ -91,7 +91,9 @@ images-check: python-tools
 # same asset has a different correct relative path in each. That has already
 # shipped one 404, hence a check rather than care. It covers the Markdown too,
 # because the README embeds the same generated screenshots the site does, and
-# images-check cannot see who points at the set it builds.
+# images-check cannot see who points at the set it builds. It also checks that
+# every #fragment finds an id in the page it lands on, which is what keeps the
+# "On this page" lists honest when a section id is renamed.
 links-check:
 	python3 packaging/check-links.py
 

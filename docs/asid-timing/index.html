@@ -121,6 +121,7 @@
         </script>
     </head>
     <body>
+        <a class="skip" href="#main">Skip to content</a>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
                 <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
@@ -144,7 +145,21 @@
                 </div>
             </div>
         </header>
-        <main>
+        <main id="main" tabindex="-1">
+            <nav class="toc" aria-labelledby="toc-title">
+                <div class="wrap">
+                    <h2 id="toc-title">On this page</h2>
+                    <ol>
+                        <li><a href="#one-message-late">Writes apply one message late</a></li>
+                        <li><a href="#update-rate">About one update per SID frame</a></li>
+                        <li><a href="#frame-order">End every frame with the control register</a></li>
+                        <li><a href="#even-flow">Every sounding voice has to keep streaming</a></li>
+                        <li><a href="#envelope">The 6581 envelope can swallow a note</a></li>
+                        <li><a href="#threading">Do not send MIDI from the audio thread</a></li>
+                        <li><a href="#host-time">You may not get a host clock</a></li>
+                    </ol>
+                </div>
+            </nav>
             <section id="one-message-late">
                 <div class="wrap">
                     <h2>Writes apply one message late</h2>

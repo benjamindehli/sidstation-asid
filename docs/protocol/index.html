@@ -121,6 +121,7 @@
         </script>
     </head>
     <body>
+        <a class="skip" href="#main">Skip to content</a>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
                 <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
@@ -144,7 +145,19 @@
                 </div>
             </div>
         </header>
-        <main>
+        <main id="main" tabindex="-1">
+            <nav class="toc" aria-labelledby="toc-title">
+                <div class="wrap">
+                    <h2 id="toc-title">On this page</h2>
+                    <ol>
+                        <li><a href="#direct-program">Direct Program is dead on OS 1.11 R34</a></li>
+                        <li><a href="#asid">ASID: streaming raw SID registers</a></li>
+                        <li><a href="#address-spaces">Two address spaces</a></li>
+                        <li><a href="#patch-banks">What real patch banks revealed</a></li>
+                        <li><a href="#open-questions">Still open</a></li>
+                    </ol>
+                </div>
+            </nav>
             <section id="direct-program">
                 <div class="wrap">
                     <h2>Direct Program is dead on OS 1.11 R34</h2>

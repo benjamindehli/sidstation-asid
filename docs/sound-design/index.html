@@ -120,6 +120,7 @@
         </script>
     </head>
     <body>
+        <a class="skip" href="#main">Skip to content</a>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
                 <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
@@ -143,7 +144,19 @@
                 </div>
             </div>
         </header>
-        <main>
+        <main id="main" tabindex="-1">
+            <nav class="toc" aria-labelledby="toc-title">
+                <div class="wrap">
+                    <h2 id="toc-title">On this page</h2>
+                    <ol>
+                        <li><a href="#chip-rules">Chip rules that decide what works</a></li>
+                        <li><a href="#wavetable">The wavetable</a></li>
+                        <li><a href="#lfos">The three LFOs</a></li>
+                        <li><a href="#voice-three">Voice 3 as a modulator</a></li>
+                        <li><a href="#presets">Presets are files</a></li>
+                    </ol>
+                </div>
+            </nav>
             <section id="chip-rules">
                 <div class="wrap">
                     <h2>Chip rules that decide what works</h2>

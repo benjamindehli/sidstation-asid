@@ -191,6 +191,7 @@
         </script>
     </head>
     <body>
+        <a class="skip" href="#main">Skip to content</a>
         <nav class="topnav" aria-label="Pages">
             <div class="wrap">
                 <button class="navtoggle" type="button" aria-expanded="false" aria-controls="navlinks">Menu</button>
@@ -214,7 +215,20 @@
                 </div>
             </div>
         </header>
-        <main>
+        <main id="main" tabindex="-1">
+            <nav class="toc" aria-labelledby="toc-title">
+                <div class="wrap">
+                    <h2 id="toc-title">On this page</h2>
+                    <ol>
+                        <li><a href="#no-sound">Nothing plays at all</a></li>
+                        <li><a href="#one-voice">Only one note sounds at a time</a></li>
+                        <li><a href="#dropped-notes">Notes drop out on fast passages</a></li>
+                        <li><a href="#modulation">Modulation sounds uneven, or the MIDI meter is pegged</a></li>
+                        <li><a href="#timing">Notes sit early or late against the rest of the mix</a></li>
+                        <li><a href="#other-editors">A patch editor or Direct Program does nothing</a></li>
+                    </ol>
+                </div>
+            </nav>
             <section id="no-sound">
                 <div class="wrap">
                     <h2>Nothing plays at all</h2>

@@ -40,6 +40,16 @@ html {
     scroll-padding-top: 76px;
 }
 
+/* The smooth scroll above animates a whole page of travel on every .toc link,
+   which is the kind of movement that triggers motion sickness. Honour the
+   system setting and jump instead. The scroll-padding still applies either way,
+   so the landing position does not change, only how it is reached. */
+@media (prefers-reduced-motion: reduce) {
+    html {
+        scroll-behavior: auto;
+    }
+}
+
 body {
     margin: 0;
     background: var(--bg);
@@ -74,6 +84,44 @@ a:hover {
     max-width: 1024px;
     margin: 0 auto;
     padding: 0 24px;
+}
+
+/* Skip link, the first focusable thing in the body on every page. Without it a
+   keyboard or screen reader user pays the Menu button plus six nav links on
+   every page before reaching anything specific to it (WCAG 2.4.1).
+
+   Moved off screen rather than hidden with display:none or visibility:hidden,
+   either of which would take it out of the tab order and leave nothing to
+   focus. Fixed rather than absolute, so it is still in the viewport if focus
+   reaches it after a scroll: absolute would place it relative to the document
+   and put it back above the top of the page. The z-index clears the nav, which
+   is 10 and sticky, and would otherwise paint over it. --hot on --panel is
+   10.69:1, styled off --panel and --dim like the Menu button and every other
+   field on the site. */
+.skip {
+    position: fixed;
+    left: 12px;
+    top: -60px;
+    z-index: 20;
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+    color: var(--hot);
+    background: var(--panel);
+    border: 2px solid var(--dim);
+    padding: 10px 16px;
+    text-decoration: none;
+}
+.skip:focus {
+    top: 12px;
+}
+/* main carries tabindex="-1" purely so the skip link lands focus there in every
+   browser, rather than only moving the scroll position. It is never in the tab
+   order itself, so a ring around the whole page body would only ever appear as
+   a side effect of following the link. */
+main:focus {
+    outline: none;
 }
 
 /* Site navigation, above the hero on every page, so any page is one click from
@@ -305,6 +353,44 @@ section h2 {
 }
 .lead.spaced {
     margin-top: 26px;
+}
+
+/* On this page. The five article pages each run five to seven sections deep, so
+   their h2s scroll well out of reach and the section anchors they already carry
+   were only findable by reading the source. Not on the landing page, where the
+   hero's Download button is what should be reached first, and not on the 404,
+   which is a list of links already.
+
+   No panel fill or card border: the list sits between the hero and the first
+   h2, where a second filled block would read as another section rather than as
+   a way into the one below. The rule down the left is the same idiom as pre.
+   Jump targets already land clear of the pinned nav, from scroll-padding-top on
+   html, so there is nothing to add per anchor here. */
+.toc {
+    padding: 46px 0 0;
+}
+/* --hot is 12.90:1 on --bg. Sized like a .card h3 rather than a section h2, so
+   the label does not compete with the headings it lists. */
+.toc h2 {
+    font-family: "SidStationC64", monospace;
+    text-transform: uppercase;
+    color: var(--hot);
+    font-size: 15px;
+    letter-spacing: 0.05em;
+    margin: 0 0 14px;
+}
+.toc ol {
+    margin: 0;
+    padding: 2px 0 2px 24px;
+    border-left: 3px solid var(--dim);
+}
+.toc li {
+    margin-bottom: 7px;
+}
+/* 7.33:1 on --bg, which is the only background these sit on: every page's first
+   section is a plain one, so the list is never painted on --screen. */
+.toc a {
+    color: var(--link);
 }
 
 /* Feature cards */
