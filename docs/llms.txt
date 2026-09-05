@@ -35,5 +35,6 @@ Current release is 1.2.0 (2026-08-12), licensed GPL v3, by Benjamin Dehli under 
 ## Optional
 
 - [Packaging notes](https://github.com/benjamindehli/sidstation-asid/blob/main/packaging/README.md): how the installers for all three platforms are built, including the macOS signing and notarization.
+- [KVR Audio listing](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk): the plugin's entry in the KVR product database.
 - [License](https://github.com/benjamindehli/sidstation-asid/blob/main/LICENSE): GNU GPL v3.
 - [Dehli Musikk](https://www.dehlimusikk.no/): the author's music business.

@@ -4,7 +4,7 @@ A cross platform plugin (VST3, AU, Standalone) for the Elektron SidStation, the 
 
 Control the three Elektron SidStation voices individually from your DAW.
 
-The documentation site is at [benjamindehli.github.io/sidstation-asid](https://benjamindehli.github.io/sidstation-asid/), and builds for macOS, Windows and Linux are on the [releases page](https://github.com/benjamindehli/sidstation-asid/releases/latest).
+The documentation site is at [benjamindehli.github.io/sidstation-asid](https://benjamindehli.github.io/sidstation-asid/), and builds for macOS, Windows and Linux are on the [releases page](https://github.com/benjamindehli/sidstation-asid/releases/latest). The plugin is also listed on [KVR Audio](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk).
 
 ## What it is
 

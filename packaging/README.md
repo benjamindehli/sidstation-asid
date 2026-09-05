@@ -17,8 +17,6 @@ Windows and Linux need no secrets.
 
 The `.pkg` installs:
 
-The `.pkg` installs:
-
 | Item                               | Destination                          |
 | ---------------------------------- | ------------------------------------ |
 | `SidStation ASID.component` (AU)   | `/Library/Audio/Plug-Ins/Components` |
@@ -60,6 +58,11 @@ packaging, but it will not install cleanly on other machines).
    version, the workflow checks this) and write the notes.
 4. Publish it. The workflow builds, signs, notarizes and uploads
    `SidStation-ASID-x.y.z.dmg` to the release.
+5. Update the [KVR Audio listing](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk):
+   bump the version and release date on the product page, and paste the release
+   notes into its "what's new" field. A product page on its own generates no
+   traffic, so also post the release through My KVR, which is what puts it in
+   the news feed.
 
 To dry-run the packaging without a release, trigger the workflow manually
 (Actions -> Release -> Run workflow). It uploads the `.dmg` as a build artifact.
