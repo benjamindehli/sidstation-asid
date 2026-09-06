@@ -6,7 +6,9 @@ on:
   pull_request:
 
 permissions:
-  contents: read # least privilege: CI only checks out and builds
+  contents: read # least privilege: every job here only checks out and builds
+  # The one exception is the format job, which raises itself to write so it can
+  # push the docs dates back to main. It says so at the job.
 
 # A second push to the same branch makes the first run's answer irrelevant, so
 # stop it rather than pay for two builds on three platforms. Keyed by ref, so
@@ -25,6 +27,10 @@ jobs:
   format:
     name: Formatting and lint
     runs-on: ubuntu-latest
+    # Write, only for this job and only so the stamp step below can push the
+    # dates back to main. Every other job keeps the read-only default above.
+    permissions:
+      contents: write
     # Every job here caps its own wall clock. The default is GitHub's 6 h, which
     # is not a timeout so much as a blank cheque: a wedged network fetch (apt
     # mirror, JUCE clone) stops being a failure and becomes a job that burns a
@@ -64,8 +70,41 @@ jobs:
       # search engines read as freshness, and nothing about editing a page keeps
       # them right. This catches the page that changed without its date, which
       # is how the whole site sat two weeks behind after 1.2.0.
+      #
+      # A pull request only gets told. Its head branch may live on a fork, where
+      # this job has no write access whatever the permissions above say, so the
+      # fix has to be `make stamp` in the contributor's own clone.
       - name: Check docs dates match git history
+        if: github.event_name == 'pull_request'
         run: make stamp-check
+      # On main it is fixed instead of reported, because every docs commit would
+      # otherwise fail this job and need a second commit that does nothing but
+      # move dates. Same thing the release workflow does with the release values,
+      # minus --version and --date: the page dates come from git history alone.
+      #
+      # The push uses GITHUB_TOKEN, and a push made with that token does not
+      # start another workflow run, so this cannot loop back into itself.
+      - name: Stamp docs dates from git history and push
+        if: github.event_name == 'push'
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          make stamp
+          if git diff --quiet -- docs CITATION.cff; then
+            echo "docs dates already current, nothing to push"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Stage whatever the script wrote rather than a list kept by hand, so
+          # a file it learns to stamp later is not silently left behind.
+          git add -A docs CITATION.cff
+          # The subject has to start with "Stamp ", which is what stamp-docs.py
+          # skips when dating a page. Without it this commit would look like an
+          # edit to every page it touched, and the next run would date them all
+          # forward again, on and on.
+          git commit -m "Stamp the docs dates from git history"
+          git push origin main
 
   core-tests:
     name: Core protocol tests
