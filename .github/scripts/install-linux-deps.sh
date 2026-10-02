@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# The X11, ALSA, JACK, FreeType and GL headers JUCE needs to build on Linux.
+# The X11 (including XInput2), ALSA, JACK, FreeType and GL headers JUCE needs
+# to build on Linux. libxi-dev has been required since JUCE 9 for multi-touch.
+# JUCE loads libXi with dlopen like the other X libraries, so it is a build
+# dependency only and adds nothing users have to install. JUCE 9 also wants
+# libegl-dev, but only for juce_opengl, which the plugin does not link.
 # Shared by the CI plugin build and the release tarball build, so the two cannot
 # drift into installing different sets.
 #
@@ -17,7 +21,7 @@ export DEBIAN_FRONTEND=noninteractive
 PACKAGES=(
     libasound2-dev libjack-jackd2-dev
     libx11-dev libxcomposite-dev libxcursor-dev libxext-dev
-    libxinerama-dev libxrandr-dev libxrender-dev
+    libxi-dev libxinerama-dev libxrandr-dev libxrender-dev
     libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
 )
 
