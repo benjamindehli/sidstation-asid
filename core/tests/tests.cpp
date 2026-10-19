@@ -443,9 +443,12 @@ static void testAsid() {
                    0x00, 0x00, 0x20, 0x00,                   // msb
                    0x40, 0xF7}); // data (0xC0 & 0x7F)
 
-  // Note to SID frequency: A4 (MIDI 69) is about 7493 on the PAL clock.
-  CHECK(sidFrequency(69) >= 7492 && sidFrequency(69) <= 7494,
-        "A4 -> ~7493 SID freq");
+  // Note to SID frequency: A4 (MIDI 69) is 7382 on the SidStation's 1 MHz
+  // clock, and about 7493 on the PAL clock.
+  CHECK(sidFrequency(69) == 7382, "A4 -> 7382 SID freq at 1 MHz");
+  CHECK(sidFrequency(69, sid::kClockPal) >= 7492 &&
+            sidFrequency(69, sid::kClockPal) <= 7494,
+        "A4 -> ~7493 SID freq at PAL");
   CHECK(sidFrequency(69 + 12) > sidFrequency(69) * 1.9,
         "octave up roughly doubles freq");
 
