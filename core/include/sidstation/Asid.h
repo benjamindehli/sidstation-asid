@@ -42,7 +42,9 @@ inline Byte waveformBits(bool triangle, bool saw, bool pulse, bool noise) {
                            (pulse ? kPulse : 0));
 }
 
-// PAL 6581 clock, used for the note-to-frequency conversion.
+// The SidStation clocks its 6581 at 1 MHz, not at a C64 rate. Converting
+// notes on the PAL clock plays every note about 26 cents sharp.
+constexpr double kClockSidStation = 1000000.0;
 constexpr double kClockPal = 985248.0;
 constexpr double kClockNtsc = 1022727.0;
 } // namespace sid
@@ -125,6 +127,7 @@ Bytes encodeAsidDoubleControl(int voice, Byte controlFirst, Byte controlSecond,
                               const std::vector<SidWrite> &otherWrites);
 
 // MIDI note (may be fractional for pitch bend) to a 16-bit SID frequency value.
-std::uint16_t sidFrequency(double midiNote, double clockHz = sid::kClockPal);
+std::uint16_t sidFrequency(double midiNote,
+                           double clockHz = sid::kClockSidStation);
 
 } // namespace sidstation

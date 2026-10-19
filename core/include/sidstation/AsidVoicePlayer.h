@@ -130,7 +130,7 @@ private:
 
   SidState sidState;
   VoiceEngine alloc;
-  double clockHz = sid::kClockPal;
+  double clockHz = sid::kClockSidStation;
   Byte filterRouting = 0; // no voices routed through the filter by default
   int targetVoice = -1;
   int currentNote[3] = {-1, -1,

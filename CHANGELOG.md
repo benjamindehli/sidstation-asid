@@ -2,6 +2,16 @@
 
 All notable changes to SidStation ASID are recorded here. This project follows [semantic versioning](https://semver.org) and the format of [Keep a Changelog](https://keepachangelog.com). The full notes for each release are in [release-notes/](release-notes/).
 
+## [Unreleased]
+
+### Fixed
+
+- Every note playing about 26 cents sharp. Notes were converted to SID frequency values using the clock of a PAL Commodore 64, which runs at 985248 Hz, but the SidStation runs its SID at 1 MHz. The offset was the same on every voice and waveform, with or without pitch modulation. With Coarse and Fine centred, A4 now plays at 440 Hz.
+
+### Notes
+
+- A preset tuned by ear to make up for the old offset now plays about a quarter of a semitone flat. Raising its Fine control by 26 cents restores the old pitch.
+
 ## [1.2.0] - 2026-08-12
 
 ### Added
@@ -74,6 +84,7 @@ First stable release: a cross platform plugin (VST3, AU, Standalone) that plays 
 - A Commodore 64 styled pixel interface with per voice colour coding, voice sound presets, an Init and a Panic, a tempo readout, a MIDI load meter, and hover hints that can be toggled from the preset bar.
 - A signed and notarized universal macOS installer (a .pkg inside a .dmg).
 
+[Unreleased]: https://github.com/benjamindehli/sidstation-asid/compare/v1.2.0...HEAD
 [1.2.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.0
 [1.1.2]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.1
