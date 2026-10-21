@@ -53,6 +53,7 @@ endfunction()
 # already destroyed by the time the host closes its own MIDI ports at exit.
 # Leaking the static keeps the mutex alive. Not creating a MessageManager from
 # that callback stops a late notification from building a new one mid exit.
+# Reported upstream: https://github.com/juce-framework/JUCE/issues/1776
 juce_fix("modules/juce_audio_devices/native/juce_CoreMidi_mac.mm"
     "CoreMIDI notifications after static destruction"
     "static Listeners listeners;"
