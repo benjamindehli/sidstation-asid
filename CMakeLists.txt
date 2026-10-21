@@ -31,7 +31,8 @@ include(FetchContent)
 FetchContent_Declare(JUCE
     GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
     GIT_TAG        9.0.4
-    GIT_SHALLOW    TRUE)
+    GIT_SHALLOW    TRUE
+    PATCH_COMMAND  ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchJuce.cmake)
 FetchContent_MakeAvailable(JUCE)
 
 add_subdirectory(core)

@@ -67,6 +67,7 @@ jobs:
           - [ ] Read [BREAKING_CHANGES.md](https://github.com/juce-framework/JUCE/blob/$latest/BREAKING_CHANGES.md) and [CHANGE_LIST.md](https://github.com/juce-framework/JUCE/blob/$latest/CHANGE_LIST.md) back to $pinned, and check the plugin uses none of what changed.
           - [ ] Check the [Linux dependencies](https://github.com/juce-framework/JUCE/blob/$latest/docs/Linux%20Dependencies.md) against \`.github/scripts/install-linux-deps.sh\`.
           - [ ] Diff \`modules/juce_audio_devices\` between the two tags. The ASID stream is SysEx, so MIDI output changes need a hardware test on every platform they touch.
+          - [ ] Check whether each fix in \`cmake/PatchJuce.cmake\` is fixed upstream in $latest. Drop the ones that are, and update any whose lines changed.
           - [ ] Bump \`GIT_TAG\` and let the pull request build all three platforms.
           - [ ] Add a line to \`CHANGELOG.md\`.
 
