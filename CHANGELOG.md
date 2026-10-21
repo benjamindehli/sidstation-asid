@@ -7,6 +7,7 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 ### Fixed
 
 - Every note playing about 26 cents sharp. Notes were converted to SID frequency values using the clock of a PAL Commodore 64, which runs at 985248 Hz, but the SidStation runs its SID at 1 MHz. The offset was the same on every voice and waveform, with or without pitch modulation. With Coarse and Fine centred, A4 now plays at 440 Hz.
+- Logic Pro reporting that it quit unexpectedly every time it was closed with the plugin loaded. Two JUCE bugs caused it. JUCE 9.0.4 fixes the first, where a MIDI device listener never unregistered itself. The second is a JUCE MIDI callback that can still run after the plugin's static objects are destroyed at exit, and a small local patch to JUCE now fixes it until JUCE does. Tested in Logic Pro 12.2 on macOS 15.7.
 
 ### Notes
 
