@@ -11,7 +11,7 @@ Key facts, since they are easy to get wrong:
 - Presets are the plugin's own voice sounds, saved to disk as files that live outside both the DAW project and the unit's own memory.
 - The formats are VST3, AU and Standalone. There is no AAX build, so it does not load in Pro Tools at all, and the way around that is the Standalone app or an AAX plugin host.
 
-Current release is 1.2.0 (2026-08-12), licensed GPL v3, by Benjamin Dehli under Dehli Musikk. There are builds for macOS, Windows and Linux. The macOS build needs 10.15 or later, is universal for Apple Silicon and Intel, and is signed and notarized: its AU installs to /Library/Audio/Plug-Ins/Components, the VST3 to /Library/Audio/Plug-Ins/VST3, the Standalone to /Applications. Windows ships an Inno Setup installer and Linux an x86_64 tarball, both carrying the VST3 and Standalone (AU is macOS only) and neither signed. Only the macOS build has been tested against real hardware. This is an independent project, not affiliated with or endorsed by Elektron.
+Current release is 1.2.1 (2026-10-22), licensed GPL v3, by Benjamin Dehli under Dehli Musikk. There are builds for macOS, Windows and Linux. The macOS build needs 10.15 or later, is universal for Apple Silicon and Intel, and is signed and notarized: its AU installs to /Library/Audio/Plug-Ins/Components, the VST3 to /Library/Audio/Plug-Ins/VST3, the Standalone to /Applications. Windows ships an Inno Setup installer and Linux an x86_64 tarball, both carrying the VST3 and Standalone (AU is macOS only) and neither signed. Only the macOS build has been tested against real hardware. This is an independent project, not affiliated with or endorsed by Elektron.
 
 ## Docs
 
