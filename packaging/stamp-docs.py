@@ -26,6 +26,14 @@ release that never happened, so --date defaults to the release date already in
 the files and a manual run cannot falsify it. The workflow passes the tag's
 published_at.
 
+The version works the same way, for the same reason. --version defaults to the
+version already in the files, not the one in CMakeLists.txt. The CMake version
+is bumped on the release branch before the release exists, and stamping it then
+would point every download link at assets that are not uploaded yet. It also
+failed the pull request check on the version bump itself, and once merged, the
+main branch run would have pushed those links live. Only the release workflow
+passes --version, after the release is published.
+
 The page dates are when each page last changed, which is all that sitemap
 lastmod and an article's dateModified mean. Those come from git rather than
 from a flag, one date per page, because that is the only source that stays
@@ -67,7 +75,6 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CMAKE = os.path.join(ROOT, "CMakeLists.txt")
 DOCS = os.path.join(ROOT, "docs")
 INDEX = os.path.join(DOCS, "index.html")
 SITEMAP = os.path.join(DOCS, "sitemap.xml")
@@ -225,21 +232,13 @@ def iso_date(value, flag):
     return value
 
 
-def project_version():
-    text = open(CMAKE, encoding="utf-8").read()
-    m = re.search(r"^project\([^)]*?VERSION\s+(\d+\.\d+\.\d+)", text, re.M | re.S)
-    if not m:
-        sys.exit(f"no project(... VERSION x.y.z) found in {CMAKE}")
-    return m.group(1)
-
-
-def released_date():
-    """The release date already stamped in the site, so a run cannot invent one."""
+def released():
+    """The version and date already stamped in the site, so a run cannot invent a release."""
     text = open(LLMS, encoding="utf-8").read()
-    m = re.search(r"Current release is \d+\.\d+\.\d+ \((\d{4}-\d{2}-\d{2})\)", text)
+    m = re.search(r"Current release is (\d+\.\d+\.\d+) \((\d{4}-\d{2}-\d{2})\)", text)
     if not m:
-        sys.exit(f"no 'Current release is X.Y.Z (date)' line in {LLMS}, pass --date")
-    return m.group(1)
+        sys.exit(f"no 'Current release is X.Y.Z (date)' line in {LLMS}, pass --version and --date")
+    return m.group(1), m.group(2)
 
 
 def substitute(text, rules, where):
@@ -284,7 +283,7 @@ def stamp_sitemap(text, dates):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--version", help="version to stamp, defaults to the CMake project version")
+    ap.add_argument("--version", help="version to stamp, defaults to the one already stamped")
     ap.add_argument("--date", help="release date, defaults to the one already stamped")
     ap.add_argument("--page-date", help="date for uncommitted edits, defaults to today (UTC)")
     ap.add_argument("--check", action="store_true", help="report drift, write nothing")
@@ -292,8 +291,9 @@ def main():
 
     if args.version and not re.fullmatch(r"\d+\.\d+\.\d+", args.version):
         sys.exit(f"--version must be X.Y.Z, got {args.version}")
-    version = args.version or project_version()
-    date = iso_date(args.date, "--date") if args.date else released_date()
+    stamped_version, stamped_date = released()
+    version = args.version or stamped_version
+    date = iso_date(args.date, "--date") if args.date else stamped_date
     today = datetime.datetime.now(datetime.timezone.utc).date().isoformat()
     page_today = iso_date(args.page_date, "--page-date") if args.page_date else today
 
