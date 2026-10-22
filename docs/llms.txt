@@ -1,6 +1,6 @@
 # SidStation ASID
 
-> A free, open source audio plugin (VST3, AU and Standalone) that plays the three SID voices of the Elektron SidStation hardware synth from a DAW. It streams raw MOS6581 SID registers over the ASID protocol rather than sending MIDI CC, so each voice gets its own pitch, gate and register writes. One plugin instance drives one voice.
+> A free, open source audio plugin (VST3, AU and Standalone) that plays the three SID voices of the Elektron SidStation hardware synth, sometimes written SID Station, from a DAW. It streams raw MOS6581 SID registers over the ASID protocol rather than sending MIDI CC, so each voice gets its own pitch, gate and register writes. One plugin instance drives one voice.
 
 Key facts, since they are easy to get wrong:
 
