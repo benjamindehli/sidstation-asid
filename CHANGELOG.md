@@ -2,7 +2,7 @@
 
 All notable changes to SidStation ASID are recorded here. This project follows [semantic versioning](https://semver.org) and the format of [Keep a Changelog](https://keepachangelog.com). The full notes for each release are in [release-notes/](release-notes/).
 
-## [Unreleased]
+## [1.2.1] - 2026-10-22
 
 ### Fixed
 
@@ -12,6 +12,7 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 ### Notes
 
 - A preset tuned by ear to make up for the old offset now plays about a quarter of a semitone flat. Raising its Fine control by 26 cents restores the old pitch.
+- Built on JUCE 9.0.4, up from 8.0.15. JUCE 9 changed how Windows sends SysEx, which carries every ASID frame, and the Windows build has not been tested on hardware. If ASID timing on Windows sounds different from 1.2.0, please open an issue.
 
 ## [1.2.0] - 2026-08-12
 
@@ -85,7 +86,7 @@ First stable release: a cross platform plugin (VST3, AU, Standalone) that plays 
 - A Commodore 64 styled pixel interface with per voice colour coding, voice sound presets, an Init and a Panic, a tempo readout, a MIDI load meter, and hover hints that can be toggled from the preset bar.
 - A signed and notarized universal macOS installer (a .pkg inside a .dmg).
 
-[Unreleased]: https://github.com/benjamindehli/sidstation-asid/compare/v1.2.0...HEAD
+[1.2.1]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.1
 [1.2.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.0
 [1.1.2]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.2
 [1.1.1]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.1
