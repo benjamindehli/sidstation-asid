@@ -145,6 +145,77 @@
                         ]
                     },
                     {
+                        "@type": "FAQPage",
+                        "@id": "https://benjamindehli.github.io/sidstation-asid/#faq",
+                        "url": "https://benjamindehli.github.io/sidstation-asid/",
+                        "name": "SidStation ASID questions",
+                        "inLanguage": "en",
+                        "about": { "@id": "https://www.dehlimusikk.no/products/sidstation-asid/#product" },
+                        "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
+                        "mainEntity": [
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#hardware",
+                                "name": "Does it need a SidStation, or is it an emulator?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#hardware",
+                                    "text": "It needs the hardware. The plugin contains no SID emulation and makes no sound on its own. It streams register writes to an Elektron SidStation over MIDI, and the sound comes out of the SidStation's own outputs, so its DAW track stays silent by design."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#other-asid",
+                                "name": "Does it work with other ASID devices?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#other-asid",
+                                    "text": "It has only been tested with an Elektron SidStation on OS 1.11 R34. The plugin sends standard ASID messages, so other hardware that accepts ASID may respond, but that has not been tried. Some of what the plugin does is tuned to how the SidStation behaves, such as how fast it sends updates and how it ends each frame, and another device could need different settings. Reports from other ASID hardware are welcome on the issue tracker."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#daws",
+                                "name": "Which DAWs does it work in?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#daws",
+                                    "text": "Any host that loads VST3 or AU plugins. DAW setup walks through Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio. Pro Tools is the exception, since it loads AAX only. There, run the Standalone app next to it, or load the VST3 inside an AAX plugin host."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#chords",
+                                "name": "Can it play chords?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#chords",
+                                    "text": "One instance drives one SID voice, so a single instance is monophonic. For chords or three separate parts, put an instance on each of three tracks and pick a different voice on each. The SID chip has three voices, so three notes at once is the limit."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#bounce",
+                                "name": "Can I bounce or export the SidStation in my DAW?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#bounce",
+                                    "text": "Not with an offline or faster than real time bounce, because the sound is made by the hardware and the plugin's own track is silent. Record the SidStation's audio outputs to a track first, then bounce as usual."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/#free",
+                                "name": "Is it free?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/#free",
+                                    "text": "Yes. It is free and open source under the GNU GPL v3, with builds for macOS, Windows and Linux. The macOS build is signed and notarized. The Windows and Linux builds are not yet tested against hardware."
+                                }
+                            }
+                        ]
+                    },
+                    {
                         "@type": "Person",
                         "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f",
                         "name": "Benjamin Dehli",
@@ -547,7 +618,48 @@
                 </div>
             </section>
 
-            <section class="alt" id="build">
+            <section class="alt" id="faq">
+                <div class="wrap">
+                    <h2>Questions</h2>
+                    <h3 id="hardware">Does it need a SidStation, or is it an emulator?</h3>
+                    <p class="lead">
+                        It needs the hardware. The plugin contains no SID emulation and makes no sound on its own. It streams register writes to an
+                        Elektron SidStation over MIDI, and the sound comes out of the SidStation's own outputs, so its DAW track stays silent by
+                        design.
+                    </p>
+                    <h3 id="other-asid">Does it work with other ASID devices?</h3>
+                    <p class="lead">
+                        It has only been tested with an Elektron SidStation on OS 1.11 R34. The plugin sends standard ASID messages, so other hardware
+                        that accepts ASID may respond, but that has not been tried. Some of what the plugin does is tuned to how the SidStation
+                        behaves, such as how fast it sends updates and how it ends each frame, and another device could need different settings.
+                        Reports from other ASID hardware are welcome on
+                        <a href="https://github.com/benjamindehli/sidstation-asid/issues">the issue tracker</a>.
+                    </p>
+                    <h3 id="daws">Which DAWs does it work in?</h3>
+                    <p class="lead">
+                        Any host that loads VST3 or AU plugins. <a href="daw-setup/">DAW setup</a> walks through Ableton Live, Logic Pro, Cubase,
+                        Reaper, Bitwig and FL Studio. Pro Tools is the exception, since it loads AAX only. There, run the Standalone app next to it,
+                        or load the VST3 inside an AAX plugin host.
+                    </p>
+                    <h3 id="chords">Can it play chords?</h3>
+                    <p class="lead">
+                        One instance drives one SID voice, so a single instance is monophonic. For chords or three separate parts, put an instance on
+                        each of three tracks and pick a different voice on each. The SID chip has three voices, so three notes at once is the limit.
+                    </p>
+                    <h3 id="bounce">Can I bounce or export the SidStation in my DAW?</h3>
+                    <p class="lead">
+                        Not with an offline or faster than real time bounce, because the sound is made by the hardware and the plugin's own track is
+                        silent. Record the SidStation's audio outputs to a track first, then bounce as usual.
+                    </p>
+                    <h3 id="free">Is it free?</h3>
+                    <p class="lead">
+                        Yes. It is free and open source under the GNU GPL v3, with builds for macOS, Windows and Linux. The macOS build is signed and
+                        notarized. The Windows and Linux builds are not yet tested against hardware.
+                    </p>
+                </div>
+            </section>
+
+            <section id="build">
                 <div class="wrap">
                     <h2>Build from source</h2>
                     <p class="lead">
