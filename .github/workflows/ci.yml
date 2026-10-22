@@ -66,6 +66,10 @@ jobs:
       # renders fine locally and 404s once published.
       - name: Check docs links resolve
         run: make links-check
+      # The Markdown copies of the docs pages are generated from the HTML and
+      # committed. This catches a page edited without regenerating its copy.
+      - name: Check docs Markdown copies are up to date
+        run: make markdown-check
       # The sitemap lastmod and the JSON-LD dateModified of each page are what
       # search engines read as freshness, and nothing about editing a page keeps
       # them right. This catches the page that changed without its date, which

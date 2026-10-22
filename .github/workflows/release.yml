@@ -188,6 +188,9 @@ jobs:
           git checkout -B main origin/main
           python3 packaging/stamp-docs.py \
             --version "${{ steps.ver.outputs.version }}" --date "${PUBLISHED_AT%%T*}"
+          # The landing page's download section names the version, and its
+          # Markdown copy has to follow it.
+          python3 packaging/make-markdown.py
           if git diff --quiet -- docs CITATION.cff; then
             echo "docs already current, nothing to push"
             exit 0

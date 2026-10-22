@@ -16,5 +16,10 @@ temp/
 docs/sitemap.xml
 docs/llms.txt
 
+# Generated from each page's HTML by packaging/make-markdown.py, which checks
+# them byte for byte. Reformatting them here would make that check fail.
+docs/index.md
+docs/*/index.md
+
 # GPL text. Not ours to reflow.
 LICENSE

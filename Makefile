@@ -9,6 +9,8 @@
 #                        nothing (CI runs this)
 #   make stamp           rewrite the docs site's page dates from git history
 #   make stamp-check     fail if a page date is out of step with git (CI runs this)
+#   make markdown        rewrite the Markdown copy of every docs page from its HTML
+#   make markdown-check  fail if a Markdown copy is missing or stale (CI runs this)
 #   make tools           install the pinned formatters, without running them
 #   make test            run the core protocol tests
 #
@@ -31,7 +33,7 @@ PRETTIER := npx --no-install prettier
 # Deleted-but-not-yet-committed files are filtered out by the wildcard.
 CPP_FILES = $(wildcard $(shell git ls-files '*.cpp' '*.h'))
 
-.PHONY: format format-check images images-check links-check stamp stamp-check tools python-tools node-tools test clean
+.PHONY: format format-check images images-check links-check stamp stamp-check markdown markdown-check tools python-tools node-tools test clean
 
 tools: python-tools node-tools
 
@@ -96,6 +98,15 @@ images-check: python-tools
 # "On this page" lists honest when a section id is renamed.
 links-check:
 	python3 packaging/check-links.py
+
+# Each docs page has an index.md beside it for AI tools that read Markdown. They
+# are generated from the HTML and committed, like the screenshots, so the check
+# is what stops a page from being edited without its copy.
+markdown:
+	python3 packaging/make-markdown.py
+
+markdown-check:
+	python3 packaging/make-markdown.py --check
 
 # The dates on the site are the one thing a page cannot keep honest about
 # itself. These read them out of git history rather than a flag, so editing a

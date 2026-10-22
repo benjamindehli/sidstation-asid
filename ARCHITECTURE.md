@@ -79,7 +79,7 @@ CI runs five jobs. Formatting and lint first, because it is the cheapest signal.
 
 ## The docs site and its tooling
 
-`docs/` is served by GitHub Pages as static files with no build step, so anything generated has to be committed. Three scripts keep that honest, all run through the root `Makefile`: `make-screenshots.py` encodes the responsive AVIF and WebP sets from the full resolution sources in `assets/screenshots/`, `check-links.py` resolves every local link so a page moving between directories cannot silently 404, and `stamp-docs.py` keeps the version and dates in step. Each has a check mode that CI runs.
+`docs/` is served by GitHub Pages as static files with no build step, so anything generated has to be committed. Four scripts keep that honest, all run through the root `Makefile`: `make-screenshots.py` encodes the responsive AVIF and WebP sets from the full resolution sources in `assets/screenshots/`, `check-links.py` resolves every local link so a page moving between directories cannot silently 404, `stamp-docs.py` keeps the version and dates in step, and `make-markdown.py` writes an `index.md` beside every page for AI tools that read Markdown. Each has a check mode that CI runs.
 
 ## What is deliberately not here
 

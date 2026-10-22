@@ -28,18 +28,19 @@ JUCE is fetched by the root `CMakeLists.txt`, so there is nothing to install fir
 Run the same checks CI runs:
 
 ```sh
-make format        # rewrite everything in the house style
-make format-check  # what CI runs, the same thing without writing
-make test          # core protocol tests
-make links-check   # every local link in the docs site and the Markdown resolves
-make images-check  # the docs screenshots match their sources
+make format         # rewrite everything in the house style
+make format-check   # what CI runs, the same thing without writing
+make test           # core protocol tests
+make links-check    # every local link in the docs site and the Markdown resolves
+make images-check   # the docs screenshots match their sources
+make markdown-check # the Markdown copies of the docs pages match their HTML
 ```
 
 `make format` installs the formatters on first run, pinned, into `node_modules` and `.venv`. clang-format handles the C++ in stock LLVM style, Prettier the docs site and Markdown and workflow YAML, and Ruff formats and lints the Python. Do not hand format around them. If the style is wrong, change the config rather than the code.
 
 If your change touches `core/`, add a case to `core/tests/tests.cpp`. It is a dependency free harness and adding to it costs a few lines. Protocol behaviour that is not covered there tends to regress quietly.
 
-If your change touches the docs site, remember it is served as static files with no build step, so generated output has to be committed. `make images` after replacing a screenshot source, and `make links-check` after moving a page between directories or changing the screenshot widths, which the README embeds too.
+If your change touches the docs site, remember it is served as static files with no build step, so generated output has to be committed. `make markdown` after editing a page, `make images` after replacing a screenshot source, and `make links-check` after moving a page between directories or changing the screenshot widths, which the README embeds too.
 
 ## Writing the docs
 

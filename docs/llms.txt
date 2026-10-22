@@ -15,6 +15,8 @@ Current release is 1.2.1 (2026-10-22), licensed GPL v3, by Benjamin Dehli under 
 
 ## Docs
 
+Every page below is also available as Markdown, at index.md under its URL. For example https://benjamindehli.github.io/sidstation-asid/protocol/index.md is the ASID protocol page.
+
 - [Landing page](https://benjamindehli.github.io/sidstation-asid/): what the plugin does, the four tabs (Voice, Wavetable, Modulation, Global), install steps, screenshots, and answers to common questions: whether it needs the hardware, whether other ASID devices work, which DAWs it runs in, chords, bouncing, and the licence.
 - [README](https://github.com/benjamindehli/sidstation-asid/blob/main/README.md): the same ground in more detail, plus the repository layout and build instructions.
 - [DAW setup](https://benjamindehli.github.io/sidstation-asid/daw-setup/): running it in Ableton Live, Logic Pro, Cubase, Reaper, Bitwig and FL Studio. The plugin opens the MIDI port itself rather than taking routed MIDI from the host, the port is shared by every instance, and the audio has to come back on a separate track fed by the interface input, since the plugin's own track is silent. Also what the three instances share, the Latency trim, and why an offline bounce captures nothing.
