@@ -55,7 +55,7 @@
                         "@type": "TechArticle",
                         "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#article",
                         "headline": "SidStation ASID troubleshooting: no sound and dropped notes",
-                        "description": "Why the plugin is silent, why only one voice plays, why fast notes drop out on busy parts, and how to trim note timing against a DAW. Every answer is from testing against Elektron SidStation hardware on OS 1.11 R34.",
+                        "description": "Why the plugin is silent, why only one voice plays, why notes played slightly sharp before 1.2.1, why fast notes drop out on busy parts, and how to trim note timing against a DAW. Every answer is from testing against Elektron SidStation hardware on OS 1.11 R34.",
                         "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/",
                         "image": [
                             "https://benjamindehli.github.io/sidstation-asid/og-cover.png",
@@ -64,12 +64,12 @@
                         ],
                         "inLanguage": "en",
                         "datePublished": "2026-08-10T12:00:00+02:00",
-                        "dateModified": "2026-09-05T12:00:00+02:00",
+                        "dateModified": "2026-10-22T12:00:00+02:00",
                         "author": { "@id": "https://musicbrainz.org/artist/56639e59-2bb5-40bd-9d5a-97d964298b6f" },
                         "publisher": { "@id": "https://www.dehlimusikk.no/" },
                         "about": { "@id": "https://www.dehlimusikk.no/products/sidstation-asid/#product" },
                         "isPartOf": { "@id": "https://benjamindehli.github.io/sidstation-asid/#website" },
-                        "keywords": "SidStation no sound, ASID mode, dropped notes, SID ADSR bug, MIDI timing, Elektron SidStation, VST3, AU",
+                        "keywords": "SidStation no sound, ASID mode, SidStation out of tune, dropped notes, SID ADSR bug, MIDI timing, Elektron SidStation, VST3, AU",
                         "license": "https://www.gnu.org/licenses/gpl-3.0.html",
                         "mainEntityOfPage": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/"
                     },
@@ -113,6 +113,16 @@
                                     "@type": "Answer",
                                     "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#one-voice",
                                     "text": "That is the design. One instance drives one SID voice, so a single instance is monophonic no matter what you play into it. For three note chords, put an instance on each of three DAW tracks and set a different voice on each from the voice selector in the top strip. The filter, master volume and cutoff modulation stay shared, because the SID chip has one of each, so changing them in any instance changes them for all three."
+                                }
+                            },
+                            {
+                                "@type": "Question",
+                                "@id": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#tuning",
+                                "name": "Why are notes slightly sharp or out of tune?",
+                                "acceptedAnswer": {
+                                    "@type": "Answer",
+                                    "url": "https://benjamindehli.github.io/sidstation-asid/troubleshooting/#tuning",
+                                    "text": "Versions before 1.2.1 played every note about 26 cents sharp, roughly a quarter of a semitone, on every voice and waveform and with or without pitch modulation. Updating to 1.2.1 or later fixes it. Notes were converted to SID frequency values using the clock of a PAL Commodore 64, which runs at 985248 Hz, but the SidStation runs its SID at 1 MHz. With Coarse and Fine centred, A4 now plays at 440 Hz. A preset tuned by ear to make up for the old offset now plays about 26 cents flat, and raising its Fine control by 26 cents restores the old pitch."
                                 }
                             },
                             {
@@ -223,6 +233,7 @@
                     <ol>
                         <li><a href="#no-sound">Nothing plays at all</a></li>
                         <li><a href="#one-voice">Only one note sounds at a time</a></li>
+                        <li><a href="#tuning">Notes are slightly sharp</a></li>
                         <li><a href="#dropped-notes">Notes drop out on fast passages</a></li>
                         <li><a href="#modulation">Modulation sounds uneven, or the MIDI meter is pegged</a></li>
                         <li><a href="#timing">Notes sit early or late against the rest of the mix</a></li>
@@ -276,7 +287,25 @@
                 </div>
             </section>
 
-            <section id="dropped-notes">
+            <section id="tuning">
+                <div class="wrap">
+                    <h2>Notes are slightly sharp</h2>
+                    <p class="lead">
+                        Versions before 1.2.1 played every note about 26 cents sharp, roughly a quarter of a semitone. It was the same on every voice
+                        and waveform, with or without pitch modulation. Updating to <a href="../#download">1.2.1 or later</a> fixes it.
+                    </p>
+                    <p class="lead">
+                        Notes were converted to SID frequency values using the clock of a PAL Commodore 64, which runs at 985248 Hz, but the
+                        SidStation runs its SID at 1 MHz. With Coarse and Fine centred, A4 now plays at 440 Hz.
+                    </p>
+                    <p class="lead">
+                        A preset you tuned by ear to make up for the old offset now plays about 26 cents flat. Raising its Fine control by 26 cents
+                        restores the old pitch.
+                    </p>
+                </div>
+            </section>
+
+            <section class="alt" id="dropped-notes">
                 <div class="wrap">
                     <h2>Notes drop out on fast passages</h2>
                     <p class="lead">
@@ -310,7 +339,7 @@
                 </div>
             </section>
 
-            <section class="alt" id="modulation">
+            <section id="modulation">
                 <div class="wrap">
                     <h2>Modulation sounds uneven, or the MIDI meter is pegged</h2>
                     <p class="lead">
@@ -329,7 +358,7 @@
                 </div>
             </section>
 
-            <section id="timing">
+            <section class="alt" id="timing">
                 <div class="wrap">
                     <h2>Notes sit early or late against the rest of the mix</h2>
                     <p class="lead">
@@ -349,7 +378,7 @@
                 </div>
             </section>
 
-            <section class="alt" id="other-editors">
+            <section id="other-editors">
                 <div class="wrap">
                     <h2>A patch editor or Direct Program does nothing</h2>
                     <p class="lead">
