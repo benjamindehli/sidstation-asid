@@ -40,7 +40,8 @@ target_include_directories(SidStationAsid PRIVATE src)
 target_compile_definitions(SidStationAsid PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0)
+    JUCE_VST3_CAN_REPLACE_VST2=0
+    SID_ASID_VERSION="${PROJECT_VERSION}") # shown after the title
 
 target_link_libraries(SidStationAsid PRIVATE
     sidstation_core
@@ -65,7 +66,8 @@ if(SID_BUILD_TESTS)
     target_include_directories(SidStationAsidTests PRIVATE src)
     target_compile_definitions(SidStationAsidTests PRIVATE
         JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0)
+        JUCE_USE_CURL=0
+        SID_ASID_VERSION="${PROJECT_VERSION}")
     target_link_libraries(SidStationAsidTests PRIVATE
         sidstation_core
         SidStationAsidAssets

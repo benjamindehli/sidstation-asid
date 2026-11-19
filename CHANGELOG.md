@@ -4,6 +4,10 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 
 ## [Unreleased]
 
+### Added
+
+- The version number, at the right end of the preset bar, so it can be read off when reporting a problem.
+
 ### Fixed
 
 - A host that unloads the plugin while it keeps running, as FL Studio and Reaper do on Windows once no instance is left, could crash, because the stuck-note watchdog and the MIDI sender kept running in the unloaded plugin. The state the instances share now lives as long as any instance does, and the last one to close stops both and closes the MIDI port.

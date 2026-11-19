@@ -344,6 +344,14 @@ AsidEditor::AsidEditor(AsidProcessor &p)
                   &presetDeleteBtn, &tooltipToggle})
     c->setLookAndFeel(&barLnF);
   presetBox.setLookAndFeel(&barLnF);
+  // The version, dim at the right end of the preset bar, so it can be read off
+  // when reporting a problem. The bar is the plugin's own chrome rather than
+  // part of the C64 screen, so it uses the bar's font, not the pixel font.
+  versionLabel.setLookAndFeel(&barLnF);
+  versionLabel.setFont(juce::FontOptions(13.0f));
+  versionLabel.setColour(juce::Label::textColourId, greyTint(120));
+  versionLabel.setJustificationType(juce::Justification::centredRight);
+  addAndMakeVisible(versionLabel);
   // A clearly brighter fill so the "Tips" on-state is obvious in the grey bar.
   tooltipToggle.setColour(juce::TextButton::buttonOnColourId, greyTint(140));
   tooltipToggle.setColour(juce::TextButton::textColourOnId, greyTint(20));
@@ -1074,6 +1082,8 @@ void AsidEditor::resized() {
   pbar.removeFromLeft(4);
   presetNextBtn.setBounds(pbar.removeFromLeft(28));
   pbar.removeFromLeft(10);
+  versionLabel.setBounds(pbar.removeFromRight(48));
+  pbar.removeFromRight(4);
   presetDeleteBtn.setBounds(pbar.removeFromRight(62));
   pbar.removeFromRight(6);
   presetSaveBtn.setBounds(pbar.removeFromRight(56));

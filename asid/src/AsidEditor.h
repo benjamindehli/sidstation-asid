@@ -257,6 +257,7 @@ private:
   };
   Hints hints;
   juce::Label title{{}, "SidStation ASID"};
+  juce::Label versionLabel{{}, SID_ASID_VERSION}; // right end of the preset bar
 
   // Top-right voice selector: three cells 1/2/3. This instance's voice is
   // bright. A voice another instance already drives shows in its (dim) hue and
