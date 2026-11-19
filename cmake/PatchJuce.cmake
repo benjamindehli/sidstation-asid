@@ -46,19 +46,7 @@ function(juce_fix file description)
     endif()
 endfunction()
 
-# Logic Pro aborts on quit with "std::system_error: mutex lock failed". Since
-# 9.0.3 JUCE creates its CoreMIDI client once and never disposes of it, so
-# CoreMIDI keeps calling systemChangeCallback until the process is gone. That
-# callback locks the mutex of a function-local static, which __cxa_finalize has
-# already destroyed by the time the host closes its own MIDI ports at exit.
-# Leaking the static keeps the mutex alive. Not creating a MessageManager from
-# that callback stops a late notification from building a new one mid exit.
-# Reported upstream: https://github.com/juce-framework/JUCE/issues/1776
-juce_fix("modules/juce_audio_devices/native/juce_CoreMidi_mac.mm"
-    "CoreMIDI notifications after static destruction"
-    "static Listeners listeners;"
-    "static auto* listeners = new Listeners; // leaked, see cmake/PatchJuce.cmake"
-    "return listeners;"
-    "return *listeners;"
-    "if (MessageManager::getInstance()->isThisTheMessageThread())"
-    "if (auto* mm = MessageManager::getInstanceWithoutCreating(); mm == nullptr) return; else if (mm->isThisTheMessageThread())")
+# No fixes are needed with the JUCE version pinned in CMakeLists.txt. To add one,
+# call juce_fix(file description old new [old new ...]) here, with a comment
+# saying what it fixes, why the plugin cannot work around it from its own code,
+# and the upstream issue.

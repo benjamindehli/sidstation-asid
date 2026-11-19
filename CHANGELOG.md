@@ -2,6 +2,16 @@
 
 All notable changes to SidStation ASID are recorded here. This project follows [semantic versioning](https://semver.org) and the format of [Keep a Changelog](https://keepachangelog.com). The full notes for each release are in [release-notes/](release-notes/).
 
+## [Unreleased]
+
+### Fixed
+
+- A host that unloads the plugin while it keeps running, as FL Studio and Reaper do on Windows once no instance is left, could crash, because the stuck-note watchdog and the MIDI sender kept running in the unloaded plugin. The state the instances share now lives as long as any instance does, and the last one to close stops both and closes the MIDI port.
+
+### Changed
+
+- Built on JUCE 9.0.6, up from 9.0.4. JUCE 9.0.6 includes the fix for the second cause of Logic Pro quitting unexpectedly, reported as [JUCE issue #1776](https://github.com/juce-framework/JUCE/issues/1776), so the local patch to JUCE is gone.
+
 ## [1.2.1] - 2026-10-22
 
 ### Fixed

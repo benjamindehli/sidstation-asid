@@ -67,7 +67,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ```
 
-`cmake/PatchJuce.cmake` runs on the fetched JUCE tree before anything builds. It holds fixes for JUCE bugs that the plugin cannot work around from its own code, each with a comment saying what it fixes and why. A fix that no longer matches the JUCE source stops the configure instead of being skipped, so a JUCE bump has to decide whether each one is still needed.
+`cmake/PatchJuce.cmake` runs on the fetched JUCE tree before anything builds. It is where fixes go for JUCE bugs that the plugin cannot work around from its own code, each with a comment saying what it fixes and why. With the JUCE version pinned now it holds none. A fix that no longer matches the JUCE source stops the configure instead of being skipped, so a JUCE bump has to decide whether each one is still needed.
 
 The core tests build with a compiler and a Makefile, no CMake and no JUCE:
 
