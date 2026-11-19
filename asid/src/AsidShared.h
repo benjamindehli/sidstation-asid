@@ -8,6 +8,20 @@
 // Note: this works when the instances share a process, which is the normal
 // case for VST3 and in-process AU. A host that sandboxes each plugin instance
 // into its own process would not share this.
+//
+// Lifetime. Every AsidProcessor holds a juce::SharedResourcePointer to this,
+// so it is made with the first instance and deleted with the last one, which
+// stops the watchdog and MIDI sender threads and closes the MIDI port. It must
+// not have static lifetime. A host may unload the plugin binary while it keeps
+// running (FL Studio and Reaper on Windows do, once no instance is left), and
+// a thread still running in an unloaded binary takes the host down with it.
+// Static destruction is no better: it runs at unload under the Windows loader
+// lock, and at macOS process exit after CoreMIDI's Objective-C state is
+// finalized, where closing the MIDI port crashed Logic on quit.
+//
+// SharedResourcePointer avoids both. Its static holds only a weak_ptr, so if a
+// host quits without deleting an instance, this object is never torn down at
+// exit at all, which is what the earlier leaked singleton did on purpose.
 #pragma once
 
 #include <juce_audio_utils/juce_audio_utils.h>
@@ -21,7 +35,7 @@ class AsidShared {
 public:
   struct Client {
     virtual ~Client() = default;
-    // Read AsidShared::get() values and apply them to this instance.
+    // Read the shared values and apply them to this instance.
     virtual void sharedUpdated() = 0;
     // Which SID voice this instance drives (0..2), or -1 until it registers
     // one. It lives on the client, and is atomic, so setting it needs no lock:
@@ -31,26 +45,19 @@ public:
     std::atomic<int> sharedVoice{-1};
   };
 
-  static AsidShared &get() {
-    // Heap-allocated and intentionally never destroyed. The shared MidiHub's
-    // MidiOutput must not be torn down at process exit: JUCE's CoreMIDI cleanup
-    // then messages already-finalized Objective-C state and crashes the host on
-    // quit. A static-lifetime instance would run that teardown via
-    // __cxa_finalize; leaking it lets the OS reclaim everything at exit with no
-    // teardown.
-    static AsidShared *instance = new AsidShared();
-    return *instance;
-  }
-
   AsidShared() {
     for (int v = 0; v < 3; ++v) {
       voiceNote[v] = -1;
       voiceSeenMs[v] = 0.0;
       releaseGenV[v] = 0;
     }
-    watchdog.startThread(); // never stopped (this singleton is intentionally
-                            // leaked)
+    watchdog.startThread();
   }
+
+  // Runs when the last instance goes (see Lifetime above). The watchdog stops
+  // first, while `out` and the voice state it reads still exist; `out` then
+  // stops its sender thread and closes the port as members are destroyed.
+  ~AsidShared() { watchdog.stopThread(1000); }
 
   // Per-voice stuck-note watchdog. Each instance reports its voice's held note
   // (or -1) every processBlock; the watchdog thread - which stays alive even

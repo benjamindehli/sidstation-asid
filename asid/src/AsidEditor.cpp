@@ -456,7 +456,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
     if (id >= 1 && id <= outDevices.size()) {
       proc.midi().openOutputByIdentifier(outDevices[id - 1].identifier);
       // Shared output: make every instance re-push its voice to the new device.
-      AsidShared::get().outGeneration.fetch_add(1);
+      proc.shared().outGeneration.fetch_add(1);
     }
   };
   refreshButton.onClick = [this] { refreshDevices(); };
@@ -960,8 +960,7 @@ void AsidEditor::timerCallback() {
 
   // MIDI load: bytes sent (all instances) since the last poll, over the
   // ceiling.
-  const long long now =
-      AsidShared::get().bytesSent.load(std::memory_order_relaxed);
+  const long long now = proc.shared().bytesSent.load(std::memory_order_relaxed);
   const double nowMs = juce::Time::getMillisecondCounterHiRes();
   if (lastBytesMs > 0.0) {
     const double dt = (nowMs - lastBytesMs) / 1000.0;

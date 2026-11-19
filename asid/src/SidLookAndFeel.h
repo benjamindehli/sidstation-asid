@@ -70,8 +70,9 @@ public:
   // reference to a CoreTextTypeface: ~Native -> hb_font_destroy -> CoreText
   // TBaseFont::~TBaseFont -> CFDictionaryRemoveValue, into CoreText and
   // CoreFoundation that AppKit had already finalized. That crashed Logic on
-  // quit. Leaking it lets the OS reclaim the memory at exit with no teardown -
-  // the same reasoning as AsidShared::get().
+  // quit. Leaking it lets the OS reclaim the memory at exit with no teardown.
+  // That is safe only because it owns no thread: AsidShared, which does, is
+  // shared through a SharedResourcePointer instead.
   static const juce::Typeface::Ptr &c64Typeface() {
     static auto *tf =
         new juce::Typeface::Ptr(juce::Typeface::createSystemTypefaceFor(

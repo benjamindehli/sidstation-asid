@@ -5,6 +5,7 @@
 // Build with -DSID_BUILD_TESTS=ON, then run the SidStationAsidTests binary.
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
@@ -272,9 +273,44 @@ static void testPresetNameSanitising() {
   a.presetsDir().getChildFile(key + ".xml").deleteFile(); // cleanup
 }
 
+// AsidShared is made with the first instance and deleted with the last, so its
+// watchdog and MIDI sender threads stop and the port closes. A process-wide
+// static would outlive the plugin binary in a host that unloads it, with those
+// threads still running (see Lifetime in AsidShared.h).
+static void testSharedStateLifetime() {
+  using Shared = juce::SharedResourcePointer<AsidShared>;
+  CHECK(!Shared::getSharedObjectWithoutCreating().has_value(),
+        "no shared state exists before the first instance");
+  {
+    auto a = std::make_unique<AsidProcessor>();
+    auto b = std::make_unique<AsidProcessor>();
+    CHECK(&a->shared() == &b->shared(), "two instances share one state");
+
+    setNorm(*a, "cutoff", 0.3f);
+    CHECK(approx(norm(*a, "cutoff"), norm(*b, "cutoff")),
+          "a shared control set on one instance reaches the other");
+
+    const AsidShared *first = &a->shared();
+    a.reset();
+    {
+      const auto still = Shared::getSharedObjectWithoutCreating();
+      CHECK(still.has_value() && &still->get() == first,
+            "the shared state outlives an instance while another is open");
+    }
+  }
+  CHECK(!Shared::getSharedObjectWithoutCreating().has_value(),
+        "deleting the last instance deletes the shared state");
+
+  // The next first instance starts a fresh one, as on a fresh launch.
+  AsidProcessor c;
+  CHECK(Shared::getSharedObjectWithoutCreating().has_value(),
+        "a new first instance makes the shared state again");
+}
+
 int main() {
   juce::ScopedJuceInitialiser_GUI
-      juceInit; // message manager, needed by JUCE classes
+      juceInit;              // message manager, needed by JUCE classes
+  testSharedStateLifetime(); // first, while no instance exists
   testParameterLayout();
   testDivisionsAreAppendOnly();
   testModClockIntervals();

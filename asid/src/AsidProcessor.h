@@ -52,9 +52,9 @@ public:
   void setStateInformation(const void *, int sizeInBytes) override;
 
   juce::AudioProcessorValueTreeState &state() { return apvts; }
-  MidiHub &midi() {
-    return AsidShared::get().out;
-  } // one output shared by all instances
+  // The state every instance in this process shares (see AsidShared.h).
+  AsidShared &shared() const { return *sharedState; }
+  MidiHub &midi() { return shared().out; } // one output shared by all instances
   int wtStep() const {
     return wtStepDisplay.load(std::memory_order_relaxed);
   } // playing step, -1 = none
@@ -74,7 +74,7 @@ public:
   void requestReinit() { initRequest.store(true); }
 
   // Manual all-notes-off for every voice (Panic button).
-  void panic() { AsidShared::get().panicAllVoices(); }
+  void panic() { shared().panicAllVoices(); }
   // Reset this voice's sound to its default patch. Leaves the shared filter and
   // volume (they belong to every voice) and this instance's identity
   // (asidVoice).
@@ -163,6 +163,11 @@ public:
   }
 
 private:
+  // Declared first, so it is made before any other member and outlives them
+  // all: the destructor still talks to it, and the last instance's pointer
+  // deletes it (see Lifetime in AsidShared.h).
+  juce::SharedResourcePointer<AsidShared> sharedState;
+
   // Cached parameter pointers, resolved once at construction.
   //
   // The audio thread must not build a juce::String (it always heap-allocates)
