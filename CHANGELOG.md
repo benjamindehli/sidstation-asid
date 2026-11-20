@@ -7,6 +7,7 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 ### Added
 
 - The version number, at the right end of the preset bar, so it can be read off when reporting a problem.
+- Names for screen readers on every control. A control set by a parameter is read out by the parameter's name, as hosts show it for automation, and the voice switch can now be reached and set from a screen reader as well as with the mouse.
 
 ### Fixed
 

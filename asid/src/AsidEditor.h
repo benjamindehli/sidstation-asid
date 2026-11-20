@@ -69,6 +69,17 @@ private:
   // included. The two knobs that switch parameter at runtime go through this.
   void bindKnob(juce::Slider &, std::unique_ptr<SliderAtt> &,
                 const juce::String &paramId);
+  // Names a control for screen readers after the parameter it controls, so a
+  // listener hears "Cutoff LFO Rate" and not only its value. Parameter names
+  // are unique, since hosts list them for automation.
+  void nameAfter(juce::Component &, const juce::String &paramId);
+  // An attachment that also names its control (see nameAfter).
+  template <typename Attachment, typename Control>
+  std::unique_ptr<Attachment> attach(const juce::String &paramId,
+                                     Control &control) {
+    nameAfter(control, paramId);
+    return std::make_unique<Attachment>(state, paramId, control);
+  }
   void setTab(int t); // show one page, hide the others
   void refreshPresets(
       const juce::String &selectName = {}); // rebuild the preset list
@@ -322,6 +333,30 @@ private:
         return; // voice taken by another instance: blocked
       if (onSelect)
         onSelect(i);
+    }
+    // To a screen reader the switch is a value from 1 to 3. Setting it goes
+    // through onSelect like a click, so a voice another instance drives stays
+    // blocked.
+    std::unique_ptr<juce::AccessibilityHandler>
+    createAccessibilityHandler() override {
+      struct Value : juce::AccessibilityRangedNumericValueInterface {
+        VoiceSwitch &sw;
+        explicit Value(VoiceSwitch &s) : sw(s) {}
+        bool isReadOnly() const override { return false; }
+        double getCurrentValue() const override { return sw.selected + 1; }
+        void setValue(double v) override {
+          const int i = juce::jlimit(0, 2, juce::roundToInt(v) - 1);
+          if (!sw.usedByOther[i] && sw.onSelect)
+            sw.onSelect(i);
+        }
+        AccessibleValueRange getRange() const override {
+          return {{1.0, 3.0}, 1.0};
+        }
+      };
+      return std::make_unique<juce::AccessibilityHandler>(
+          *this, juce::AccessibilityRole::slider, juce::AccessibilityActions{},
+          juce::AccessibilityHandler::Interfaces{
+              std::make_unique<Value>(*this)});
     }
   };
   VoiceSwitch voiceSwitch;

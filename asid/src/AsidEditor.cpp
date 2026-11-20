@@ -75,10 +75,15 @@ void AsidEditor::setupKnob(juce::Component &parent, juce::Slider &s,
 // default has to move with them: the reset value is a number in the bound
 // parameter's own range, so leaving it behind resets a division to a leftover
 // from the Hz range. Same reason the attachment is rebuilt rather than reused.
+void AsidEditor::nameAfter(juce::Component &c, const juce::String &paramId) {
+  if (auto *p = state.getParameter(paramId))
+    c.setTitle(p->getName(64));
+}
+
 void AsidEditor::bindKnob(juce::Slider &s, std::unique_ptr<SliderAtt> &att,
                           const juce::String &paramId) {
   att.reset();
-  att = std::make_unique<SliderAtt>(state, paramId, s);
+  att = attach<SliderAtt>(paramId, s); // renamed with the parameter
   if (auto *p = state.getParameter(paramId))
     s.setDoubleClickReturnValue(
         true, p->getNormalisableRange().convertFrom0to1(p->getDefaultValue()));
@@ -152,6 +157,7 @@ void AsidEditor::setupLfo(juce::Component &parent, LfoControls &u,
   // 2+) enables it and selects that shape. Managed by hand since one control
   // drives two parameters (On and Shape).
   parent.addAndMakeVisible(u.shapeBox);
+  nameAfter(u.shapeBox, prefix + "Shape");
   u.shapeBox.addItem("Off", 1);
   for (const char *s :
        {"Sine", "Triangle", "Saw Up", "Saw Down", "Square", "S&H", "Random"})
@@ -172,10 +178,9 @@ void AsidEditor::setupLfo(juce::Component &parent, LfoControls &u,
   };
 
   parent.addAndMakeVisible(u.syncButton);
-  u.syncAtt = std::make_unique<ButtonAtt>(state, prefix + "Sync", u.syncButton);
+  u.syncAtt = attach<ButtonAtt>(prefix + "Sync", u.syncButton);
   parent.addAndMakeVisible(u.wheelButton);
-  u.wheelAtt =
-      std::make_unique<ButtonAtt>(state, prefix + "Wheel", u.wheelButton);
+  u.wheelAtt = attach<ButtonAtt>(prefix + "Wheel", u.wheelButton);
 
   // Rate knob: set up the knob shell, then bind it (free Hz by default, or the
   // stepped tempo division when Tempo Sync is on - see configureRateKnob).
@@ -352,6 +357,15 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   versionLabel.setColour(juce::Label::textColourId, greyTint(120));
   versionLabel.setJustificationType(juce::Justification::centredRight);
   addAndMakeVisible(versionLabel);
+
+  // Names for screen readers on the controls no parameter names (the rest are
+  // named by attach and bindKnob).
+  presetBox.setTitle("Preset");
+  presetPrevBtn.setTitle("Previous preset");
+  presetNextBtn.setTitle("Next preset");
+  outputBox.setTitle("MIDI output");
+  bpmField.setTitle("Tempo (BPM)");
+  voiceSwitch.setTitle("SID voice");
   // A clearly brighter fill so the "Tips" on-state is obvious in the grey bar.
   tooltipToggle.setColour(juce::TextButton::buttonOnColourId, greyTint(140));
   tooltipToggle.setColour(juce::TextButton::textColourOnId, greyTint(20));
@@ -386,7 +400,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   // visible number.
   addAndMakeVisible(bpmLabel);
   addChildComponent(bpmSlider);
-  bpmAtt = std::make_unique<SliderAtt>(state, "bpm", bpmSlider);
+  bpmAtt = attach<SliderAtt>("bpm", bpmSlider);
   bpmField.setJustificationType(juce::Justification::centred);
   bpmField.setFont(juce::Font(juce::FontOptions().withHeight(14.0f)));
   bpmField.getProperties().set("sidField", true); // draw as a filled field
@@ -448,7 +462,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   addAndMakeVisible(modRateBox);
   for (const char *r : {"Eco 25 Hz", "PAL 50 Hz", "NTSC 60 Hz", "HiFi 100 Hz"})
     modRateBox.addItem(r, modRateBox.getNumItems() + 1);
-  modRateAtt = std::make_unique<ComboAtt>(state, "modRate", modRateBox);
+  modRateAtt = attach<ComboAtt>("modRate", modRateBox);
 
   // ---- OSC page: Oscillator, Glide ---- (waveform toggles are self-labelled
   // buttons now, so no "Waveform" caption).
@@ -469,12 +483,10 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   };
   refreshButton.onClick = [this] { refreshDevices(); };
 
-  waveTriAtt = std::make_unique<ButtonAtt>(state, "waveTri", waveTriButton);
-  waveSawAtt = std::make_unique<ButtonAtt>(state, "waveSaw", waveSawButton);
-  wavePulseAtt =
-      std::make_unique<ButtonAtt>(state, "wavePulse", wavePulseButton);
-  waveNoiseAtt =
-      std::make_unique<ButtonAtt>(state, "waveNoise", waveNoiseButton);
+  waveTriAtt = attach<ButtonAtt>("waveTri", waveTriButton);
+  waveSawAtt = attach<ButtonAtt>("waveSaw", waveSawButton);
+  wavePulseAtt = attach<ButtonAtt>("wavePulse", wavePulseButton);
+  waveNoiseAtt = attach<ButtonAtt>("waveNoise", waveNoiseButton);
 
   setupKnob(oscPage, pwKnob, "Pulse Width", "pulseWidth", pwAtt);
   setupKnob(oscPage, coarseKnob, "Coarse", "coarse", coarseAtt);
@@ -484,9 +496,9 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   for (auto *k : {&pwKnob, &coarseKnob, &fineKnob})
     k->getProperties().set("sidBipolar", true);
   setupKnob(oscPage, bendKnob, "Bend", "pitchBendRange", bendAtt);
-  syncAtt = std::make_unique<ButtonAtt>(state, "sync", syncButton);
-  ringAtt = std::make_unique<ButtonAtt>(state, "ring", ringButton);
-  testAtt = std::make_unique<ButtonAtt>(state, "test", testButton);
+  syncAtt = attach<ButtonAtt>("sync", syncButton);
+  ringAtt = attach<ButtonAtt>("ring", ringButton);
+  testAtt = attach<ButtonAtt>("test", testButton);
 
   setupKnob(oscPage, portaKnob, "Glide", "portaTime", portaAtt);
   setupSwitch(portaTrigBtns[0], portaTrigBtns[1], "Legato", "Always",
@@ -510,28 +522,25 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   for (int i = 0; i < 3; ++i) {
     filtButtons[i].setButtonText(voiceNames[i]);
     sharedPage.addAndMakeVisible(filtButtons[i]);
-    filtAtts[i] =
-        std::make_unique<ButtonAtt>(state, filtIds[i], filtButtons[i]);
+    filtAtts[i] = attach<ButtonAtt>(filtIds[i], filtButtons[i]);
   }
   const char *modeNames[3] = {"LP", "BP", "HP"};
   const char *modeIds[3] = {"modeLP", "modeBP", "modeHP"};
   for (int i = 0; i < 3; ++i) {
     modeButtons[i].setButtonText(modeNames[i]);
     sharedPage.addAndMakeVisible(modeButtons[i]);
-    modeAtts[i] =
-        std::make_unique<ButtonAtt>(state, modeIds[i], modeButtons[i]);
+    modeAtts[i] = attach<ButtonAtt>(modeIds[i], modeButtons[i]);
   }
   filtExtButton.setButtonText("Ext");
   sharedPage.addAndMakeVisible(filtExtButton);
-  filtExtAtt = std::make_unique<ButtonAtt>(state, "filtExt", filtExtButton);
+  filtExtAtt = attach<ButtonAtt>("filtExt", filtExtButton);
   setupKnob(sharedPage, cutoffKnob, "Cutoff", "cutoff", cutoffAtt);
   setupKnob(sharedPage, resKnob, "Resonance", "resonance", resAtt);
   setupLfo(sharedPage, cutLfoUi, "cutLfo");
   setupKnob(sharedPage, volumeKnob, "Volume", "volume", volumeAtt);
   setupKnob(sharedPage, latencyKnob, "Latency", "latency", latencyAtt);
   sharedPage.addAndMakeVisible(voice3offButton);
-  voice3offAtt =
-      std::make_unique<ButtonAtt>(state, "voice3off", voice3offButton);
+  voice3offAtt = attach<ButtonAtt>("voice3off", voice3offButton);
   sharedPage.addAndMakeVisible(panicButton);
   panicButton.onClick = [this] { proc.panic(); };
   // Init resets the current patch, so it lives in the preset bar (top) with the
@@ -543,10 +552,9 @@ AsidEditor::AsidEditor(AsidProcessor &p)
 
   // ---- WAVE page: wavetable config and the per-step rows ----
   wtPage.addAndMakeVisible(wtOnButton);
-  wtOnAtt = std::make_unique<ButtonAtt>(state, "wtOn", wtOnButton);
+  wtOnAtt = attach<ButtonAtt>("wtOn", wtOnButton);
   wtPage.addAndMakeVisible(wtTempoSyncButton);
-  wtTempoSyncAtt =
-      std::make_unique<ButtonAtt>(state, "wtTempoSync", wtTempoSyncButton);
+  wtTempoSyncAtt = attach<ButtonAtt>("wtTempoSync", wtTempoSyncButton);
   // Rate knob: set up the shell, then bind it (frames per step by default, or
   // the stepped tempo division when Sync is on - see configureWtSpeedKnob).
   setupKnob(wtPage, wtSpeedKnob, "Rate", "wtSpeed", wtSpeedAtt);
@@ -570,18 +578,15 @@ AsidEditor::AsidEditor(AsidProcessor &p)
     wtPage.addAndMakeVisible(wtStepInd[i]);
     for (int w = 0; w < 4; ++w) {
       wtPage.addAndMakeVisible(wtWaveTog[i][w]);
-      wtWaveTogAtt[i][w] = std::make_unique<ButtonAtt>(
-          state, juce::String(wtIds[w]) + juce::String(i), wtWaveTog[i][w]);
+      wtWaveTogAtt[i][w] = attach<ButtonAtt>(
+          juce::String(wtIds[w]) + juce::String(i), wtWaveTog[i][w]);
     }
     wtPage.addAndMakeVisible(wtSyncTog[i]);
-    wtSyncAtt[i] = std::make_unique<ButtonAtt>(
-        state, "wtSync" + juce::String(i), wtSyncTog[i]);
+    wtSyncAtt[i] = attach<ButtonAtt>("wtSync" + juce::String(i), wtSyncTog[i]);
     wtPage.addAndMakeVisible(wtRingTog[i]);
-    wtRingAtt[i] = std::make_unique<ButtonAtt>(
-        state, "wtRing" + juce::String(i), wtRingTog[i]);
+    wtRingAtt[i] = attach<ButtonAtt>("wtRing" + juce::String(i), wtRingTog[i]);
     wtPage.addAndMakeVisible(wtTestTog[i]);
-    wtTestAtt[i] = std::make_unique<ButtonAtt>(
-        state, "wtTest" + juce::String(i), wtTestTog[i]);
+    wtTestAtt[i] = attach<ButtonAtt>("wtTest" + juce::String(i), wtTestTog[i]);
     wtPwKnob[i].setSliderStyle(juce::Slider::LinearHorizontal);
     wtPwKnob[i].setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
     wtPwKnob[i].setPopupDisplayEnabled(true, false,
@@ -590,8 +595,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
                                     true); // fill from the centre default
     wtPwKnob[i].addMouseListener(&sliderHover, false);
     wtPage.addAndMakeVisible(wtPwKnob[i]);
-    wtPwAtt[i] = std::make_unique<SliderAtt>(state, "wtPw" + juce::String(i),
-                                             wtPwKnob[i]);
+    wtPwAtt[i] = attach<SliderAtt>("wtPw" + juce::String(i), wtPwKnob[i]);
     if (auto *pwParam = state.getParameter(
             "wtPw" + juce::String(i))) // double-click resets to default
       wtPwKnob[i].setDoubleClickReturnValue(
@@ -600,8 +604,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
     // Hidden slider: the value model / APVTS binding. UI is the field +
     // buttons.
     wtPage.addChildComponent(wtArpSlider[i]);
-    wtArpAtt[i] = std::make_unique<SliderAtt>(state, "wtArp" + juce::String(i),
-                                              wtArpSlider[i]);
+    wtArpAtt[i] = attach<SliderAtt>("wtArp" + juce::String(i), wtArpSlider[i]);
     wtArpValue[i].setJustificationType(juce::Justification::centred);
     wtArpValue[i].setFont(juce::Font(juce::FontOptions().withHeight(13.0f)));
     wtArpValue[i].getProperties().set("sidField",
@@ -617,6 +620,8 @@ AsidEditor::AsidEditor(AsidProcessor &p)
                           juce::dontSendNotification);
     wtArpDec[i].setButtonText("-");
     wtArpInc[i].setButtonText("+");
+    wtArpDec[i].setTitle("WT Arp " + juce::String(i + 1) + " down");
+    wtArpInc[i].setTitle("WT Arp " + juce::String(i + 1) + " up");
     wtPage.addAndMakeVisible(wtArpDec[i]);
     wtPage.addAndMakeVisible(wtArpInc[i]);
     wtArpDec[i].onClick = [this, i] {

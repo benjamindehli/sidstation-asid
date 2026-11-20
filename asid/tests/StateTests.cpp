@@ -5,10 +5,16 @@
 // Build with -DSID_BUILD_TESTS=ON, then run the SidStationAsidTests binary.
 #include <cmath>
 #include <cstdio>
+#include <functional>
+#include <map>
 #include <memory>
+#include <set>
+#include <string>
+#include <vector>
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include "AsidEditor.h"
 #include "AsidProcessor.h"
 
 static int g_checks = 0, g_failures = 0;
@@ -307,6 +313,67 @@ static void testSharedStateLifetime() {
         "a new first instance makes the shared state again");
 }
 
+// A screen reader announces a control by its title (a button by its text when
+// it has none), so every control needs one, and no two may share it: three
+// sliders all called "Rate" leave a listener no better off. Parameter-bound
+// controls take their parameter's name, which hosts already need unique.
+static void testEveryControlIsNamed() {
+  AsidProcessor p;
+  std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  CHECK(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  std::map<std::string, int> names;
+  int controls = 0;
+  std::vector<std::string> nameless;
+
+  std::function<void(juce::Component &)> walk = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      // Hidden by itself, not by a parent: a control that is never shown,
+      // like the slider that carries the tempo behind its text field.
+      // Controls on other tabs count, since their page is what is hidden.
+      const bool control = dynamic_cast<juce::Slider *>(child) != nullptr ||
+                           dynamic_cast<juce::Button *>(child) != nullptr ||
+                           dynamic_cast<juce::ComboBox *>(child) != nullptr ||
+                           child->getTitle() == "SID voice";
+      if (control && child->isVisible()) {
+        ++controls;
+        auto name = child->getTitle();
+        if (name.isEmpty())
+          if (auto *b = dynamic_cast<juce::Button *>(child))
+            name = b->getButtonText();
+        if (name.isEmpty())
+          nameless.push_back(std::string(typeid(*child).name()) + " in " +
+                             typeid(c).name() + " named '" +
+                             child->getName().toStdString() + "'");
+        else
+          ++names[name.toStdString()];
+      }
+      walk(*child);
+    }
+  };
+  walk(*editor);
+
+  std::printf("  %d controls, %d distinct names\n", controls,
+              (int)names.size());
+  CHECK(controls > 150, "the walk reached every tab");
+  for (const auto &n : nameless)
+    std::printf("  nameless: %s\n", n.c_str());
+  CHECK(nameless.empty(), "every control has a name");
+  for (const auto &[name, count] : names)
+    if (count > 1)
+      std::printf("  shared by %d: %s\n", count, name.c_str());
+  CHECK((int)names.size() + (int)nameless.size() == controls,
+        "and no two controls share one");
+
+  CHECK(names.count("Cutoff") == 1, "a knob is named after its parameter");
+  CHECK(names.count("Cutoff LFO Sync") == 1 && names.count("PW LFO Sync") == 1,
+        "the three LFOs' switches are told apart");
+  CHECK(names.count("WT Arp 3 up") == 1, "the arp steppers name their step");
+  CHECK(names.count("SID voice") == 1, "the voice switch is reachable");
+}
+
 int main() {
   juce::ScopedJuceInitialiser_GUI
       juceInit;              // message manager, needed by JUCE classes
@@ -319,6 +386,7 @@ int main() {
   testPresetRoundTrip();
   testPresetMigration();
   testPresetNameSanitising();
+  testEveryControlIsNamed();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;
 }
