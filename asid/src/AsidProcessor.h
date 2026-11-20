@@ -15,6 +15,7 @@
 
 #include "AsidShared.h"
 #include "MidiHub.h"
+#include "UpdateCheck.h"
 #include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Lfo.h"
 #include "sidstation/WaveTable.h"
@@ -103,6 +104,10 @@ public:
   // Editor UI preference (persisted with the plugin state): show hover hints.
   bool showTooltips() const { return tooltipsOn; }
   void setShowTooltips(bool on) { tooltipsOn = on; }
+
+  // The update check. Owned here rather than by the editor, so a closing
+  // window never waits for the network: the editor only cancels it.
+  asid::UpdateCheck &updates() noexcept { return updateCheck; }
 
   // Modulation stream interval in ms for the "modRate" choice. Public because
   // the editor needs it to tell whether a synced wavetable step is shorter than
@@ -346,6 +351,7 @@ private:
   juce::String
       currentPresetName;  // last saved/loaded preset, for the editor's display
   bool tooltipsOn = true; // editor "Tips" toggle, persisted in plugin state
+  asid::UpdateCheck updateCheck;
   // A voice-sound parameter (in a preset, and reset by Init): not a shared
   // global, not the voice selection, not the tempo.
   static bool isVoiceSoundParam(const juce::String &id) {

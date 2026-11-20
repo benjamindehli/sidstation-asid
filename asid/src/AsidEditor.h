@@ -22,8 +22,31 @@ public:
   parentHierarchyChanged() override; // brand the standalone window's title bar
   void resized() override;
 
+  // Shows that `version` is out: the version at the right end of the preset bar
+  // names it, lit, and its menu offers the release page at `url`. Called when
+  // the update check finds a newer release. Empty clears it.
+  void announceRelease(const juce::String &version, const juce::String &url);
+
+  // Whether the preset bar is asking about the update check, which it does the
+  // first time a window opens, until it is answered.
+  bool isAskingAboutUpdates() const { return updateQuestion.isVisible(); }
+
+  // The menu the version opens: the update check setting, and the release page
+  // when a newer release is out. Built apart from showing it, so it can be
+  // tested without a window.
+  static juce::PopupMenu updateMenu(bool checkAllowed,
+                                    const juce::String &newerVersion);
+  enum UpdateMenuItem { kGetRelease = 1, kToggleCheck };
+
 private:
   void timerCallback() override;
+
+  // Starts the update check if the setting allows it.
+  void maybeCheckForUpdates();
+  // Shows the question in the preset bar in place of the preset controls, or
+  // puts it away and brings them back.
+  void askAboutUpdates(bool ask);
+  void showUpdateMenu();
 
   using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAtt = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -268,7 +291,27 @@ private:
   };
   Hints hints;
   juce::Label title{{}, "SidStation ASID"};
-  juce::Label versionLabel{{}, SID_ASID_VERSION}; // right end of the preset bar
+  // The version at the right end of the preset bar. Dim, so it can be read off
+  // when reporting a problem, and lit with the new version when one is out.
+  // Clicking it opens updateMenu.
+  struct VersionTag : juce::Button {
+    VersionTag() : juce::Button("Version") {}
+    juce::String text{SID_ASID_VERSION};
+    bool lit = false;
+    // Wide enough for the text, so the preset box gives way to a longer one.
+    int idealWidth() const;
+    void paintButton(juce::Graphics &, bool over, bool down) override;
+  };
+  VersionTag versionTag;
+  // The newer release and its page, empty if none.
+  juce::String releaseVersion, releaseUrl;
+
+  // The question the preset bar asks once, in place of the preset controls.
+  juce::Label updateQuestion{
+      {},
+      "Check for a new version when the window opens? It sends nothing about "
+      "you."};
+  juce::TextButton updateYes{"Yes"}, updateNotNow{"Not now"};
 
   // Top-right voice selector: three cells 1/2/3. This instance's voice is
   // bright. A voice another instance already drives shows in its (dim) hue and

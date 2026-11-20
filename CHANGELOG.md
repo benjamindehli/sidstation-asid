@@ -8,6 +8,7 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 
 - The version number, at the right end of the preset bar, so it can be read off when reporting a problem.
 - Names for screen readers on every control. A control set by a parameter is read out by the parameter's name, as hosts show it for automation, and the voice switch can now be reached and set from a screen reader as well as with the mouse.
+- An opt-in check for a new version. The first time the window opens, the preset bar asks whether to check when the window opens. If allowed, it reads one small file from the project's website and sends nothing about you. A newer release shows at the right end of the bar, and clicking the version there opens a menu with the release page and the setting. On Linux this needs libcurl, which most systems already have.
 
 ### Fixed
 

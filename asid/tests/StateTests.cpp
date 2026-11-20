@@ -16,6 +16,7 @@
 
 #include "AsidEditor.h"
 #include "AsidProcessor.h"
+#include "UpdateCheck.h"
 
 static int g_checks = 0, g_failures = 0;
 
@@ -374,13 +375,171 @@ static void testSharedStateLifetime() {
         "a new first instance makes the shared state again");
 }
 
+// Deciding whether a release is newer, and reading the feed that says so. The
+// fetch needs a network and is not exercised here. A comparison that comes out
+// backwards nags every user, and one that is too eager treats a malformed feed
+// as an upgrade.
+static void testUpdateCheck() {
+  using asid::isNewerVersion;
+  CHECK(isNewerVersion("1.3.0", "1.2.1"), "a higher minor is newer");
+  CHECK(isNewerVersion("2.0.0", "1.9.9"), "a higher major is newer");
+  CHECK(isNewerVersion("1.2.2", "1.2.1"), "a higher patch is newer");
+  CHECK(!isNewerVersion("1.2.1", "1.2.1"), "the same version is not newer");
+  CHECK(!isNewerVersion("1.2.0", "1.2.1"), "an older version is not newer");
+  CHECK(isNewerVersion("1.2.10", "1.2.9"),
+        "10 is newer than 9, which sorting as text would deny");
+  CHECK(!isNewerVersion("1.2.9", "1.2.10"), "and the reverse");
+  CHECK(isNewerVersion("v1.3.0", "1.2.1"), "a leading v is ignored");
+  CHECK(isNewerVersion("1.3", "1.2.9"), "a missing component counts as zero");
+  CHECK(!isNewerVersion("1.3", "1.3.0"), "so 1.3 and 1.3.0 are one release");
+  for (const char *junk : {"", "  ", "latest", "1.3.0-beta", "v", "1..0",
+                           "<!doctype html>", "1.3.0a"})
+    CHECK(!isNewerVersion(junk, "1.2.1"),
+          "a version that does not parse is not newer");
+  CHECK(!isNewerVersion("2.0.0", "garbage"),
+        "an unreadable current version blocks the comparison too");
+
+  using asid::parseReleaseJson;
+  const auto good = parseReleaseJson(
+      R"({"version":"1.3.0","url":"https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.3.0"})");
+  CHECK(good && good->version == "1.3.0", "a well-formed feed parses");
+  CHECK(good && good->url == "https://github.com/benjamindehli/"
+                             "sidstation-asid/releases/tag/v1.3.0",
+        "and carries the page to send someone to");
+  const auto noUrl = parseReleaseJson(R"({"version":"1.3.0"})");
+  CHECK(noUrl && noUrl->url == asid::kLatestRelease,
+        "a feed with no url falls back to the releases page");
+  // The link is opened in a browser, so only this project's pages pass.
+  for (const char *elsewhere :
+       {"https://example.invalid/v1.3.0",
+        "http://github.com/benjamindehli/sidstation-asid/",
+        "file:///etc/passwd", "javascript:alert(1)",
+        "https://github.com/benjamindehli/sidstation-asid.evil.example/",
+        "https://github.com/someone-else/sidstation-asid/releases",
+        "https://github.com/benjamindehli/sidstation-asid/../../"
+        "someone-else"}) {
+    const auto moved = parseReleaseJson(
+        juce::String(R"({"version":"1.3.0","url":")") + elsewhere + "\"}");
+    CHECK(moved && moved->url == asid::kLatestRelease,
+          "a link anywhere else is replaced by the releases page");
+  }
+  for (const char *bad : {"", "{}", "[]", "not json", R"({"version":""})",
+                          R"({"version":null})", "null"})
+    CHECK(!parseReleaseJson(bad).has_value(), "a broken feed yields nothing");
+}
+
+static juce::Button *buttonTitled(juce::Component &root,
+                                  const juce::String &title) {
+  for (auto *child : root.getChildren()) {
+    if (auto *b = dynamic_cast<juce::Button *>(child))
+      if (b->getTitle() == title)
+        return b;
+    if (auto *found = buttonTitled(*child, title))
+      return found;
+  }
+  return nullptr;
+}
+
+// The preset bar asks once whether to check for a new version, and the version
+// at its end says when one is out. Run against the machine's own settings, so
+// each is put back as it was found. "Yes" is never pressed, since that would
+// reach the network.
+static void testUpdateQuestion() {
+  const bool allowedBefore = asid::updateCheckAllowed();
+  const bool offeredBefore = asid::updateCheckOffered();
+
+  asid::setUpdateCheckAllowed(true);
+  CHECK(asid::updateCheckAllowed(), "the setting is read back from the file");
+  asid::setUpdateCheckAllowed(false);
+  CHECK(!asid::updateCheckAllowed(), "and so is the other answer");
+
+  asid::setUpdateCheckOffered(false);
+  AsidProcessor p;
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    auto &editor = dynamic_cast<AsidEditor &>(*ed);
+    CHECK(editor.isAskingAboutUpdates(), "the first window asks");
+    CHECK(!asid::updateCheckOffered(),
+          "and opening it marks nothing, so a host scanning its plugins does "
+          "not use the question up");
+    auto *preset = buttonTitled(editor, "Previous preset");
+    CHECK(preset != nullptr && !preset->isVisible(),
+          "the question takes the place of the preset controls");
+    auto *notNow = buttonTitled(editor, "Do not check for a new version");
+    CHECK(notNow != nullptr, "Not now is there to press");
+    if (notNow != nullptr)
+      notNow->onClick();
+    CHECK(!editor.isAskingAboutUpdates() && preset != nullptr &&
+              preset->isVisible(),
+          "an answer brings the preset controls back");
+  }
+  CHECK(asid::updateCheckOffered() && !asid::updateCheckAllowed(),
+        "Not now is remembered, and nothing is checked");
+  for (int open = 0; open < 3; ++open) {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    CHECK(!dynamic_cast<AsidEditor &>(*ed).isAskingAboutUpdates(),
+          "so later windows do not ask again");
+  }
+  CHECK(!asid::updateCheckAllowed(),
+        "and opening windows never turns the check on");
+
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    auto &editor = dynamic_cast<AsidEditor &>(*ed);
+    CHECK(buttonTitled(editor, "Version " SID_ASID_VERSION) != nullptr,
+          "the version is named for a screen reader");
+    editor.announceRelease("99.0.0", "https://github.com/benjamindehli/"
+                                     "sidstation-asid/releases/tag/v99.0.0");
+    CHECK(buttonTitled(editor, "Version 99.0.0 is out") != nullptr,
+          "a release found is named in its place");
+    editor.announceRelease({}, {});
+    CHECK(buttonTitled(editor, "Version " SID_ASID_VERSION) != nullptr,
+          "and clearing it brings the version back");
+  }
+
+  // The menu, as data, since showing one needs a real window.
+  {
+    auto menu = AsidEditor::updateMenu(false, "99.0.0");
+    juce::PopupMenu::MenuItemIterator it(menu);
+    CHECK(it.next() && it.getItem().itemID == AsidEditor::kGetRelease &&
+              it.getItem().text.contains("99.0.0"),
+          "a release found is the first thing in the menu");
+    bool toggle = false, ticked = true;
+    while (it.next())
+      if (it.getItem().itemID == AsidEditor::kToggleCheck) {
+        toggle = true;
+        ticked = it.getItem().isTicked;
+      }
+    CHECK(toggle && !ticked, "and the setting follows, unticked when off");
+  }
+  {
+    auto menu = AsidEditor::updateMenu(true, {});
+    juce::PopupMenu::MenuItemIterator it(menu);
+    CHECK(
+        it.next() && it.getItem().itemID == AsidEditor::kToggleCheck &&
+            it.getItem().isTicked && !it.next(),
+        "with nothing found, the menu holds only the setting, ticked when on");
+  }
+
+  asid::setUpdateCheckAllowed(allowedBefore);
+  asid::setUpdateCheckOffered(offeredBefore);
+  CHECK(asid::updateCheckAllowed() == allowedBefore &&
+            asid::updateCheckOffered() == offeredBefore,
+        "and the machine's own answers are put back");
+}
+
 // A screen reader announces a control by its title (a button by its text when
 // it has none), so every control needs one, and no two may share it: three
 // sliders all called "Rate" leave a listener no better off. Parameter-bound
 // controls take their parameter's name, which hosts already need unique.
 static void testEveryControlIsNamed() {
+  // With the update question answered, so the preset bar shows its controls
+  // rather than the question. Put back afterwards, since it is machine-wide.
+  const bool offeredBefore = asid::updateCheckOffered();
+  asid::setUpdateCheckOffered(true);
   AsidProcessor p;
   std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+  asid::setUpdateCheckOffered(offeredBefore);
   CHECK(editor != nullptr, "the editor opens");
   if (editor == nullptr)
     return;
@@ -448,6 +607,8 @@ int main() {
   testPresetRoundTrip();
   testPresetMigration();
   testPresetNameSanitising();
+  testUpdateCheck();
+  testUpdateQuestion();
   testEveryControlIsNamed();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

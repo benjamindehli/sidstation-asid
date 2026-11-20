@@ -18,6 +18,11 @@ juce_add_plugin(SidStationAsid
     COPY_PLUGIN_AFTER_BUILD   TRUE
     VST3_CATEGORIES           Instrument
     AU_MAIN_TYPE              kAudioUnitType_MusicDevice
+    # The update check reaches an https address, and only on Linux does that
+    # take a dependency. macOS and Windows use the system's own networking,
+    # while JUCE's Linux fallback without curl is a plain socket with no TLS.
+    # NEEDS_CURL sets JUCE_USE_CURL and links curl together.
+    NEEDS_CURL                TRUE
     ${SID_ICON})
 
 # Embed assets so they ship inside the plugin binary: the Dehli Musikk logo, plus
@@ -33,13 +38,13 @@ juce_add_binary_data(SidStationAsidAssets
 target_sources(SidStationAsid PRIVATE
     src/AsidProcessor.cpp
     src/AsidEditor.cpp
-    src/MidiHub.cpp)
+    src/MidiHub.cpp
+    src/UpdateCheck.cpp)
 
 target_include_directories(SidStationAsid PRIVATE src)
 
 target_compile_definitions(SidStationAsid PUBLIC
     JUCE_WEB_BROWSER=0
-    JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
     SID_ASID_VERSION="${PROJECT_VERSION}") # shown after the title
 
@@ -57,16 +62,18 @@ target_link_libraries(SidStationAsid PRIVATE
 # round-trip, and preset save/load. The pure protocol logic is tested in core.
 option(SID_BUILD_TESTS "Build the JUCE-linked SidStation ASID tests" OFF)
 if(SID_BUILD_TESTS)
-    juce_add_console_app(SidStationAsidTests PRODUCT_NAME "SidStation ASID Tests")
+    juce_add_console_app(SidStationAsidTests
+        PRODUCT_NAME "SidStation ASID Tests"
+        NEEDS_CURL TRUE)
     target_sources(SidStationAsidTests PRIVATE
         tests/StateTests.cpp
         src/AsidProcessor.cpp
         src/AsidEditor.cpp
-        src/MidiHub.cpp)
+        src/MidiHub.cpp
+        src/UpdateCheck.cpp)
     target_include_directories(SidStationAsidTests PRIVATE src)
     target_compile_definitions(SidStationAsidTests PRIVATE
         JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
         SID_ASID_VERSION="${PROJECT_VERSION}")
     target_link_libraries(SidStationAsidTests PRIVATE
         sidstation_core

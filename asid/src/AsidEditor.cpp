@@ -349,14 +349,39 @@ AsidEditor::AsidEditor(AsidProcessor &p)
                   &presetDeleteBtn, &tooltipToggle})
     c->setLookAndFeel(&barLnF);
   presetBox.setLookAndFeel(&barLnF);
-  // The version, dim at the right end of the preset bar, so it can be read off
-  // when reporting a problem. The bar is the plugin's own chrome rather than
-  // part of the C64 screen, so it uses the bar's font, not the pixel font.
-  versionLabel.setLookAndFeel(&barLnF);
-  versionLabel.setFont(juce::FontOptions(13.0f));
-  versionLabel.setColour(juce::Label::textColourId, greyTint(120));
-  versionLabel.setJustificationType(juce::Justification::centredRight);
-  addAndMakeVisible(versionLabel);
+  // The version, at the right end of the preset bar. The bar is the plugin's
+  // own chrome rather than part of the C64 screen, so it uses the bar's font,
+  // not the pixel font.
+  versionTag.setLookAndFeel(&barLnF);
+  versionTag.setTitle("Version " SID_ASID_VERSION);
+  versionTag.onClick = [this] { showUpdateMenu(); };
+  addAndMakeVisible(versionTag);
+
+  // The update question, asked in the bar so the C64 screen stays as it is.
+  updateQuestion.setLookAndFeel(&barLnF);
+  updateQuestion.setFont(juce::FontOptions(13.0f));
+  updateQuestion.setMinimumHorizontalScale(1.0f);
+  updateQuestion.setColour(juce::Label::textColourId, greyTint(198));
+  updateQuestion.setJustificationType(juce::Justification::centredLeft);
+  addChildComponent(updateQuestion);
+  for (auto *b : {&updateYes, &updateNotNow}) {
+    b->setLookAndFeel(&barLnF);
+    addChildComponent(*b);
+  }
+  updateYes.setTitle("Check for a new version");
+  updateNotNow.setTitle("Do not check for a new version");
+  // Marked only when answered, so a window nobody looks at, as when a host
+  // scans its plugins, does not use the question up.
+  updateYes.onClick = [this] {
+    asid::setUpdateCheckOffered(true);
+    asid::setUpdateCheckAllowed(true);
+    askAboutUpdates(false);
+    maybeCheckForUpdates();
+  };
+  updateNotNow.onClick = [this] {
+    asid::setUpdateCheckOffered(true);
+    askAboutUpdates(false);
+  };
 
   // Names for screen readers on the controls no parameter names (the rest are
   // named by attach and bindKnob).
@@ -737,15 +762,28 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   hints.add(wtLengthKnob, "Number of steps that play.", wtOff);
   hints.add(wtLoopKnob, "Step the table loops back to.", wtOff, left);
 
+  hints.add(versionTag,
+            "The version. Click to set whether it checks for a new one.",
+            below);
+
   refreshDevices();
   updateEnablement();
   setTab(0);
   setSize(720, 574); // extra height for the preset bar (pages keep their size)
+
+  if (asid::updateCheckAllowed())
+    maybeCheckForUpdates();
+  else if (!asid::updateCheckOffered())
+    askAboutUpdates(true);
   startTimerHz(10); // drives updateEnablement (waveform / sustain / LFO gating)
 }
 
 AsidEditor::~AsidEditor() {
   stopTimer();
+  // The fetch belongs to the processor and outlives this window, so it is only
+  // told to give up here, never waited for on the message thread.
+  proc.updates().cancel();
+  proc.updates().setListener(nullptr);
   // Detach our chrome look-and-feel from the standalone window before it (or
   // we) go away, so the window is not left pointing at a destroyed editor's
   // context.
@@ -1081,13 +1119,22 @@ void AsidEditor::resized() {
   // Dark preset bar across the top, above the untouched 720x540 content region.
   auto pbar =
       getLocalBounds().removeFromTop(kPresetBarH).reduced(kBorder + 6, 5);
+  // The question takes the whole bar while it is asked.
+  {
+    auto row = pbar;
+    updateNotNow.setBounds(row.removeFromRight(70));
+    row.removeFromRight(6);
+    updateYes.setBounds(row.removeFromRight(48));
+    row.removeFromRight(10);
+    updateQuestion.setBounds(row);
+  }
   tooltipToggle.setBounds(pbar.removeFromLeft(44));
   pbar.removeFromLeft(12);
   presetPrevBtn.setBounds(pbar.removeFromLeft(28));
   pbar.removeFromLeft(4);
   presetNextBtn.setBounds(pbar.removeFromLeft(28));
   pbar.removeFromLeft(10);
-  versionLabel.setBounds(pbar.removeFromRight(48));
+  versionTag.setBounds(pbar.removeFromRight(versionTag.idealWidth()));
   pbar.removeFromRight(4);
   presetDeleteBtn.setBounds(pbar.removeFromRight(62));
   pbar.removeFromRight(6);
@@ -1350,4 +1397,106 @@ void AsidEditor::layoutWavePage(juce::Rectangle<int> area) {
       wtArpInc[i].setBounds(arpX + bw + 48, y, bw, rowH);
     }
   }
+}
+
+int AsidEditor::VersionTag::idealWidth() const {
+  const auto font = juce::Font(juce::FontOptions(13.0f));
+  return juce::jmax(
+      48, juce::roundToInt(
+              std::ceil(juce::GlyphArrangement::getStringWidth(font, text))) +
+              4);
+}
+
+void AsidEditor::VersionTag::paintButton(juce::Graphics &g, bool over, bool) {
+  // Dim grey with the bar's faint blue lean, brighter under the pointer, and
+  // the hint colour when it names a newer release.
+  const auto dim = juce::Colour(120, 121, 122);
+  const auto bright = juce::Colour(198, 199, 200);
+  g.setColour(lit ? juce::Colour(SidLookAndFeel::kHot) : over ? bright : dim);
+  g.setFont(juce::FontOptions(13.0f));
+  g.drawText(text, getLocalBounds(), juce::Justification::centredRight, false);
+}
+
+juce::PopupMenu AsidEditor::updateMenu(bool checkAllowed,
+                                       const juce::String &newerVersion) {
+  juce::PopupMenu menu;
+  if (newerVersion.isNotEmpty()) {
+    menu.addItem(kGetRelease, "Get version " + newerVersion + "...");
+    menu.addSeparator();
+  }
+  menu.addItem(kToggleCheck, "Check for a new version when the window opens",
+               true, checkAllowed);
+  return menu;
+}
+
+void AsidEditor::showUpdateMenu() {
+  updateMenu(asid::updateCheckAllowed(), releaseVersion)
+      .showMenuAsync(
+          juce::PopupMenu::Options().withTargetComponent(&versionTag),
+          [safe = juce::Component::SafePointer<AsidEditor>(this)](int chosen) {
+            auto *editor = safe.getComponent();
+            if (editor == nullptr)
+              return;
+            if (chosen == kGetRelease && editor->releaseUrl.isNotEmpty()) {
+              juce::URL(editor->releaseUrl).launchInDefaultBrowser();
+            } else if (chosen == kToggleCheck) {
+              const bool allow = !asid::updateCheckAllowed();
+              asid::setUpdateCheckAllowed(allow);
+              asid::setUpdateCheckOffered(true);
+              editor->askAboutUpdates(false);
+              if (allow)
+                editor->maybeCheckForUpdates();
+              else
+                editor->announceRelease({}, {});
+            }
+          });
+}
+
+void AsidEditor::maybeCheckForUpdates() {
+  if (!asid::updateCheckAllowed())
+    return;
+
+  // Found by an earlier window on this instance.
+  if (const auto release = proc.updates().newerRelease())
+    announceRelease(release->version, release->url);
+
+  // A SafePointer, since the fetch outlives the window. The answer arrives on
+  // the message thread, where the editor is also destroyed, so the pointer is
+  // either valid or null.
+  proc.updates().setListener(
+      [safe = juce::Component::SafePointer<AsidEditor>(this)] {
+        if (auto *editor = safe.getComponent())
+          if (const auto release = editor->proc.updates().newerRelease())
+            editor->announceRelease(release->version, release->url);
+      });
+  proc.updates().start(SID_ASID_VERSION);
+}
+
+void AsidEditor::askAboutUpdates(bool ask) {
+  updateQuestion.setVisible(ask);
+  updateYes.setVisible(ask);
+  updateNotNow.setVisible(ask);
+  for (auto *c : std::initializer_list<juce::Component *>{
+           &tooltipToggle, &presetPrevBtn, &presetNextBtn, &presetBox,
+           &initButton, &presetSaveBtn, &presetDeleteBtn, &versionTag})
+    c->setVisible(!ask);
+}
+
+void AsidEditor::announceRelease(const juce::String &version,
+                                 const juce::String &url) {
+  const bool found = version.isNotEmpty();
+  versionTag.lit = found;
+  versionTag.text =
+      found ? version + " is out" : juce::String(SID_ASID_VERSION);
+  versionTag.setTitle(found ? "Version " + version + " is out"
+                            : juce::String("Version " SID_ASID_VERSION));
+  hints.setText(versionTag,
+                found ? "Version " + version +
+                            " is out. Click to get it from the release page."
+                      : juce::String("The version. Click to set whether it "
+                                     "checks for a new one."));
+  releaseVersion = found ? version : juce::String();
+  releaseUrl = found ? url : juce::String();
+  resized(); // the tag's width follows its text
+  versionTag.repaint();
 }

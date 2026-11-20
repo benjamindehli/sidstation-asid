@@ -26,4 +26,5 @@ Run the standalone
 Notes
 -----
 Enter ASID mode on the unit's front panel before playing.
-Built for x86_64. Requires ALSA. JACK is used if it is available.
+Built for x86_64. Requires ALSA and libcurl, which most systems already have.
+JACK is used if it is available.

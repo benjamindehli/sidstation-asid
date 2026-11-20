@@ -4,6 +4,8 @@
 # JUCE loads libXi with dlopen like the other X libraries, so it is a build
 # dependency only and adds nothing users have to install. JUCE 9 also wants
 # libegl-dev, but only for juce_opengl, which the plugin does not link.
+# libcurl4-openssl-dev is for the update check, which reaches an https address,
+# and JUCE's Linux networking needs curl for TLS.
 # Shared by the CI plugin build and the release tarball build, so the two cannot
 # drift into installing different sets.
 #
@@ -23,6 +25,7 @@ PACKAGES=(
     libx11-dev libxcomposite-dev libxcursor-dev libxext-dev
     libxi-dev libxinerama-dev libxrandr-dev libxrender-dev
     libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev
+    libcurl4-openssl-dev
 )
 
 # Acquire::Retries makes apt itself retry a failed mirror before giving up, and
