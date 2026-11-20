@@ -12,6 +12,8 @@
 
 #include <atomic>
 #include <cmath>
+#include <functional>
+#include <vector>
 
 #include "AsidShared.h"
 #include "MidiHub.h"
@@ -22,6 +24,7 @@
 
 class AsidProcessor : public juce::AudioProcessor,
                       private juce::AudioProcessorValueTreeState::Listener,
+                      private juce::AudioProcessorListener,
                       private AsidShared::Client {
 public:
   static constexpr int kWtSteps = 8; // wavetable step count
@@ -76,6 +79,24 @@ public:
 
   // Manual all-notes-off for every voice (Panic button).
   void panic() { shared().panicAllVoices(); }
+
+  // The edit history: what a person did in this window, and nothing else.
+  // Each gesture on a control is one step, recorded from the host gestures the
+  // controls already open and close. Automation, the host restoring a session
+  // and other instances moving the shared filter are not gestures here, so
+  // they never enter it. A restored session clears it. Message thread only.
+  void undo();
+  void redo();
+  bool canUndo();
+  bool canRedo();
+
+  // Runs `change` and puts whatever it moved into the history as one step, for
+  // edits that are not one gesture on one control: loading a preset, Init.
+  void recordEdit(const juce::String &name,
+                  const std::function<void()> &change);
+
+  // A gesture left open when the window closes is recorded as it stands.
+  void windowClosing();
   // Reset this voice's sound to its default patch. Leaves the shared filter and
   // volume (they belong to every voice) and this instance's identity
   // (asidVoice).
@@ -172,6 +193,31 @@ private:
   // all: the destructor still talks to it, and the last instance's pointer
   // deletes it (see Lifetime in AsidShared.h).
   juce::SharedResourcePointer<AsidShared> sharedState;
+
+  // See undo(). Not given to the value tree, since a tree with an undo manager
+  // records every write, automation included.
+  juce::UndoManager undoManager{4 * 1024 * 1024};
+  std::vector<float> editBaseline; // every parameter's value at a step's start
+  int openGestures = 0;
+  bool recording = false; // recordEdit is running its change
+  // Set when the host restores a session from another thread, and acted on by
+  // the next call on the message thread.
+  std::atomic<bool> forgetEditsPending{false};
+  void beginEdit();
+  void endEdit(const juce::String &name);
+  void forgetEdits();
+  void forgetPendingEdits();
+
+  // juce::AudioProcessorListener, for this processor's own gestures.
+  void audioProcessorParameterChanged(juce::AudioProcessor *, int,
+                                      float) override {}
+  void audioProcessorChanged(
+      juce::AudioProcessor *,
+      const juce::AudioProcessorListener::ChangeDetails &) override {}
+  void audioProcessorParameterChangeGestureBegin(juce::AudioProcessor *,
+                                                 int) override;
+  void audioProcessorParameterChangeGestureEnd(juce::AudioProcessor *,
+                                               int) override;
 
   // Cached parameter pointers, resolved once at construction.
   //

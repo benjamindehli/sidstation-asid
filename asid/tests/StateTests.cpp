@@ -528,6 +528,129 @@ static void testUpdateQuestion() {
         "and the machine's own answers are put back");
 }
 
+// The edit history records what a person does and nothing else: one step per
+// gesture, one per preset load or Init, never automation, never the voice
+// assignment, and nothing from before a restored session.
+static void gesture(AsidProcessor &p, const juce::String &id, float v) {
+  if (auto *q = p.state().getParameter(id)) {
+    q->beginChangeGesture();
+    q->setValueNotifyingHost(v);
+    q->endChangeGesture();
+  }
+}
+
+static void testEditHistory() {
+  {
+    AsidProcessor p;
+    CHECK(!p.canUndo() && !p.canRedo(), "a new instance has no history");
+
+    setNorm(p, "attack", 0.6f); // as automation does, with no gesture
+    CHECK(!p.canUndo(), "automation is not recorded");
+
+    const float before = norm(p, "attack");
+    gesture(p, "attack", 0.2f);
+    const float after = norm(p, "attack");
+    CHECK(p.canUndo() && !approx(before, after), "a gesture is one step");
+    p.undo();
+    CHECK(approx(norm(p, "attack"), before), "undo puts the value back");
+    CHECK(p.canRedo(), "and the step can be redone, so the undo itself was "
+                       "not recorded as a new step");
+    p.redo();
+    CHECK(approx(norm(p, "attack"), after), "redo moves it again");
+
+    // One gesture that moves a control several times is still one step.
+    if (auto *q = p.state().getParameter("decay")) {
+      const float start = q->getValue();
+      q->beginChangeGesture();
+      for (float v : {0.1f, 0.5f, 0.9f})
+        q->setValueNotifyingHost(v);
+      q->endChangeGesture();
+      p.undo();
+      CHECK(approx(q->getValue(), start), "a whole drag undoes in one step");
+      CHECK(approx(norm(p, "attack"), after), "and leaves the earlier step");
+    }
+
+    // Which voice the instance drives is not part of the sound.
+    while (p.canUndo())
+      p.undo();
+    gesture(p, "asidVoice", 1.0f);
+    CHECK(!p.canUndo(), "choosing the voice is not recorded");
+  }
+
+  {
+    AsidProcessor p;
+    gesture(p, "attack", 0.9f);
+    gesture(p, "sustain", 0.2f);
+    const float attack = norm(p, "attack"), sustain = norm(p, "sustain");
+    p.recordEdit("Init", [&p] { p.resetVoiceToDefault(); });
+    CHECK(!approx(norm(p, "attack"), attack), "Init moved the voice");
+    p.undo();
+    CHECK(approx(norm(p, "attack"), attack) &&
+              approx(norm(p, "sustain"), sustain),
+          "and one undo brings back every control Init moved");
+
+    const juce::String name = "__sidstation_undo_preset__";
+    p.presetsDir().getChildFile(name + ".xml").deleteFile();
+    gesture(p, "attack", 0.1f);
+    p.savePreset(name);
+    gesture(p, "attack", 0.8f);
+    const float edited = norm(p, "attack");
+    p.recordEdit("Load preset", [&p, &name] { p.loadPreset(name); });
+    CHECK(!approx(norm(p, "attack"), edited), "the preset loaded");
+    p.undo();
+    CHECK(approx(norm(p, "attack"), edited), "and undo returns to the edit");
+    p.presetsDir().getChildFile(name + ".xml").deleteFile();
+
+    // A restored session starts a new history.
+    juce::MemoryBlock mb;
+    p.getStateInformation(mb);
+    CHECK(p.canUndo(), "there are steps before the session is restored");
+    p.setStateInformation(mb.getData(), (int)mb.getSize());
+    CHECK(!p.canUndo() && !p.canRedo(), "a restored session clears them");
+  }
+
+  // The window: buttons that follow the history, and the keys.
+  {
+    const bool offeredBefore = asid::updateCheckOffered();
+    asid::setUpdateCheckOffered(true); // so the bar shows its controls
+    AsidProcessor p;
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    asid::setUpdateCheckOffered(offeredBefore);
+    std::function<juce::Button *(juce::Component &, const char *)> byText =
+        [&](juce::Component &root, const char *text) -> juce::Button * {
+      for (auto *child : root.getChildren()) {
+        if (auto *b = dynamic_cast<juce::Button *>(child))
+          if (b->getButtonText() == text)
+            return b;
+        if (auto *found = byText(*child, text))
+          return found;
+      }
+      return nullptr;
+    };
+    auto *undo = byText(*ed, "Undo");
+    auto *redo = byText(*ed, "Redo");
+    CHECK(undo != nullptr && redo != nullptr, "the bar has Undo and Redo");
+    if (undo == nullptr || redo == nullptr)
+      return;
+    CHECK(undo->isVisible() && !undo->isEnabled() && !redo->isEnabled(),
+          "both are greyed out with nothing to undo");
+
+    const float before = norm(p, "release");
+    gesture(p, "release", 0.7f);
+    const float after = norm(p, "release");
+    ed->keyPressed(juce::KeyPress('z', juce::ModifierKeys::commandModifier, 0));
+    CHECK(approx(norm(p, "release"), before), "Cmd/Ctrl+Z undoes");
+    CHECK(redo->isEnabled(), "and Redo lights up");
+    ed->keyPressed(juce::KeyPress('z',
+                                  juce::ModifierKeys::commandModifier |
+                                      juce::ModifierKeys::shiftModifier,
+                                  0));
+    CHECK(approx(norm(p, "release"), after), "Shift+Cmd/Ctrl+Z redoes");
+    undo->onClick();
+    CHECK(approx(norm(p, "release"), before), "and so does the Undo button");
+  }
+}
+
 // A screen reader announces a control by its title (a button by its text when
 // it has none), so every control needs one, and no two may share it: three
 // sliders all called "Rate" leave a listener no better off. Parameter-bound
@@ -609,6 +732,7 @@ int main() {
   testPresetNameSanitising();
   testUpdateCheck();
   testUpdateQuestion();
+  testEditHistory();
   testEveryControlIsNamed();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

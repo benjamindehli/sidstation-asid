@@ -21,6 +21,7 @@ public:
   void
   parentHierarchyChanged() override; // brand the standalone window's title bar
   void resized() override;
+  bool keyPressed(const juce::KeyPress &) override; // undo and redo
 
   // Shows that `version` is out: the version at the right end of the preset bar
   // names it, lit, and its menu offers the release page at `url`. Called when
@@ -414,6 +415,8 @@ private:
   juce::ComboBox presetBox;
   juce::TextButton presetPrevBtn{"<"}, presetNextBtn{">"},
       presetSaveBtn{"Save"}, presetDeleteBtn{"Delete"};
+  juce::TextButton undoBtn{"Undo"}, redoBtn{"Redo"};
+  void updateHistoryButtons(); // enabled when there is a step to take
   juce::TextButton tooltipToggle{
       "Tips"}; // preset-bar toggle for the hover hints
 

@@ -37,7 +37,7 @@ Around the sound:
 
 ## The four tabs
 
-The dark strip along the top is the same on every tab. It holds the MIDI output picker with a Scan button, the tempo and the clock rate, a MIDI load meter, the voice selector, and the preset bar (browse with the arrows or the menu, then Init, Save and Delete).
+The dark strip along the top is the same on every tab. It holds the MIDI output picker with a Scan button, the tempo and the clock rate, a MIDI load meter, the voice selector, and the preset bar (browse with the arrows or the menu, Undo and Redo, then Init, Save and Delete). Undo and Redo also answer Cmd+Z and Shift+Cmd+Z, or Ctrl on Windows and Linux, when the host passes those keys on.
 
 ### Voice
 

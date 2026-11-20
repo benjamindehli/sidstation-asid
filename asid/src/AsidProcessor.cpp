@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
+#include <vector>
 
 #include "AsidEditor.h"
 
@@ -748,6 +750,50 @@ void AsidProcessor::updateModulation(int voice, bool blockHasNotes) {
   sendAsid(sidstation::encodeAsidUpdate(writes), sendTimeMs);
 }
 
+namespace {
+// One step in the history: the normalised values of everything that moved in
+// one edit.
+class ParameterEdit final : public juce::UndoableAction {
+public:
+  struct Change {
+    juce::RangedAudioParameter *param;
+    float before, after;
+  };
+
+  explicit ParameterEdit(std::vector<Change> movedIn)
+      : moved(std::move(movedIn)) {}
+
+  // Nothing the first time, since a step is pushed after its change has
+  // already happened. A redo writes the values.
+  bool perform() override {
+    if (std::exchange(pushed, true))
+      apply(&Change::after);
+    return true;
+  }
+
+  bool undo() override {
+    apply(&Change::before);
+    return true;
+  }
+
+  int getSizeInUnits() override { return (int)(moved.size() * sizeof(Change)); }
+
+private:
+  // Each value inside a gesture of its own, so a host that records automation
+  // sees an edit, as it would from the control.
+  void apply(float Change::*which) {
+    for (const auto &change : moved) {
+      change.param->beginChangeGesture();
+      change.param->setValueNotifyingHost(change.*which);
+      change.param->endChangeGesture();
+    }
+  }
+
+  std::vector<Change> moved;
+  bool pushed = false;
+};
+} // namespace
+
 static const char *kSharedIds[] = {
     "cutoff", "resonance", "volume", "latency", "modRate", "filt1",    "filt2",
     "filt3",  "filtExt",   "modeLP", "modeBP",  "modeHP",  "voice3off"};
@@ -763,6 +809,9 @@ AsidProcessor::AsidProcessor()
   // use.
   apvts.addParameterListener("asidVoice", this);
 
+  // Listens to its own gestures to tell a person's edits from automation.
+  addListener(this);
+
   shared().addClient(this);
   // Match the filter and volume of instances that are already open.
   if (shared().hasData.load())
@@ -771,6 +820,7 @@ AsidProcessor::AsidProcessor()
 }
 
 AsidProcessor::~AsidProcessor() {
+  removeListener(this);
   // Filter routing is now shared state (filt1/2/3), not owned by this instance,
   // so leave it for the others; only drop this instance's cutoff-mod claim.
   shared().releaseCutoffMod(this);
@@ -778,6 +828,128 @@ AsidProcessor::~AsidProcessor() {
   for (const char *id : kSharedIds)
     apvts.removeParameterListener(id, this);
   apvts.removeParameterListener("asidVoice", this);
+}
+
+// ---- The edit history -------------------------------------------------------
+
+void AsidProcessor::beginEdit() {
+  forgetPendingEdits();
+  editBaseline.clear();
+  for (const auto *param : getParameters())
+    editBaseline.push_back(param->getValue());
+}
+
+void AsidProcessor::endEdit(const juce::String &name) {
+  const auto &params = getParameters();
+  if (editBaseline.size() != (size_t)params.size()) {
+    editBaseline.clear();
+    return;
+  }
+
+  std::vector<ParameterEdit::Change> moved;
+  for (int i = 0; i < params.size(); ++i) {
+    const auto before = editBaseline[(size_t)i];
+    const auto after = params[i]->getValue();
+    // Exactly, not within a tolerance: these are stored values, so a control
+    // moved and moved back holds its original bits. Two comparisons so a
+    // float-equality warning does not fire.
+    if (!(before < after) && !(after < before))
+      continue;
+    auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(params[i]);
+    // Which voice this instance drives is not part of the sound, and another
+    // instance may have taken the old one since.
+    if (ranged != nullptr && ranged->getParameterID() != "asidVoice")
+      moved.push_back({ranged, before, after});
+  }
+  editBaseline.clear();
+
+  if (moved.empty())
+    return;
+
+  // Its own transaction, so one edit is one step.
+  undoManager.beginNewTransaction(name);
+  undoManager.perform(new ParameterEdit(std::move(moved)));
+}
+
+void AsidProcessor::forgetEdits() {
+  undoManager.clearUndoHistory();
+  openGestures = 0;
+  editBaseline.clear();
+}
+
+void AsidProcessor::forgetPendingEdits() {
+  if (forgetEditsPending.exchange(false))
+    forgetEdits();
+}
+
+void AsidProcessor::undo() {
+  forgetPendingEdits();
+  // A gesture still open would take its baseline before the step undone.
+  if (openGestures == 0) {
+    // The step opens gestures for the host, which are not a new edit.
+    const juce::ScopedValueSetter<bool> guard(recording, true);
+    undoManager.undo();
+  }
+}
+
+void AsidProcessor::redo() {
+  forgetPendingEdits();
+  if (openGestures == 0) {
+    // The step opens gestures for the host, which are not a new edit.
+    const juce::ScopedValueSetter<bool> guard(recording, true);
+    undoManager.redo();
+  }
+}
+
+bool AsidProcessor::canUndo() {
+  forgetPendingEdits();
+  return undoManager.canUndo();
+}
+
+bool AsidProcessor::canRedo() {
+  forgetPendingEdits();
+  return undoManager.canRedo();
+}
+
+void AsidProcessor::recordEdit(const juce::String &name,
+                               const std::function<void()> &change) {
+  if (change == nullptr)
+    return;
+  // A nested recording would take its own baseline, so the outer one records
+  // everything.
+  if (recording || openGestures > 0) {
+    change();
+    return;
+  }
+  const juce::ScopedValueSetter<bool> guard(recording, true);
+  beginEdit();
+  change();
+  endEdit(name);
+}
+
+void AsidProcessor::windowClosing() {
+  if (openGestures > 0) {
+    openGestures = 0;
+    endEdit("Move a control");
+  }
+}
+
+void AsidProcessor::audioProcessorParameterChangeGestureBegin(
+    juce::AudioProcessor *, int) {
+  // Only on the message thread. A host may open a gesture from the audio
+  // thread, and taking a baseline there would allocate.
+  if (recording || !juce::MessageManager::existsAndIsCurrentThread())
+    return;
+  if (openGestures++ == 0)
+    beginEdit();
+}
+
+void AsidProcessor::audioProcessorParameterChangeGestureEnd(
+    juce::AudioProcessor *, int) {
+  if (recording || !juce::MessageManager::existsAndIsCurrentThread())
+    return;
+  if (openGestures > 0 && --openGestures == 0)
+    endEdit("Move a control");
 }
 
 void AsidProcessor::parameterChanged(const juce::String &id, float value) {
@@ -1274,6 +1446,13 @@ void AsidProcessor::setStateInformation(const void *data, int sizeInBytes) {
                             ranged->convertFrom0to1(ranged->getDefaultValue()),
                             nullptr);
     apvts.replaceState(tree);
+
+    // The steps before belong to another session. Cleared now on the message
+    // thread, or by the next call that reads the history.
+    if (juce::MessageManager::existsAndIsCurrentThread())
+      forgetEdits();
+    else
+      forgetEditsPending.store(true);
 
     // Reopen the saved MIDI output unless the shared hub already has it open
     // (another instance restored it first). Try the identifier, then the name.

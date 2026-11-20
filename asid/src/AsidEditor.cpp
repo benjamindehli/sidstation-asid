@@ -292,7 +292,9 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   presetBox.onChange = [this] {
     if (presetBox.getSelectedId() >=
         1) // a listed preset chosen (not just typed text)
-      proc.loadPreset(presetBox.getText());
+      proc.recordEdit("Load preset", [this, name = presetBox.getText()] {
+        proc.loadPreset(name);
+      });
   };
   addAndMakeVisible(presetPrevBtn);
   presetPrevBtn.onClick = [this] { cyclePreset(-1); };
@@ -345,8 +347,15 @@ AsidEditor::AsidEditor(AsidProcessor &p)
       greyTint(46),  // highlighted fill (hover / selection)
       greyTint(198), // menu text
   });
+  // Undo and redo, also on Cmd/Ctrl+Z and Shift+Cmd/Ctrl+Z (see keyPressed).
+  // Buttons as well, since many hosts keep those keys for their own undo.
+  addAndMakeVisible(undoBtn);
+  undoBtn.onClick = [this] { proc.undo(); };
+  addAndMakeVisible(redoBtn);
+  redoBtn.onClick = [this] { proc.redo(); };
+  updateHistoryButtons();
   for (auto *c : {&presetPrevBtn, &presetNextBtn, &presetSaveBtn,
-                  &presetDeleteBtn, &tooltipToggle})
+                  &presetDeleteBtn, &tooltipToggle, &undoBtn, &redoBtn})
     c->setLookAndFeel(&barLnF);
   presetBox.setLookAndFeel(&barLnF);
   // The version, at the right end of the preset bar. The bar is the plugin's
@@ -573,7 +582,9 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   // screen).
   addAndMakeVisible(initButton);
   initButton.setLookAndFeel(&barLnF);
-  initButton.onClick = [this] { proc.resetVoiceToDefault(); };
+  initButton.onClick = [this] {
+    proc.recordEdit("Init", [this] { proc.resetVoiceToDefault(); });
+  };
 
   // ---- WAVE page: wavetable config and the per-step rows ----
   wtPage.addAndMakeVisible(wtOnButton);
@@ -749,6 +760,8 @@ AsidEditor::AsidEditor(AsidProcessor &p)
   hints.add(panicButton, "All-notes-off for every voice.", left);
   hints.add(initButton, "Reset this voice's sound to the default patch.",
             below); // top bar: point down
+  hints.add(undoBtn, "Undo the last change (Cmd/Ctrl+Z).", below);
+  hints.add(redoBtn, "Redo the change just undone (Shift+Cmd/Ctrl+Z).", below);
 
   // --- Wavetable ---
   const juce::String wtOff = "Disabled: turn the wavetable On first.";
@@ -780,6 +793,7 @@ AsidEditor::AsidEditor(AsidProcessor &p)
 
 AsidEditor::~AsidEditor() {
   stopTimer();
+  proc.windowClosing();
   // The fetch belongs to the processor and outlives this window, so it is only
   // told to give up here, never waited for on the message thread.
   proc.updates().cancel();
@@ -1008,6 +1022,7 @@ void AsidEditor::updateEnablement() {
 
 void AsidEditor::timerCallback() {
   updateEnablement();
+  updateHistoryButtons();
 
   // MIDI load: bytes sent (all instances) since the last poll, over the
   // ceiling.
@@ -1133,6 +1148,10 @@ void AsidEditor::resized() {
   presetPrevBtn.setBounds(pbar.removeFromLeft(28));
   pbar.removeFromLeft(4);
   presetNextBtn.setBounds(pbar.removeFromLeft(28));
+  pbar.removeFromLeft(10);
+  undoBtn.setBounds(pbar.removeFromLeft(48));
+  pbar.removeFromLeft(4);
+  redoBtn.setBounds(pbar.removeFromLeft(48));
   pbar.removeFromLeft(10);
   versionTag.setBounds(pbar.removeFromRight(versionTag.idealWidth()));
   pbar.removeFromRight(4);
@@ -1477,8 +1496,9 @@ void AsidEditor::askAboutUpdates(bool ask) {
   updateYes.setVisible(ask);
   updateNotNow.setVisible(ask);
   for (auto *c : std::initializer_list<juce::Component *>{
-           &tooltipToggle, &presetPrevBtn, &presetNextBtn, &presetBox,
-           &initButton, &presetSaveBtn, &presetDeleteBtn, &versionTag})
+           &tooltipToggle, &presetPrevBtn, &presetNextBtn, &undoBtn, &redoBtn,
+           &presetBox, &initButton, &presetSaveBtn, &presetDeleteBtn,
+           &versionTag})
     c->setVisible(!ask);
 }
 
@@ -1499,4 +1519,23 @@ void AsidEditor::announceRelease(const juce::String &version,
   releaseUrl = found ? url : juce::String();
   resized(); // the tag's width follows its text
   versionTag.repaint();
+}
+
+void AsidEditor::updateHistoryButtons() {
+  undoBtn.setEnabled(proc.canUndo());
+  redoBtn.setEnabled(proc.canRedo());
+}
+
+bool AsidEditor::keyPressed(const juce::KeyPress &key) {
+  // Cmd on macOS, Ctrl elsewhere. Text fields such as the preset name take
+  // these keys for their own undo first.
+  if (!key.getModifiers().isCommandDown() ||
+      (key.getKeyCode() != 'Z' && key.getKeyCode() != 'z'))
+    return false;
+  if (key.getModifiers().isShiftDown())
+    proc.redo();
+  else
+    proc.undo();
+  updateHistoryButtons();
+  return true;
 }
