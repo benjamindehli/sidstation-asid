@@ -117,6 +117,8 @@ void AsidEditor::setupSwitch(juce::ToggleButton &segA, juce::ToggleButton &segB,
   };
   segA.onClick = flip;
   segB.onClick = flip;
+  makeLearnable(segA, paramId);
+  makeLearnable(segB, paramId);
 }
 
 // Resolves the parameters the enablement pass reads, once. All the id building
@@ -390,6 +392,17 @@ AsidEditor::AsidEditor(AsidProcessor &p) : proc(p), state(p.state()) {
     asid::setUpdateCheckOffered(true);
     askAboutUpdates(false);
   };
+
+  // What the bar says while MIDI Learn waits, in place of the preset controls.
+  learnMessage.setLookAndFeel(&barLnF);
+  learnMessage.setFont(juce::FontOptions(13.0f));
+  learnMessage.setColour(juce::Label::textColourId, greyTint(198));
+  learnMessage.setJustificationType(juce::Justification::centredLeft);
+  addChildComponent(learnMessage);
+  learnCancel.setLookAndFeel(&barLnF);
+  learnCancel.setTitle("Cancel MIDI Learn");
+  learnCancel.onClick = [this] { proc.midiLearn.arm(nullptr); };
+  addChildComponent(learnCancel);
 
   // Names for screen readers on the controls no parameter names (the rest are
   // named by attach and bindKnob).
@@ -793,6 +806,9 @@ AsidEditor::AsidEditor(AsidProcessor &p) : proc(p), state(p.state()) {
 AsidEditor::~AsidEditor() {
   stopTimer();
   proc.windowClosing();
+  // A controller moved after the window closed would bind with nothing on
+  // screen to say so.
+  proc.midiLearn.arm(nullptr);
   // The fetch belongs to the processor and outlives this window, so it is only
   // told to give up here, never waited for on the message thread.
   proc.updates().cancel();
@@ -1022,6 +1038,7 @@ void AsidEditor::updateEnablement() {
 void AsidEditor::timerCallback() {
   updateEnablement();
   updateHistoryButtons();
+  followLearning();
 
   // MIDI load: bytes sent (all instances) since the last poll, over the
   // ceiling.
@@ -1141,6 +1158,12 @@ void AsidEditor::resized() {
     updateYes.setBounds(row.removeFromRight(48));
     row.removeFromRight(10);
     updateQuestion.setBounds(row);
+  }
+  {
+    auto row = pbar;
+    learnCancel.setBounds(row.removeFromRight(70));
+    row.removeFromRight(10);
+    learnMessage.setBounds(row);
   }
   tooltipToggle.setBounds(pbar.removeFromLeft(44));
   pbar.removeFromLeft(12);
@@ -1494,11 +1517,15 @@ void AsidEditor::askAboutUpdates(bool ask) {
   updateQuestion.setVisible(ask);
   updateYes.setVisible(ask);
   updateNotNow.setVisible(ask);
+  setPresetControlsVisible(!ask);
+}
+
+void AsidEditor::setPresetControlsVisible(bool show) {
   for (auto *c : std::initializer_list<juce::Component *>{
            &tooltipToggle, &presetPrevBtn, &presetNextBtn, &undoBtn, &redoBtn,
            &presetBox, &initButton, &presetSaveBtn, &presetDeleteBtn,
            &versionTag})
-    c->setVisible(!ask);
+    c->setVisible(show);
 }
 
 void AsidEditor::announceRelease(const juce::String &version,
@@ -1526,6 +1553,11 @@ void AsidEditor::updateHistoryButtons() {
 }
 
 bool AsidEditor::keyPressed(const juce::KeyPress &key) {
+  if (key == juce::KeyPress::escapeKey && proc.midiLearn.armed() != nullptr) {
+    proc.midiLearn.arm(nullptr);
+    followLearning();
+    return true;
+  }
   // Cmd on macOS, Ctrl elsewhere. Text fields such as the preset name take
   // these keys for their own undo first.
   if (!key.getModifiers().isCommandDown() ||
@@ -1576,4 +1608,106 @@ void AsidWindow::GripLook::drawCornerResizer(juce::Graphics &g, int w, int h,
   for (float step = 0.25f; step < 1.0f; step += 0.25f)
     g.drawLine((float)w - size * step, (float)h, (float)w,
                (float)h - size * step, 1.5f);
+}
+
+// ---- MIDI Learn -------------------------------------------------------------
+
+namespace {
+const juce::Identifier kLearnParam{"learnParam"};
+
+// Every control tagged with this parameter: a segmented switch has two.
+void controlsFor(juce::Component &root, const juce::String &paramId,
+                 juce::Array<juce::Component *> &out) {
+  for (auto *child : root.getChildren()) {
+    if (child->getProperties()[kLearnParam].toString() == paramId)
+      out.add(child);
+    controlsFor(*child, paramId, out);
+  }
+}
+} // namespace
+
+void AsidEditor::makeLearnable(juce::Component &control,
+                               const juce::String &paramId) {
+  control.getProperties().set(kLearnParam, paramId);
+  if (auto *hook = dynamic_cast<LearnHook *>(&control))
+    hook->onLearnMenu = [this, &control, paramId] {
+      showLearnMenu(control, paramId);
+    };
+}
+
+juce::PopupMenu AsidEditor::learnMenu(const juce::String &name, int cc) {
+  juce::PopupMenu menu;
+  const auto ccText = "CC " + juce::String(cc);
+  menu.addSectionHeader(cc >= 0 ? name + ": " + ccText : name);
+  menu.addItem(kLearn, cc >= 0 ? "Learn another CC" : "Learn MIDI CC");
+  if (cc >= 0)
+    menu.addItem(kForget, "Forget " + ccText);
+  return menu;
+}
+
+void AsidEditor::showLearnMenu(juce::Component &control,
+                               const juce::String &paramId) {
+  auto *param =
+      dynamic_cast<juce::RangedAudioParameter *>(state.getParameter(paramId));
+  if (param == nullptr)
+    return;
+  hints.bubble.setVisible(false);
+  learnMenu(param->getName(64), proc.midiLearn.controllerFor(param))
+      .showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&control),
+                     [safe = juce::Component::SafePointer<AsidEditor>(this),
+                      param](int chosen) {
+                       auto *editor = safe.getComponent();
+                       if (editor == nullptr)
+                         return;
+                       if (chosen == kLearn)
+                         editor->proc.midiLearn.arm(param);
+                       else if (chosen == kForget)
+                         editor->proc.midiLearn.forget(param);
+                       editor->followLearning();
+                     });
+}
+
+void AsidEditor::followLearning() {
+  auto *waiting = proc.midiLearn.armed();
+  const auto now = waiting != nullptr ? waiting->paramID : juce::String();
+
+  if (now != armedParam) {
+    // The control that was waiting stops flashing.
+    juce::Array<juce::Component *> was;
+    controlsFor(*this, armedParam, was);
+    for (auto *c : was)
+      c->setAlpha(1.0f);
+
+    if (armedParam.isEmpty() && now.isNotEmpty()) {
+      questionWasUp = updateQuestion.isVisible();
+      askAboutUpdates(false);
+      setPresetControlsVisible(false);
+    }
+    armedParam = now;
+    flashTick = 0;
+
+    const bool waitingNow = now.isNotEmpty();
+    learnMessage.setText(waitingNow ? "Move a controller for " +
+                                          waiting->getName(64) + "..."
+                                    : juce::String(),
+                         juce::dontSendNotification);
+    learnMessage.setVisible(waitingNow);
+    learnCancel.setVisible(waitingNow);
+    if (!waitingNow) {
+      if (questionWasUp)
+        askAboutUpdates(true);
+      else
+        setPresetControlsVisible(true);
+      questionWasUp = false;
+    }
+  }
+
+  // The waiting control flashes, on and off about twice a second.
+  if (armedParam.isNotEmpty()) {
+    const bool dim = (flashTick++ / 3) % 2 == 1;
+    juce::Array<juce::Component *> waitingControls;
+    controlsFor(*this, armedParam, waitingControls);
+    for (auto *c : waitingControls)
+      c->setAlpha(dim ? 0.3f : 1.0f);
+  }
 }

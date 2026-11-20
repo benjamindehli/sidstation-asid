@@ -17,6 +17,7 @@
 
 #include "AsidShared.h"
 #include "MidiHub.h"
+#include "MidiLearn.h"
 #include "UpdateCheck.h"
 #include "sidstation/AsidVoicePlayer.h"
 #include "sidstation/Lfo.h"
@@ -97,6 +98,11 @@ public:
 
   // A gesture left open when the window closes is recorded as it stands.
   void windowClosing();
+
+  // Which MIDI controllers move which controls, kept with the session. Edited
+  // on the message thread, read on the audio thread. Controller moves are not
+  // gestures, so they never enter the edit history.
+  asid::MidiLearn midiLearn;
   // Reset this voice's sound to its default patch. Leaves the shared filter and
   // volume (they belong to every voice) and this instance's identity
   // (asidVoice).

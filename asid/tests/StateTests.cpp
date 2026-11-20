@@ -687,6 +687,178 @@ static void testWindowSize() {
   }
 }
 
+// MIDI Learn: a right-click arms a control, the next controller that is not
+// reserved binds to it without moving it, later moves of that controller set
+// it, the binding is kept with the session, and none of it is an undo step.
+static void sendCc(AsidProcessor &p, int cc, int value) {
+  juce::AudioBuffer<float> audio(2, 64);
+  juce::MidiBuffer midi;
+  midi.addEvent(juce::MidiMessage::controllerEvent(1, cc, value), 0);
+  p.processBlock(audio, midi);
+}
+
+static void testMidiLearn() {
+  AsidProcessor p;
+  p.prepareToPlay(48000.0, 64);
+  auto *attack = dynamic_cast<juce::RangedAudioParameter *>(
+      p.state().getParameter("attack"));
+  auto *decay = dynamic_cast<juce::RangedAudioParameter *>(
+      p.state().getParameter("decay"));
+  CHECK(attack != nullptr && decay != nullptr, "the parameters exist");
+  if (attack == nullptr || decay == nullptr)
+    return;
+  CHECK(p.midiLearn.controllerFor(attack) == -1, "nothing is bound at first");
+
+  const float before = attack->getValue();
+  p.midiLearn.arm(attack);
+  sendCc(p, 21, 100);
+  CHECK(p.midiLearn.controllerFor(attack) == 21 &&
+            p.midiLearn.armed() == nullptr,
+        "the next controller is learned");
+  CHECK(approx(attack->getValue(), before),
+        "and learning it does not move the control");
+  sendCc(p, 21, 127);
+  CHECK(approx(attack->getValue(), 1.0f), "later moves set it");
+  sendCc(p, 21, 0);
+  CHECK(approx(attack->getValue(), 0.0f), "both ways");
+  CHECK(!p.canUndo(), "controller moves are not undo steps");
+
+  p.midiLearn.arm(decay);
+  sendCc(p, 1, 64);
+  sendCc(p, 121, 0);
+  CHECK(p.midiLearn.armed() == decay && p.midiLearn.controllerFor(decay) == -1,
+        "the mod wheel and the channel mode messages are never learned");
+  sendCc(p, 21, 64);
+  CHECK(p.midiLearn.controllerFor(decay) == 21 &&
+            p.midiLearn.controllerFor(attack) == -1,
+        "learning a controller moves it from its old control");
+  p.midiLearn.arm(nullptr);
+
+  juce::MemoryBlock mb;
+  p.getStateInformation(mb);
+  AsidProcessor q;
+  q.setStateInformation(mb.getData(), (int)mb.getSize());
+  auto *qDecay = dynamic_cast<juce::RangedAudioParameter *>(
+      q.state().getParameter("decay"));
+  CHECK(q.midiLearn.controllerFor(qDecay) == 21,
+        "the binding is kept with the session");
+  p.midiLearn.forget(decay);
+  CHECK(p.midiLearn.controllerFor(decay) == -1, "and can be forgotten");
+
+  // The menu, as data, since showing one needs a real window.
+  {
+    auto menu = AsidEditor::learnMenu("Cutoff", -1);
+    juce::PopupMenu::MenuItemIterator it(menu);
+    bool learn = false, forget = false;
+    while (it.next()) {
+      learn |= it.getItem().itemID == AsidEditor::kLearn;
+      forget |= it.getItem().itemID == AsidEditor::kForget;
+    }
+    CHECK(learn && !forget, "an unbound control offers Learn only");
+  }
+  {
+    auto menu = AsidEditor::learnMenu("Cutoff", 21);
+    juce::PopupMenu::MenuItemIterator it(menu);
+    bool forget = false, header = false;
+    while (it.next()) {
+      header |= it.getItem().text == "Cutoff: CC 21";
+      forget |= it.getItem().itemID == AsidEditor::kForget &&
+                it.getItem().text == "Forget CC 21";
+    }
+    CHECK(header && forget, "a bound control names its CC and can forget it");
+  }
+
+  // The window: a right-click opens the menu instead of moving the control,
+  // and the bar says what it waits for.
+  {
+    const bool offeredBefore = asid::updateCheckOffered();
+    asid::setUpdateCheckOffered(true);
+    std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+    asid::setUpdateCheckOffered(offeredBefore);
+    auto &editor = dynamic_cast<AsidWindow &>(*ed).content();
+
+    juce::Slider *knob = nullptr;
+    std::function<void(juce::Component &)> find = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *sl = dynamic_cast<juce::Slider *>(child))
+          if (sl->getTitle() == "Release")
+            knob = sl;
+        find(*child);
+      }
+    };
+    find(editor);
+    CHECK(knob != nullptr && dynamic_cast<LearnHook *>(knob) != nullptr &&
+              dynamic_cast<LearnHook *>(knob)->onLearnMenu != nullptr,
+          "a knob answers a right-click with the learn menu");
+
+    // A right-click near the right end of the bar, then a left-click there.
+    // The menu needs a real window, so the hook only notes that it was asked.
+    if (knob != nullptr) {
+      bool asked = false;
+      dynamic_cast<LearnHook *>(knob)->onLearnMenu = [&asked] { asked = true; };
+      auto click = [&](juce::ModifierKeys mods) {
+        const juce::Point<float> at{(float)knob->getWidth() - 3.0f,
+                                    (float)knob->getHeight() / 2.0f};
+        const auto now = juce::Time::getCurrentTime();
+        const juce::MouseEvent e(
+            juce::Desktop::getInstance().getMainMouseSource(), at, mods,
+            juce::MouseInputSource::defaultPressure,
+            juce::MouseInputSource::defaultOrientation,
+            juce::MouseInputSource::defaultRotation,
+            juce::MouseInputSource::defaultTiltX,
+            juce::MouseInputSource::defaultTiltY, knob, knob, now, at, now, 1,
+            false);
+        knob->mouseDown(e);
+        knob->mouseUp(e);
+      };
+      knob->setValue(knob->getMinimum(), juce::sendNotificationSync);
+      const auto start = knob->getValue();
+      click(juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier));
+      CHECK(asked && approx((float)knob->getValue(), (float)start),
+            "a right-click asks for the menu and leaves the value alone");
+      click(juce::ModifierKeys(juce::ModifierKeys::leftButtonModifier));
+      CHECK(!approx((float)knob->getValue(), (float)start),
+            "where a left-click at the same spot moves it");
+    }
+
+    auto *release = dynamic_cast<juce::RangedAudioParameter *>(
+        p.state().getParameter("release"));
+    p.midiLearn.arm(release);
+    editor.keyPressed(juce::KeyPress(juce::KeyPress::escapeKey));
+    CHECK(p.midiLearn.armed() == nullptr, "Esc cancels learning");
+
+    p.midiLearn.arm(release);
+    // The bar follows learning on the editor's timer, which these calls
+    // stand in for.
+    juce::Component *prev = nullptr;
+    std::function<juce::Component *(juce::Component &, const juce::String &)>
+        byTitle = [&](juce::Component &c,
+                      const juce::String &title) -> juce::Component * {
+      for (auto *child : c.getChildren()) {
+        if (child->getTitle() == title)
+          return child;
+        if (auto *f = byTitle(*child, title))
+          return f;
+      }
+      return nullptr;
+    };
+    prev = byTitle(editor, "Previous preset");
+    auto *cancel = byTitle(editor, "Cancel MIDI Learn");
+    for (int tick = 0; tick < 4; ++tick)
+      editor.followLearning();
+    CHECK(editor.isWaitingForController() && prev != nullptr &&
+              !prev->isVisible(),
+          "while waiting, the bar says so in place of the preset controls");
+    if (auto *b = dynamic_cast<juce::Button *>(cancel))
+      b->onClick();
+    for (int tick = 0; tick < 4; ++tick)
+      editor.followLearning();
+    CHECK(!editor.isWaitingForController() && prev != nullptr &&
+              prev->isVisible() && knob != nullptr && knob->getAlpha() > 0.99f,
+          "Cancel brings the preset controls back and stops the flashing");
+  }
+}
+
 // A screen reader announces a control by its title (a button by its text when
 // it has none), so every control needs one, and no two may share it: three
 // sliders all called "Rate" leave a listener no better off. Parameter-bound
@@ -770,6 +942,7 @@ int main() {
   testUpdateQuestion();
   testEditHistory();
   testWindowSize();
+  testMidiLearn();
   testEveryControlIsNamed();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

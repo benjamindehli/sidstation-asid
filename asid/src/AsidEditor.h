@@ -7,11 +7,46 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 
+#include <functional>
 #include <map>
 #include <memory>
+#include <utility>
 
 #include "AsidProcessor.h"
 #include "SidLookAndFeel.h"
+
+// A control that answers a right-click (or Ctrl-click on a Mac) with the MIDI
+// Learn menu once the editor has set onLearnMenu, and keeps that click from
+// moving it: a value bar would jump to the pointer and a switch would flip.
+struct LearnHook {
+  virtual ~LearnHook() = default;
+  std::function<void()> onLearnMenu;
+};
+
+template <typename Base> struct Learnable : Base, LearnHook {
+  using Base::Base;
+  void mouseDown(const juce::MouseEvent &e) override {
+    swallowing = e.mods.isPopupMenu() && onLearnMenu != nullptr;
+    if (swallowing)
+      onLearnMenu();
+    else
+      Base::mouseDown(e);
+  }
+  void mouseDrag(const juce::MouseEvent &e) override {
+    if (!swallowing)
+      Base::mouseDrag(e);
+  }
+  void mouseUp(const juce::MouseEvent &e) override {
+    if (!std::exchange(swallowing, false))
+      Base::mouseUp(e);
+  }
+
+private:
+  bool swallowing = false;
+};
+using LearnKnob = Learnable<juce::Slider>;
+using LearnSwitch = Learnable<juce::ToggleButton>;
+using LearnChoice = Learnable<juce::ComboBox>;
 
 // The whole window's contents, laid out at kWidth x kHeight. AsidWindow, the
 // editor the host gets, draws it scaled to the window's size.
@@ -41,6 +76,19 @@ public:
                                     const juce::String &newerVersion);
   enum UpdateMenuItem { kGetRelease = 1, kToggleCheck };
 
+  // The MIDI Learn menu for a control named `name`, bound to controller `cc`
+  // or -1. Built apart from showing it, so it can be tested without a window.
+  static juce::PopupMenu learnMenu(const juce::String &name, int cc);
+  enum LearnMenuItem { kLearn = 9001, kForget };
+
+  // Whether the preset bar is showing that it waits for a controller.
+  bool isWaitingForController() const { return learnMessage.isVisible(); }
+
+  // Follows the processor's armed parameter: the message in the bar and the
+  // flashing control. The timer calls it, since learning ends on the audio
+  // thread. Public so a test can take the timer's place.
+  void followLearning();
+
 private:
   void timerCallback() override;
 
@@ -50,6 +98,16 @@ private:
   // puts it away and brings them back.
   void askAboutUpdates(bool ask);
   void showUpdateMenu();
+  // The preset controls, hidden while the bar asks or tells something.
+  void setPresetControlsVisible(bool);
+
+  // MIDI Learn. Every control attach() binds is tagged with its parameter and
+  // opens showLearnMenu on a right-click.
+  void makeLearnable(juce::Component &, const juce::String &paramId);
+  void showLearnMenu(juce::Component &control, const juce::String &paramId);
+  juce::String armedParam;
+  int flashTick = 0;
+  bool questionWasUp = false; // the update question, put back after learning
 
   using SliderAtt = juce::AudioProcessorValueTreeState::SliderAttachment;
   using ButtonAtt = juce::AudioProcessorValueTreeState::ButtonAttachment;
@@ -104,6 +162,7 @@ private:
   std::unique_ptr<Attachment> attach(const juce::String &paramId,
                                      Control &control) {
     nameAfter(control, paramId);
+    makeLearnable(control, paramId);
     return std::make_unique<Attachment>(state, paramId, control);
   }
   void setTab(int t); // show one page, hide the others
@@ -119,12 +178,11 @@ private:
   struct LfoControls {
     // The Shape selector doubles as the on/off: its first item "Off" disables
     // the LFO and any waveform enables it, so there is no separate On button.
-    juce::ComboBox shapeBox;
-    juce::ToggleButton syncButton{
-        "BPM Sync"}; // under Rate: free Hz vs tempo division
-    juce::ToggleButton wheelButton{
+    LearnChoice shapeBox;
+    LearnSwitch syncButton{"BPM Sync"}; // under Rate: free Hz vs tempo division
+    LearnSwitch wheelButton{
         "Mod Wheel"}; // under Depth: mod wheel scales the depth
-    juce::Slider rateKnob, depthKnob, delayKnob;
+    LearnKnob rateKnob, depthKnob, delayKnob;
     std::unique_ptr<ButtonAtt> syncAtt, wheelAtt;
     std::unique_ptr<SliderAtt> rateAtt, depthAtt, delayAtt;
     juce::String prefix; // parameter prefix, for re-binding the rate knob
@@ -316,6 +374,10 @@ private:
       "you."};
   juce::TextButton updateYes{"Yes"}, updateNotNow{"Not now"};
 
+  // What the preset bar says while MIDI Learn waits for a controller.
+  juce::Label learnMessage;
+  juce::TextButton learnCancel{"Cancel"};
+
   // Top-right voice selector: three cells 1/2/3. This instance's voice is
   // bright. A voice another instance already drives shows in its (dim) hue and
   // is blocked (hovering it shows an "in use" bubble). A free voice is
@@ -414,7 +476,7 @@ private:
   int currentTab = 0;
 
   // Preset bar under the tabs: browse (prev/next + editable menu) and Save.
-  juce::ComboBox presetBox;
+  LearnChoice presetBox;
   juce::TextButton presetPrevBtn{"<"}, presetNextBtn{">"},
       presetSaveBtn{"Save"}, presetDeleteBtn{"Delete"};
   juce::TextButton undoBtn{"Undo"}, redoBtn{"Redo"};
@@ -430,18 +492,18 @@ private:
   float midiLoad = 0.0f;
 
   juce::Label modRateLabel{{}, "Clock"};
-  juce::ComboBox modRateBox;
+  LearnChoice modRateBox;
   std::unique_ptr<ComboAtt> modRateAtt;
 
   juce::Label outLabel{{}, "MIDI Out"};
-  juce::ComboBox outputBox;
+  LearnChoice outputBox;
   juce::TextButton refreshButton{"Scan"};
   // Tempo: an editable BPM field in standalone, a read-only host BPM in a DAW.
   // A hidden slider carries the APVTS "bpm" binding; bpmField is the visible
   // number.
   juce::Label bpmLabel{{}, "BPM"};
   juce::Label bpmField;
-  juce::Slider bpmSlider;
+  LearnKnob bpmSlider;
   std::unique_ptr<SliderAtt> bpmAtt;
   bool bpmHostDriven =
       false; // last known state, to toggle editability only on change
@@ -455,14 +517,14 @@ private:
 
   // Wavetable (WAVE tab): global config plus one row per step.
   juce::GroupComponent wtConfigGroup, wtStepsGroup;
-  juce::ToggleButton wtOnButton{"On"};
+  LearnSwitch wtOnButton{"On"};
   std::unique_ptr<ButtonAtt> wtOnAtt;
   // Beside Rate, the same tempo-sync switch the LFOs have (labelled "Sync"
   // here, where the shorter column has no room for "BPM Sync"). Not to be
   // confused with wtSyncTog below, which is the SID hard-sync bit per step.
-  juce::ToggleButton wtTempoSyncButton{"Sync"};
+  LearnSwitch wtTempoSyncButton{"Sync"};
   std::unique_ptr<ButtonAtt> wtTempoSyncAtt;
-  juce::Slider wtSpeedKnob, wtLengthKnob, wtLoopKnob;
+  LearnKnob wtSpeedKnob, wtLengthKnob, wtLoopKnob;
   std::unique_ptr<SliderAtt> wtSpeedAtt, wtLengthAtt, wtLoopAtt;
   int wtSpeedMode = -1; // -1 uninit, 0 frames per step, 1 tempo division
   // Per-step indicator: the step number, dim when the step is beyond the table
@@ -498,18 +560,18 @@ private:
   juce::Label wtWaveHead[4];
   juce::Label wtSyncHead{{}, "Syn"}, wtRingHead{{}, "Rin"},
       wtTestHead{{}, "Tst"}, wtPwHead{{}, "PW"}, wtArpHead{{}, "Arp"};
-  juce::ToggleButton wtWaveTog[AsidProcessor::kWtSteps][4];
+  LearnSwitch wtWaveTog[AsidProcessor::kWtSteps][4];
   std::unique_ptr<ButtonAtt> wtWaveTogAtt[AsidProcessor::kWtSteps][4];
   // Per-step Sync/Ring/Test toggles and a small Pulse Width knob.
-  juce::ToggleButton wtSyncTog[AsidProcessor::kWtSteps],
+  LearnSwitch wtSyncTog[AsidProcessor::kWtSteps],
       wtRingTog[AsidProcessor::kWtSteps], wtTestTog[AsidProcessor::kWtSteps];
   std::unique_ptr<ButtonAtt> wtSyncAtt[AsidProcessor::kWtSteps],
       wtRingAtt[AsidProcessor::kWtSteps], wtTestAtt[AsidProcessor::kWtSteps];
-  juce::Slider wtPwKnob[AsidProcessor::kWtSteps];
+  LearnKnob wtPwKnob[AsidProcessor::kWtSteps];
   std::unique_ptr<SliderAtt> wtPwAtt[AsidProcessor::kWtSteps];
   // Arp stepper per step: a hidden slider holds the value (APVTS binding),
   // shown as a bordered number field flanked by square - / + buttons.
-  juce::Slider wtArpSlider[AsidProcessor::kWtSteps];
+  LearnKnob wtArpSlider[AsidProcessor::kWtSteps];
   std::unique_ptr<SliderAtt> wtArpAtt[AsidProcessor::kWtSteps];
   juce::Label wtArpValue[AsidProcessor::kWtSteps];
   juce::TextButton wtArpDec[AsidProcessor::kWtSteps],
@@ -517,37 +579,36 @@ private:
 
   // Oscillator. The four SID waveforms combine, so they are checkboxes rather
   // than a single choice (noise stays exclusive, handled in updateEnablement).
-  juce::ToggleButton waveTriButton{"Tri"}, waveSawButton{"Saw"},
+  LearnSwitch waveTriButton{"Tri"}, waveSawButton{"Saw"},
       wavePulseButton{"Pulse"}, waveNoiseButton{"Noise"};
   std::unique_ptr<ButtonAtt> waveTriAtt, waveSawAtt, wavePulseAtt, waveNoiseAtt;
-  juce::ToggleButton syncButton{"Sync"}, ringButton{"Ring"}, testButton{"Test"};
+  LearnSwitch syncButton{"Sync"}, ringButton{"Ring"}, testButton{"Test"};
   std::unique_ptr<ButtonAtt> syncAtt, ringAtt, testAtt;
-  juce::Slider pwKnob, coarseKnob, fineKnob, bendKnob, portaKnob;
+  LearnKnob pwKnob, coarseKnob, fineKnob, bendKnob, portaKnob;
   std::unique_ptr<SliderAtt> pwAtt, coarseAtt, fineAtt, bendAtt, portaAtt;
   // Glide trigger (Legato/Always) and type (Smooth/Stepped) as 2-segment
   // switches (a pair of toggle buttons each), stacked and grouped with glide
   // time.
-  juce::ToggleButton portaTrigBtns[2], portaTypeBtns[2];
+  LearnSwitch portaTrigBtns[2], portaTypeBtns[2];
 
   // Amp envelope.
-  juce::Slider attackKnob, decayKnob, sustainKnob, releaseKnob;
+  LearnKnob attackKnob, decayKnob, sustainKnob, releaseKnob;
   std::unique_ptr<SliderAtt> attackAtt, decayAtt, sustainAtt, releaseAtt;
 
   // Shared across all three voices. Filter Active is one checkbox per voice
   // (the instance's own voice is highlighted); filter Mode bits combine.
-  juce::ToggleButton filtButtons[3];
+  LearnSwitch filtButtons[3];
   std::unique_ptr<ButtonAtt> filtAtts[3];
-  juce::ToggleButton filtExtButton{
+  LearnSwitch filtExtButton{
       "External"}; // route the external audio input through the filter
   std::unique_ptr<ButtonAtt> filtExtAtt;
-  juce::ToggleButton modeButtons[3]; // LP, BP, HP
+  LearnSwitch modeButtons[3]; // LP, BP, HP
   std::unique_ptr<ButtonAtt> modeAtts[3];
   int highlightedVoice =
       -1; // which filter checkbox is currently marked as ours
-  juce::Slider cutoffKnob, resKnob, volumeKnob, latencyKnob;
+  LearnKnob cutoffKnob, resKnob, volumeKnob, latencyKnob;
   std::unique_ptr<SliderAtt> cutoffAtt, resAtt, volumeAtt, latencyAtt;
-  juce::ToggleButton voice3offButton{
-      "V3 Off"}; // V3 output off, used as mod source
+  LearnSwitch voice3offButton{"V3 Off"}; // V3 output off, used as mod source
   std::unique_ptr<ButtonAtt> voice3offAtt;
   juce::TextButton panicButton{"Panic"}; // all-notes-off for every voice
   juce::TextButton initButton{"Init"};   // reset this voice's sound to default

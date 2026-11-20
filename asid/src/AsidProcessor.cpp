@@ -1385,6 +1385,11 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   bool blockHasNotes = false;
   for (const auto meta : midiMessages) {
     const auto m = meta.getMessage();
+    // A learned controller moves its control and nothing else. The mod wheel
+    // is never learned, see MidiLearn::isReserved.
+    if (m.isController() &&
+        midiLearn.handle(m.getControllerNumber(), m.getControllerValue()))
+      continue;
     if (m.isNoteOn() || m.isNoteOff())
       blockHasNotes = true;
     else if (m.isPitchWheel()) {
@@ -1423,6 +1428,10 @@ void AsidProcessor::getStateInformation(juce::MemoryBlock &destData) {
   // sessions.
   state.setProperty("midiOut", midi().outputIdentifier(), nullptr);
   state.setProperty("midiOutName", midi().outputName(), nullptr);
+  // The learned controllers, replacing any copy the state already holds.
+  state.removeChild(state.getChildWithName(asid::MidiLearn::kTreeType),
+                    nullptr);
+  state.appendChild(midiLearn.toTree(), nullptr);
   if (auto xml = state.createXml())
     copyXmlToBinary(*xml, destData);
 }
@@ -1433,6 +1442,9 @@ void AsidProcessor::setStateInformation(const void *data, int sizeInBytes) {
     currentPresetName = tree.getProperty("currentPreset", "").toString();
     tooltipsOn = (bool)tree.getProperty("showTooltips", true);
     setUiScale((double)tree.getProperty("uiScale", 1.0));
+    // A session without the child, from before MIDI Learn, clears the table.
+    midiLearn.fromTree(tree.getChildWithName(asid::MidiLearn::kTreeType),
+                       *this);
 
     // A value that is not a number, from a damaged or hand-edited session, goes
     // back to its parameter's default before anything reads it. NaN is the one

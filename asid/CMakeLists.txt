@@ -39,6 +39,7 @@ target_sources(SidStationAsid PRIVATE
     src/AsidProcessor.cpp
     src/AsidEditor.cpp
     src/MidiHub.cpp
+    src/MidiLearn.cpp
     src/UpdateCheck.cpp)
 
 target_include_directories(SidStationAsid PRIVATE src)
@@ -70,6 +71,7 @@ if(SID_BUILD_TESTS)
         src/AsidProcessor.cpp
         src/AsidEditor.cpp
         src/MidiHub.cpp
+        src/MidiLearn.cpp
         src/UpdateCheck.cpp)
     target_include_directories(SidStationAsidTests PRIVATE src)
     target_compile_definitions(SidStationAsidTests PRIVATE
