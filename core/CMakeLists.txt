@@ -12,3 +12,4 @@ add_library(sidstation_core STATIC
 
 target_include_directories(sidstation_core PUBLIC include)
 target_compile_features(sidstation_core PUBLIC cxx_std_17)
+sid_sanitize(sidstation_core)

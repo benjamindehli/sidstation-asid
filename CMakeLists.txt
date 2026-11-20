@@ -35,5 +35,30 @@ FetchContent_Declare(JUCE
     PATCH_COMMAND  ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PatchJuce.cmake)
 FetchContent_MakeAvailable(JUCE)
 
+# The JUCE-linked tests and the core library they link, built with the address
+# and undefined behaviour sanitizers, for the sanitizers job in CI. A read one
+# byte past a buffer hands back a plausible number rather than failing a check,
+# and these stop at it. Not for the plugin targets: nothing loads a sanitized
+# plugin.
+option(SID_SANITIZE "Build the JUCE-linked tests with address and UB sanitizers" OFF)
+
+function(sid_sanitize target)
+    if(NOT SID_SANITIZE)
+        return()
+    endif()
+    if(MSVC)
+        message(WARNING "SID_SANITIZE does nothing with MSVC")
+        return()
+    endif()
+    # Frame pointers and no tail calls, so a report names every frame it came
+    # through.
+    target_compile_options(${target} PRIVATE
+        -fsanitize=address,undefined
+        -fno-omit-frame-pointer
+        -fno-optimize-sibling-calls
+        -g)
+    target_link_options(${target} PRIVATE -fsanitize=address,undefined)
+endfunction()
+
 add_subdirectory(core)
 add_subdirectory(asid)

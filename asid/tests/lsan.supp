@@ -1,0 +1,6 @@
+# Leaks the sanitizers job is told to ignore, for LeakSanitizer.
+#
+# fontconfig loads its configuration once, the first time JUCE's FreeType
+# font list is made, which happens when the C64 font is loaded from memory,
+# and never frees it. It is fontconfig's, not this code's.
+leak:FcInitLoadConfigAndFonts

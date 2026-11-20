@@ -123,6 +123,53 @@ jobs:
       - name: Build and run core tests
         run: make -C core test
 
+  # Both test suites again, built with the address and undefined behaviour
+  # sanitizers. The other jobs answer whether the plugin does the right thing.
+  # This one answers whether it does it without reading past a buffer or leaning
+  # on behaviour the standard leaves undefined, which they cannot see: a read
+  # one byte off the end hands back a plausible number rather than failing a
+  # check. Linux alone, since these are faults in the code rather than in a
+  # platform.
+  sanitizers:
+    name: Sanitizers
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install JUCE build dependencies
+        timeout-minutes: 10
+        run: bash .github/scripts/install-linux-deps.sh
+      - name: Core tests, sanitized
+        run: make -C core test-san
+      # The tests only, at RelWithDebInfo. Debug would arm every jassert in
+      # JUCE, and a headless run trips ones that say nothing about this code.
+      - name: Configure
+        run: >
+          cmake -B build-san -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DSID_BUILD_TESTS=ON -DSID_SANITIZE=ON
+      - name: Build the JUCE-linked tests
+        run: cmake --build build-san --target SidStationAsidTests --parallel 2
+      # The log is checked as well as the exit status: the sanitizers carry on
+      # after a report, so one run lists everything, and a run can report a
+      # fault and still exit zero.
+      - name: Run the JUCE-linked tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1
+          # fontconfig's own one-time setup, see the file. The log lists every
+          # suppression used, so one that grows shows.
+          LSAN_OPTIONS: suppressions=asid/tests/lsan.supp:print_suppressions=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: |
+          set -o pipefail
+          build-san/asid/SidStationAsidTests_artefacts/RelWithDebInfo/SidStationAsidTests 2>&1 | tee sanitizer.log
+      - name: Fail on anything the sanitizers reported
+        run: |
+          if grep -nE "runtime error:|ERROR: AddressSanitizer|ERROR: LeakSanitizer|SUMMARY: (Address|Undefined)" sanitizer.log; then
+            echo "::error::the sanitizers reported the lines above"
+            exit 1
+          fi
+          echo "clean"
+
   # The plugin is developed on macOS, so until now Windows and Linux were first
   # compiled during a tag build. That is the worst place to find a break: the tag
   # is already public and half the release is done. These two jobs run the same
@@ -132,9 +179,10 @@ jobs:
   #
   # No JUCE-linked test run here. Those tests instantiate the processor and check
   # how it talks to MIDI devices, and a headless runner with no sound stack is a
-  # poor place to judge that. macOS runs them. All three jobs validate the VST3
-  # with pluginval, which only needs the processor to open, not a device to
-  # answer.
+  # poor place to judge that. macOS runs them, and the sanitizers job runs them
+  # on Linux too, where none of them has needed a device. All three jobs
+  # validate the VST3 with pluginval, which only needs the processor to open,
+  # not a device to answer.
   plugin-build-linux:
     name: Plugin build (Linux)
     # The image the release tarball is built on, not ubuntu-latest, so this

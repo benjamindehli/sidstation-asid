@@ -74,6 +74,7 @@ if(SID_BUILD_TESTS)
         src/MidiLearn.cpp
         src/UpdateCheck.cpp)
     target_include_directories(SidStationAsidTests PRIVATE src)
+    sid_sanitize(SidStationAsidTests)
     target_compile_definitions(SidStationAsidTests PRIVATE
         JUCE_WEB_BROWSER=0
         SID_ASID_VERSION="${PROJECT_VERSION}")
