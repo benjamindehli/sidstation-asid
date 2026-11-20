@@ -3,4 +3,9 @@
 # fontconfig loads its configuration once, the first time JUCE's FreeType
 # font list is made, which happens when the C64 font is loaded from memory,
 # and never frees it. It is fontconfig's, not this code's.
-leak:FcInitLoadConfigAndFonts
+#
+# Matched by the library rather than by FcInitLoadConfigAndFonts, the function
+# that makes it. The fontconfig on the CI runners has no frame pointers, so the
+# leak's stack ends inside libfontconfig after one frame, and the function name
+# never appears in it.
+leak:libfontconfig.so
