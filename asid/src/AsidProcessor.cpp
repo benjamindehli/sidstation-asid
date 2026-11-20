@@ -872,10 +872,12 @@ bool AsidProcessor::loadPreset(const juce::String &name) {
                          // default
   for (int i = 0; i < tree.getNumProperties(); ++i) {
     const auto id = tree.getPropertyName(i).toString();
-    if (!isVoiceSoundParam(id))
+    // A value that is not a number keeps the default set above.
+    const auto value = (double)tree.getProperty(id);
+    if (!isVoiceSoundParam(id) || !std::isfinite(value))
       continue;
     if (auto *p = apvts.getParameter(id))
-      p->setValueNotifyingHost(p->convertTo0to1((float)tree.getProperty(id)));
+      p->setValueNotifyingHost(p->convertTo0to1((float)value));
   }
   currentPresetName = key;
   return true;
@@ -1257,6 +1259,20 @@ void AsidProcessor::setStateInformation(const void *data, int sizeInBytes) {
     auto tree = juce::ValueTree::fromXml(*xml);
     currentPresetName = tree.getProperty("currentPreset", "").toString();
     tooltipsOn = (bool)tree.getProperty("showTooltips", true);
+
+    // A value that is not a number, from a damaged or hand-edited session, goes
+    // back to its parameter's default before anything reads it. NaN is the one
+    // value the parameters' range clamps let through, and replaceState hands it
+    // straight on, so the host would show and save NaN and the SID would be
+    // sent whatever std::lround makes of it.
+    for (auto child : tree)
+      if (child.hasProperty("value") &&
+          !std::isfinite((double)child.getProperty("value")))
+        if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(
+                apvts.getParameter(child.getProperty("id").toString())))
+          child.setProperty("value",
+                            ranged->convertFrom0to1(ranged->getDefaultValue()),
+                            nullptr);
     apvts.replaceState(tree);
 
     // Reopen the saved MIDI output unless the shared hub already has it open

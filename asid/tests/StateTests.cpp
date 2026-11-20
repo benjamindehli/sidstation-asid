@@ -225,6 +225,67 @@ static void testStateRoundTrip() {
         "waveNoise round-trips through state");
 }
 
+// Every parameter of p holds its default and a finite value.
+static bool allAtDefaults(AsidProcessor &p) {
+  AsidProcessor fresh;
+  for (auto *q : p.getParameters()) {
+    auto *wid = dynamic_cast<juce::AudioProcessorParameterWithID *>(q);
+    if (wid == nullptr)
+      continue;
+    const auto *raw = p.state().getRawParameterValue(wid->paramID);
+    const auto *def = fresh.state().getRawParameterValue(wid->paramID);
+    if (raw == nullptr || def == nullptr || !std::isfinite(raw->load()) ||
+        !approx(raw->load(), def->load())) {
+      std::printf("  %s is %f\n", wid->paramID.toRawUTF8(),
+                  raw != nullptr ? (double)raw->load() : -1.0);
+      return false;
+    }
+  }
+  return true;
+}
+
+// A damaged or hand-edited session or preset can hold "nan", which the
+// parameters' range clamps let through. It has to come back as the default.
+static void testValuesThatAreNotNumbers() {
+  AsidProcessor a;
+  juce::MemoryBlock mb;
+  a.getStateInformation(mb);
+  auto xml =
+      juce::AudioProcessor::getXmlFromBinary(mb.getData(), (int)mb.getSize());
+  CHECK(xml != nullptr, "the state reads back as XML");
+  if (xml == nullptr)
+    return;
+  int poisoned = 0;
+  for (auto *child : xml->getChildIterator())
+    if (child->hasAttribute("value")) {
+      child->setAttribute("value", "nan");
+      ++poisoned;
+    }
+  CHECK(poisoned > 100, "every saved value is set to nan");
+  juce::MemoryBlock bad;
+  juce::AudioProcessor::copyXmlToBinary(*xml, bad);
+
+  AsidProcessor b;
+  b.setStateInformation(bad.getData(), (int)bad.getSize());
+  CHECK(allAtDefaults(b),
+        "a saved value that is not a number comes back as the default");
+
+  // The same for a preset file.
+  const juce::String name = "__sidstation_nan_preset__";
+  AsidProcessor c;
+  CHECK(c.savePreset(name), "the preset is saved");
+  const auto file = c.presetsDir().getChildFile(name + ".xml");
+  if (auto preset = juce::XmlDocument::parse(file)) {
+    for (int i = 0; i < preset->getNumAttributes(); ++i)
+      preset->setAttribute(preset->getAttributeName(i), "nan");
+    preset->writeTo(file);
+  }
+  CHECK(c.loadPreset(name), "the preset with nan values loads");
+  CHECK(allAtDefaults(c),
+        "a preset value that is not a number comes back as the default");
+  file.deleteFile(); // cleanup
+}
+
 static void testPresetRoundTrip() {
   AsidProcessor a;
   const juce::String name = "__sidstation_test_preset__";
@@ -383,6 +444,7 @@ int main() {
   testModClockIntervals();
   testWavetableSyncParams();
   testStateRoundTrip();
+  testValuesThatAreNotNumbers();
   testPresetRoundTrip();
   testPresetMigration();
   testPresetNameSanitising();
