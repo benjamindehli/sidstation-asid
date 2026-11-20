@@ -13,9 +13,9 @@ stamped from git history, sometimes by CI in a commit of its own, so asking
 "which dates changed lately" catches every case, where "which pages are dated
 today" would miss a page whose content commit is older than its stamp.
 
-The daily workflow runs this with the default window of 26 hours. The two
-hours of overlap mean a page is now and then sent twice, which does no harm,
-and a page is never skipped because a run started a little late.
+The Pages workflow runs this with --every-page once it has published the
+site, since the pages a release changed may be dated days before it. The
+default window of 26 hours is for a run by hand.
 
 The key file is the one at the root of benjamindehli.github.io, which another
 site on the same host already serves. A key at the root of a host covers every

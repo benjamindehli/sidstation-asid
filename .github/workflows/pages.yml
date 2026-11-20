@@ -1,0 +1,76 @@
+name: Pages
+
+# Publishes docs/ as the project site, only when a release is out or when
+# started by hand.
+#
+# The site used to be served straight from the main branch, so a page edited
+# for a feature that was not released yet went live with the push. Now main can
+# describe unreleased work, and the site changes when the release workflow has
+# built the release, attached its files and stamped its version into the pages.
+# A push from a workflow starts no other workflow, so the release workflow calls
+# this one itself once it has pushed the stamp.
+#
+# A fix to a page that should not wait for a release goes out with "Run
+# workflow" on this workflow in the Actions tab, which publishes main as it is.
+#
+# This needs two settings on GitHub. Under Settings, Pages, the source is
+# "GitHub Actions". Under Settings, Environments, github-pages, the deployment
+# branches and tags allow the tag pattern v* as well as main, since the release
+# workflow runs on a tag.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to publish.
+        type: string
+        required: true
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # One deployment at a time. A newer one waiting replaces an older one
+    # waiting, which is right, since both publish main.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      # The pages are committed as they are served, so there is nothing to
+      # build. Hidden files stay out, which only drops .nojekyll, and a site
+      # published from an artefact is never run through Jekyll anyway.
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  # Every page, since the pages a release changed may be dated days before it
+  # was published. The sitemap has about ten, so sending them all costs nothing.
+  indexnow:
+    name: Tell IndexNow
+    needs: deploy
+    uses: ./.github/workflows/indexnow.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      every_page: true

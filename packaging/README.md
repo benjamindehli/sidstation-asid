@@ -58,6 +58,10 @@ packaging, but it will not install cleanly on other machines).
    version, the workflow checks this) and write the notes.
 4. Publish it. The workflow builds, signs, notarizes and uploads
    `SidStation-ASID-x.y.z.dmg` to the release.
+   Once the Linux and Windows files are attached too and the version is
+   stamped into the pages, it publishes the docs site, which is not published
+   from `main` on a push. A fix to a page between releases goes out with Actions
+   -> Pages -> Run workflow, which publishes `main` as it is.
 5. Update the [KVR Audio listing](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk):
    bump the version and release date on the product page, and paste the release
    notes into its "what's new" field. A product page on its own generates no

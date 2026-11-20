@@ -311,3 +311,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.release.tag_name }}
         run: gh release upload "$TAG" build/dist/SidStation-ASID-*-setup.exe --clobber
+
+  # The site, once every platform's file is attached and the macOS job has
+  # pushed the stamped pages to main. Until now the pages on main may describe
+  # this release while the site still shows the last one. A push from a
+  # workflow starts no other workflow, so the Pages workflow is called here.
+  site:
+    name: Publish the site
+    needs: [macos, linux, windows]
+    if: github.event_name == 'release' && github.event.release.prerelease == false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
+    with:
+      ref: main
