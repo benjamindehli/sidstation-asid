@@ -8,6 +8,8 @@ honest:
   docs/*/index.html    the JSON-LD dateModified of each article page
   docs/sitemap.xml     the lastmod of each page
   docs/llms.txt        the "Current release is X.Y.Z (date)" line
+  docs/latest.json     the version and release link the plugin's update
+                       check reads
   CITATION.cff         the version and date-released
 
 The download section is the reason this script matters more than it used to.
@@ -69,6 +71,7 @@ when the files are already correct, so the workflow can commit conditionally.
 
 import argparse
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -80,6 +83,11 @@ INDEX = os.path.join(DOCS, "index.html")
 SITEMAP = os.path.join(DOCS, "sitemap.xml")
 LLMS = os.path.join(DOCS, "llms.txt")
 CITATION = os.path.join(ROOT, "CITATION.cff")
+LATEST = os.path.join(DOCS, "latest.json")
+
+# Where each release lives. The plugin opens the link in latest.json only if it
+# starts with the repository's address, so it has to be this one.
+RELEASES = "https://github.com/benjamindehli/sidstation-asid/releases/tag/v"
 
 # The site's own address, used to turn a sitemap <loc> back into the file that
 # serves it. The sitemap is the list of pages, so there is no second list here
@@ -281,6 +289,12 @@ def stamp_sitemap(text, dates):
     return text
 
 
+def latest_json(version):
+    """The file the plugin's update check reads, as Prettier would write it."""
+    feed = {"version": version, "url": f"{RELEASES}{version}"}
+    return json.dumps(feed, indent=4) + "\n"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--version", help="version to stamp, defaults to the one already stamped")
@@ -355,6 +369,14 @@ def main():
         stale.append(os.path.relpath(SITEMAP, ROOT))
         if not args.check:
             open(SITEMAP, "w", encoding="utf-8").write(text)
+
+    # Written whole rather than patched, since it holds nothing but the release.
+    original = open(LATEST, encoding="utf-8").read() if os.path.exists(LATEST) else ""
+    text = latest_json(version)
+    if original != text:
+        stale.append(os.path.relpath(LATEST, ROOT))
+        if not args.check:
+            open(LATEST, "w", encoding="utf-8").write(text)
 
     summary = f"{version} released {date}"
     if not stale:
