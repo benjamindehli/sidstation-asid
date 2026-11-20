@@ -28,6 +28,10 @@ PACKAGES=(
     libcurl4-openssl-dev
 )
 
+# Anything else a caller needs, such as xvfb and gdb for pluginval in CI. The
+# release build passes nothing.
+PACKAGES+=("$@")
+
 # Acquire::Retries makes apt itself retry a failed mirror before giving up, and
 # the two Timeout options bound a single connection: without them apt's default
 # is patient enough that the outer `timeout` is the only thing that ever fires.

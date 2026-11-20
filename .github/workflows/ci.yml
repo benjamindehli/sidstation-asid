@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Once a week, so pluginval gets a seed nobody chose. See run-pluginval.sh.
+  # The docs date push only runs on push, so this run never writes to main.
+  schedule:
+    - cron: "23 6 * * 1"
 
 permissions:
   contents: read # least privilege: every job here only checks out and builds
@@ -126,9 +130,11 @@ jobs:
   # missing include MSVC wants or a stricter GCC warning fails a pull request
   # instead. They build the wrappers too, which the macOS job below does not.
   #
-  # Build only, no test run. The JUCE-linked tests instantiate the processor,
-  # which opens MIDI devices, and a headless runner with no sound stack is a poor
-  # place to judge that. macOS runs them.
+  # No JUCE-linked test run here. Those tests instantiate the processor and check
+  # how it talks to MIDI devices, and a headless runner with no sound stack is a
+  # poor place to judge that. macOS runs them. All three jobs validate the VST3
+  # with pluginval, which only needs the processor to open, not a device to
+  # answer.
   plugin-build-linux:
     name: Plugin build (Linux)
     # The image the release tarball is built on, not ubuntu-latest, so this
@@ -137,13 +143,18 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
-      - name: Install JUCE build dependencies
+      - name: Install JUCE build dependencies, and xvfb and gdb for pluginval
         timeout-minutes: 10
-        run: bash .github/scripts/install-linux-deps.sh
+        run: bash .github/scripts/install-linux-deps.sh xvfb gdb
       - name: Configure and build (VST3 + Standalone)
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Fetch pluginval
+        run: bash .github/scripts/fetch-pluginval.sh
+      - name: Validate the VST3
+        timeout-minutes: 20
+        run: bash .github/scripts/run-pluginval.sh "build/asid/SidStationAsid_artefacts/Release/VST3/SidStation ASID.vst3"
 
   plugin-build-windows:
     name: Plugin build (Windows)
@@ -158,6 +169,11 @@ jobs:
         run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+      - name: Fetch pluginval
+        run: bash .github/scripts/fetch-pluginval.sh
+      - name: Validate the VST3
+        timeout-minutes: 20
+        run: bash .github/scripts/run-pluginval.sh "build/asid/SidStationAsid_artefacts/Release/VST3/SidStation ASID.vst3"
 
   plugin-build:
     name: Plugin build + JUCE-linked tests (macOS)
@@ -184,3 +200,11 @@ jobs:
           fi
           echo "Running: $bin"
           "$bin"
+      # The VST3 too, which the test app does not build, for pluginval.
+      - name: Build the VST3
+        run: cmake --build build --target SidStationAsid_VST3 --config Release
+      - name: Fetch pluginval
+        run: bash .github/scripts/fetch-pluginval.sh
+      - name: Validate the VST3
+        timeout-minutes: 20
+        run: bash .github/scripts/run-pluginval.sh "build/asid/SidStationAsid_artefacts/Release/VST3/SidStation ASID.vst3"
