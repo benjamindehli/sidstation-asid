@@ -126,6 +126,13 @@ public:
   bool showTooltips() const { return tooltipsOn; }
   void setShowTooltips(bool on) { tooltipsOn = on; }
 
+  // The window's size as a scale of its natural size, from 1 to 2, kept with
+  // the session so the window reopens at the size it was left.
+  double uiScale() const { return windowScale; }
+  void setUiScale(double scale) {
+    windowScale = std::isfinite(scale) ? juce::jlimit(1.0, 2.0, scale) : 1.0;
+  }
+
   // The update check. Owned here rather than by the editor, so a closing
   // window never waits for the network: the editor only cancels it.
   asid::UpdateCheck &updates() noexcept { return updateCheck; }
@@ -397,6 +404,7 @@ private:
   juce::String
       currentPresetName;  // last saved/loaded preset, for the editor's display
   bool tooltipsOn = true; // editor "Tips" toggle, persisted in plugin state
+  double windowScale = 1.0; // see uiScale()
   asid::UpdateCheck updateCheck;
   // A voice-sound parameter (in a preset, and reset by Init): not a shared
   // global, not the voice selection, not the tempo.

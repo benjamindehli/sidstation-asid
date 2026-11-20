@@ -232,8 +232,7 @@ void AsidEditor::layoutLfo(LfoControls &u, juce::Rectangle<int> area) {
   u.wheelButton.setBounds(cell(r2, 2));
 }
 
-AsidEditor::AsidEditor(AsidProcessor &p)
-    : juce::AudioProcessorEditor(p), proc(p), state(p.state()) {
+AsidEditor::AsidEditor(AsidProcessor &p) : proc(p), state(p.state()) {
   buildParamRefs(); // before currentVoice() or anything else reads a parameter
   setLookAndFeel(&laf);
   laf.setAccent(voiceColour(currentVoice())); // colour-code this voice's window
@@ -1538,4 +1537,43 @@ bool AsidEditor::keyPressed(const juce::KeyPress &key) {
     proc.undo();
   updateHistoryButtons();
   return true;
+}
+
+AsidWindow::AsidWindow(AsidProcessor &p)
+    : juce::AudioProcessorEditor(p), proc(p), editor(p) {
+  addAndMakeVisible(editor);
+  editor.setBounds(0, 0, kWidth, kHeight);
+
+  // The window keeps the screen's shape at any size, from the size it is laid
+  // out at to twice it.
+  shape.setFixedAspectRatio((double)kWidth / (double)kHeight);
+  shape.setSizeLimits(kWidth, kHeight, juce::roundToInt(kWidth * kLargest),
+                      juce::roundToInt(kHeight * kLargest));
+  setConstrainer(&shape);
+  setLookAndFeel(&gripLook);
+  setResizable(true, true);
+
+  const auto scale = proc.uiScale();
+  setSize(juce::roundToInt(kWidth * scale), juce::roundToInt(kHeight * scale));
+}
+
+AsidWindow::~AsidWindow() { setLookAndFeel(nullptr); }
+
+void AsidWindow::resized() {
+  const auto scale = (float)getWidth() / (float)kWidth;
+  editor.setTransform(juce::AffineTransform::scale(scale));
+  proc.setUiScale(scale);
+}
+
+void AsidWindow::GripLook::drawCornerResizer(juce::Graphics &g, int w, int h,
+                                             bool isMouseOver,
+                                             bool isMouseDragging) {
+  const auto ink =
+      juce::Colour(SidLookAndFeel::kFg)
+          .withAlpha(isMouseOver || isMouseDragging ? 0.9f : 0.45f);
+  g.setColour(ink);
+  const auto size = (float)juce::jmin(w, h);
+  for (float step = 0.25f; step < 1.0f; step += 0.25f)
+    g.drawLine((float)w - size * step, (float)h, (float)w,
+               (float)h - size * step, 1.5f);
 }

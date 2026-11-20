@@ -1408,7 +1408,7 @@ void AsidProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 }
 
 juce::AudioProcessorEditor *AsidProcessor::createEditor() {
-  return new AsidEditor(*this);
+  return new AsidWindow(*this);
 }
 
 void AsidProcessor::getStateInformation(juce::MemoryBlock &destData) {
@@ -1416,7 +1416,8 @@ void AsidProcessor::getStateInformation(juce::MemoryBlock &destData) {
   state.setProperty("currentPreset", currentPresetName,
                     nullptr); // for the editor's display
   state.setProperty("showTooltips", tooltipsOn,
-                    nullptr); // editor "Tips" toggle
+                    nullptr);                         // editor "Tips" toggle
+  state.setProperty("uiScale", windowScale, nullptr); // the window's size
   // The MIDI output is shared by all instances, so every instance stores the
   // same device; the name is a fallback for when an identifier changes between
   // sessions.
@@ -1431,6 +1432,7 @@ void AsidProcessor::setStateInformation(const void *data, int sizeInBytes) {
     auto tree = juce::ValueTree::fromXml(*xml);
     currentPresetName = tree.getProperty("currentPreset", "").toString();
     tooltipsOn = (bool)tree.getProperty("showTooltips", true);
+    setUiScale((double)tree.getProperty("uiScale", 1.0));
 
     // A value that is not a number, from a damaged or hand-edited session, goes
     // back to its parameter's default before anything reads it. NaN is the one

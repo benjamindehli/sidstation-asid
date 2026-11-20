@@ -457,7 +457,7 @@ static void testUpdateQuestion() {
   AsidProcessor p;
   {
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    auto &editor = dynamic_cast<AsidEditor &>(*ed);
+    auto &editor = dynamic_cast<AsidWindow &>(*ed).content();
     CHECK(editor.isAskingAboutUpdates(), "the first window asks");
     CHECK(!asid::updateCheckOffered(),
           "and opening it marks nothing, so a host scanning its plugins does "
@@ -477,7 +477,7 @@ static void testUpdateQuestion() {
         "Not now is remembered, and nothing is checked");
   for (int open = 0; open < 3; ++open) {
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    CHECK(!dynamic_cast<AsidEditor &>(*ed).isAskingAboutUpdates(),
+    CHECK(!dynamic_cast<AsidWindow &>(*ed).content().isAskingAboutUpdates(),
           "so later windows do not ask again");
   }
   CHECK(!asid::updateCheckAllowed(),
@@ -485,7 +485,7 @@ static void testUpdateQuestion() {
 
   {
     std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
-    auto &editor = dynamic_cast<AsidEditor &>(*ed);
+    auto &editor = dynamic_cast<AsidWindow &>(*ed).content();
     CHECK(buttonTitled(editor, "Version " SID_ASID_VERSION) != nullptr,
           "the version is named for a screen reader");
     editor.announceRelease("99.0.0", "https://github.com/benjamindehli/"
@@ -651,6 +651,42 @@ static void testEditHistory() {
   }
 }
 
+// The window scales its contents from 100% to 200%, keeps their shape, and
+// reopens at the size it was left, which the session keeps.
+static void testWindowSize() {
+  AsidProcessor p;
+  std::unique_ptr<juce::AudioProcessorEditor> ed(p.createEditor());
+  auto &window = dynamic_cast<AsidWindow &>(*ed);
+  CHECK(ed->getWidth() == 720 && ed->getHeight() == 574,
+        "a new window opens at its natural size");
+  CHECK(ed->isResizable(), "and can be resized");
+  if (auto *c = ed->getConstrainer())
+    CHECK(c->getMinimumWidth() == 720 && c->getMaximumWidth() == 1440 &&
+              c->getMaximumHeight() == 1148 &&
+              std::abs(c->getFixedAspectRatio() - 720.0 / 574.0) < 1.0e-9,
+          "from 100% to 200%, in the screen's shape");
+
+  ed->setSize(1080, 861);
+  CHECK(std::abs(window.content().getTransform().mat00 - 1.5f) < 1.0e-4f &&
+            window.content().getWidth() == 720,
+        "the contents keep their layout and are drawn at 150%");
+  CHECK(std::abs(p.uiScale() - 1.5) < 1.0e-6, "the size is remembered");
+
+  juce::MemoryBlock mb;
+  p.getStateInformation(mb);
+  ed.reset();
+  AsidProcessor q;
+  q.setStateInformation(mb.getData(), (int)mb.getSize());
+  std::unique_ptr<juce::AudioProcessorEditor> again(q.createEditor());
+  CHECK(again->getWidth() == 1080, "and a restored session reopens at it");
+
+  for (double bad : {std::nan(""), 7.0, 0.1, -1.0}) {
+    q.setUiScale(bad);
+    CHECK(q.uiScale() >= 1.0 && q.uiScale() <= 2.0,
+          "a damaged saved size stays within 100% to 200%");
+  }
+}
+
 // A screen reader announces a control by its title (a button by its text when
 // it has none), so every control needs one, and no two may share it: three
 // sliders all called "Rate" leave a listener no better off. Parameter-bound
@@ -733,6 +769,7 @@ int main() {
   testUpdateCheck();
   testUpdateQuestion();
   testEditHistory();
+  testWindowSize();
   testEveryControlIsNamed();
   std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures == 0 ? 0 : 1;

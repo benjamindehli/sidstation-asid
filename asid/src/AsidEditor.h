@@ -13,7 +13,9 @@
 #include "AsidProcessor.h"
 #include "SidLookAndFeel.h"
 
-class AsidEditor : public juce::AudioProcessorEditor, private juce::Timer {
+// The whole window's contents, laid out at kWidth x kHeight. AsidWindow, the
+// editor the host gets, draws it scaled to the window's size.
+class AsidEditor : public juce::Component, private juce::Timer {
 public:
   explicit AsidEditor(AsidProcessor &);
   ~AsidEditor() override;
@@ -553,4 +555,37 @@ private:
   juce::Array<juce::MidiDeviceInfo> outDevices;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AsidEditor)
+};
+
+// The editor the host gets: AsidEditor, laid out once at its own size and
+// drawn scaled, so every size from 100% to 200% is the same picture. The size
+// is kept with the session.
+class AsidWindow : public juce::AudioProcessorEditor {
+public:
+  static constexpr int kWidth = 720, kHeight = 574;
+  static constexpr double kLargest = 2.0;
+
+  explicit AsidWindow(AsidProcessor &);
+  ~AsidWindow() override;
+
+  AsidEditor &content() noexcept { return editor; }
+
+  void resized() override;
+  // Key presses come to the window, which has the keyboard focus.
+  bool keyPressed(const juce::KeyPress &key) override {
+    return editor.keyPressed(key);
+  }
+
+private:
+  // The resize grip, faint lines in the border's light blue. It sits in the
+  // dark corner outside the border's rounded edge, so the border is untouched.
+  struct GripLook : juce::LookAndFeel_V4 {
+    void drawCornerResizer(juce::Graphics &, int w, int h, bool isMouseOver,
+                           bool isMouseDragging) override;
+  };
+
+  AsidProcessor &proc;
+  GripLook gripLook; // before the editor, so it outlives the grip
+  AsidEditor editor;
+  juce::ComponentBoundsConstrainer shape;
 };
