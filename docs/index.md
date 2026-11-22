@@ -63,7 +63,7 @@ The settings the SID shares across all three voices. Filter has per voice routin
 
 ## Download
 
-Version 1.2.1, free and GPL v3. One file per platform, each carrying every plugin format that platform has. The [releases page](https://github.com/benjamindehli/sidstation-asid/releases/latest) keeps the earlier versions and the source archives, and the [changelog](https://github.com/benjamindehli/sidstation-asid/blob/main/CHANGELOG.md) says what changed in each. The plugin is also listed on [KVR Audio](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk).
+Version 1.3.0, free and GPL v3. One file per platform, each carrying every plugin format that platform has. The [releases page](https://github.com/benjamindehli/sidstation-asid/releases/latest) keeps the earlier versions and the source archives, and the [changelog](https://github.com/benjamindehli/sidstation-asid/blob/main/CHANGELOG.md) says what changed in each. The plugin is also listed on [KVR Audio](https://www.kvraudio.com/product/sidstation-asid-by-dehli-musikk).
 
 ### macOS
 
@@ -71,9 +71,9 @@ Version 1.2.1, free and GPL v3. One file per platform, each carrying every plugi
 
 Installs the AU, the VST3 and the Standalone. The largest of the three files, since it carries universal builds of all three.
 
-`SidStation-ASID-1.2.1.dmg`
+`SidStation-ASID-1.3.0.dmg`
 
-[Download for macOS](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.1/SidStation-ASID-1.2.1.dmg)
+[Download for macOS](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.3.0/SidStation-ASID-1.3.0.dmg)
 
 ### Windows
 
@@ -81,9 +81,9 @@ An Inno Setup installer. Unsigned, so SmartScreen may warn: choose More info, th
 
 Installs the VST3 and the Standalone. There is no AU, which is a macOS format.
 
-`SidStation-ASID-1.2.1-setup.exe`
+`SidStation-ASID-1.3.0-setup.exe`
 
-[Download for Windows](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.1/SidStation-ASID-1.2.1-setup.exe)
+[Download for Windows](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.3.0/SidStation-ASID-1.3.0-setup.exe)
 
 ### Linux
 
@@ -91,9 +91,9 @@ An x86_64 tarball, unsigned. Nothing is installed for you: copy the VST3 into pl
 
 Carries the VST3 and the Standalone, plus install notes and the licence.
 
-`SidStation-ASID-1.2.1-linux-x86_64.tar.gz`
+`SidStation-ASID-1.3.0-linux-x86_64.tar.gz`
 
-[Download for Linux](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.2.1/SidStation-ASID-1.2.1-linux-x86_64.tar.gz)
+[Download for Linux](https://github.com/benjamindehli/sidstation-asid/releases/download/v1.3.0/SidStation-ASID-1.3.0-linux-x86_64.tar.gz)
 
 All three need an Elektron SidStation. The plugin contains no SID emulation and makes no sound on its own. Only the macOS build has been tested against real hardware so far. [Install steps](https://benjamindehli.github.io/sidstation-asid/#install) are below.
 
