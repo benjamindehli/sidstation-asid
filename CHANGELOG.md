@@ -4,6 +4,8 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-22
+
 ### Added
 
 - The version number, at the right end of the preset bar, so it can be read off when reporting a problem.
@@ -21,6 +23,7 @@ All notable changes to SidStation ASID are recorded here. This project follows [
 ### Changed
 
 - Built on JUCE 9.0.6, up from 9.0.4. JUCE 9.0.6 includes the fix for the second cause of Logic Pro quitting unexpectedly, reported as [JUCE issue #1776](https://github.com/juce-framework/JUCE/issues/1776), so the local patch to JUCE is gone.
+- Hover hints and the value readout shown while turning a knob are plain boxes in the C64 colours instead of speech bubbles, and a hint for a control at the edge of the window stays inside it. The hint for the version at the right end of the preset bar was half cut off.
 
 ## [1.2.1] - 2026-10-22
 
@@ -106,6 +109,7 @@ First stable release: a cross platform plugin (VST3, AU, Standalone) that plays 
 - A Commodore 64 styled pixel interface with per voice colour coding, voice sound presets, an Init and a Panic, a tempo readout, a MIDI load meter, and hover hints that can be toggled from the preset bar.
 - A signed and notarized universal macOS installer (a .pkg inside a .dmg).
 
+[1.3.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.3.0
 [1.2.1]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.1
 [1.2.0]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.2.0
 [1.1.2]: https://github.com/benjamindehli/sidstation-asid/releases/tag/v1.1.2
