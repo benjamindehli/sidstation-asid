@@ -57,6 +57,19 @@ public:
     return mono(15.0f, true);
   }
 
+  // Hints and value readouts are plain boxes in the screen's colours rather
+  // than speech bubbles. A box has no pointer, so the editor can move one
+  // inside the window when the control it describes sits at an edge, which a
+  // bubble's pointer would then miss.
+  void drawBubble(juce::Graphics &g, juce::BubbleComponent &comp,
+                  const juce::Point<float> &,
+                  const juce::Rectangle<float> &body) override {
+    g.setColour(comp.findColour(juce::BubbleComponent::backgroundColourId));
+    g.fillRect(body);
+    g.setColour(comp.findColour(juce::BubbleComponent::outlineColourId));
+    g.drawRect(body, 1.0f);
+  }
+
   // The active/value colour, set per plugin instance from its SID voice so the
   // three windows are colour-coded. Defaults to the base accent.
   juce::Colour accent{juce::Colour(kAccent)};

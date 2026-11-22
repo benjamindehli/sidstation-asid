@@ -493,6 +493,7 @@ AsidEditor::AsidEditor(AsidProcessor &p) : proc(p), state(p.state()) {
       msg.setJustification(juce::Justification::centred);
       voiceBubble.showAt(cellRect, msg, 0, false,
                          false); // stays until the mouse leaves
+      keepInside(voiceBubble, getLocalBounds());
     } else {
       voiceBubble.setVisible(false);
     }

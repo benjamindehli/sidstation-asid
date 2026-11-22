@@ -282,6 +282,13 @@ private:
 
   // Hover hints via BubbleMessageComponent (JUCE's TooltipWindow did not show
   // in the DAW). Attach a control with add(); it shows the text on mouse-enter.
+  // JUCE centres a hint on its control without regard for the window edge, so
+  // a hint for a control at the edge is moved back inside. Hints are drawn as
+  // boxes without a pointer, so moving one does not misdirect it.
+  static void keepInside(juce::Component &bubble, juce::Rectangle<int> area) {
+    bubble.setBounds(bubble.getBounds().constrainedWithin(area));
+  }
+
   struct Hints : juce::MouseListener {
     static constexpr int anySide =
         juce::BubbleComponent::above | juce::BubbleComponent::below |
@@ -340,6 +347,7 @@ private:
       bubble.setAllowedPlacement(it->second.place);
       bubble.showAt(host->getLocalArea(c, c->getLocalBounds()), msg, 0, false,
                     false);
+      keepInside(bubble, host->getLocalBounds());
     }
     void mouseExit(const juce::MouseEvent &) override {
       bubble.setVisible(false);
