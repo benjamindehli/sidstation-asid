@@ -27,7 +27,9 @@ permissions:
 jobs:
   macos:
     name: Universal macOS build (.pkg in .dmg)
-    runs-on: macos-14
+    # The current macOS image, like the CI build. A pinned image stops working
+    # when GitHub retires it, which is easy to miss between releases.
+    runs-on: macos-latest
     # Two architectures, three plugin formats and two notarization round trips,
     # so this is the long one. Still capped: the default 6 h would let a stuck
     # network fetch sit on a half-finished release all day.
