@@ -646,11 +646,10 @@ public:
   }
 
 private:
-  // The resize grip, faint lines in the border's light blue. It sits in the
-  // dark corner outside the border's rounded edge, so the border is untouched.
+  // The resize corner draws nothing. It is still there to drag, in the dark
+  // corner outside the border's rounded edge, without lines over the screen.
   struct GripLook : juce::LookAndFeel_V4 {
-    void drawCornerResizer(juce::Graphics &, int w, int h, bool isMouseOver,
-                           bool isMouseDragging) override;
+    void drawCornerResizer(juce::Graphics &, int, int, bool, bool) override {}
   };
 
   AsidProcessor &proc;
